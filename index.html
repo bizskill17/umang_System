@@ -474,6 +474,7 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .w-thumb-link { display: inline-block; }
 .w-del { color: #b42318 !important; border-color: color-mix(in srgb, #b42318 45%, transparent) !important; }
 .auth-msg { text-align: center; padding: 8px 4px; }
+.kpi-only { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 12px; margin-bottom: 10px; border-radius: 10px; background: rgba(255,255,255,.92); color: #14213d; font-size: 14px; }
 .login-err { color: #b42318; font-size: 13px; margin: 0 0 10px; }
 .owner-continue { all: unset; cursor: pointer; display: block; margin: 14px auto 0; font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: underline; }
 .owner-continue:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 4px; }
@@ -2908,6 +2909,9 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     return h;
   };
   U.table = function (cols, rows, rowCls, empty) {
+    var cst = U._curSt ? U._curSt() : null;
+    if (cst && cst.only && !U._tblDone) { rows = U.onlyRows(rows); U._onlyN = rows.length; }
+    U._tblDone = true;
     var h = '<div class="mv-table-wrap"><table class="mv-table lead-table"><thead><tr>';
     cols.forEach(function (c) { h += '<th scope="col"' + (c[2] ? ' class="' + c[2] + '"' : "") + ">" + c[0] + "</th>"; });
     h += "</tr></thead><tbody>";
@@ -2919,14 +2923,18 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     });
     return h + "</tbody></table></div>";
   };
-  U.count = function (n, one, many) { return '<p class="mv-count">' + n + " " + (n === 1 ? one : (many || one + "s")) + "</p>"; };
+  U.count = function (n, one, many) { if (U._onlyN != null) { n = U._onlyN; U._onlyN = null; } return '<p class="mv-count">' + n + " " + (n === 1 ? one : (many || one + "s")) + "</p>"; };
   U.empty = function (title, sub) { return '<div class="mv-empty"><p><b>' + U.esc(title) + "</b></p>" + (sub ? "<p>" + sub + "</p>" : "") + "</div>"; };
   U.pill = function (s, kind) { return '<span class="pill ' + (kind || "warn") + '">' + U.esc(s) + "</span>"; };
   U.btn = function (act, id, label, primary) { return U.ro() ? "" : '<button type="button" class="mv-btn ' + (primary ? "primary" : "ghost") + ' sm" data-a="' + act + '" data-id="' + U.esc(id) + '">' + U.esc(label) + "</button>"; };
-  U.kpis = function (slug, tiles) { var h = '<div class="kpi-grid">'; tiles.forEach(function (k) { h += '<a class="kpi" href="#' + slug + "." + k[2] + '"><span class="kpi-n">' + k[1] + '</span><span class="kpi-l">' + U.esc(k[0]) + "</span></a>"; }); return h + "</div>"; };
+  U.kpiSets = {};
+  U.kpis = function (slug, tiles) { var h = '<div class="kpi-grid">'; tiles.forEach(function (k, i) { var only = k[3] ? '" data-kpi="' + slug + "|" + i : ""; if (k[3]) U.kpiSets[slug + "|" + i] = { key: slug + "." + k[2], only: k[3].map(function (r) { return r.id || r; }), label: k[0] }; h += '<a class="kpi" href="#' + slug + "." + k[2] + only + '"><span class="kpi-n">' + k[1] + '</span><span class="kpi-l">' + U.esc(k[0]) + "</span></a>"; }); return h + "</div>"; };
+  document.addEventListener("click", function (e) { var a = e.target.closest && e.target.closest("a.kpi[data-kpi]"); if (a) U.kpiNext = U.kpiSets[a.getAttribute("data-kpi")] || null; else if (e.target.closest && e.target.closest("a.kpi")) U.kpiNext = null; }, true);
+  U.onlyRows = function (rows) { var st = U._curSt ? U._curSt() : null; if (!st || !st.only) return rows; var s = st.only; return rows.filter(function (r) { var id = r && (r.id || (r.p && r.p.id) || (r.j && r.j.id)); return s.indexOf(id) !== -1; }); };
   /* simple search + filters bar; state object keeps values */
   U.bar = function (st, selects, dates) {
-    var h = '<div class="mv-bar"><label class="mv-search"><span class="sr-only">Search</span><input type="search" data-uf="q" id="uf-q" placeholder="Search" value="' + U.esc(st.q || "") + '"></label>';
+    var h = st.only ? '<div class="kpi-only"><span>Showing: <b>' + U.esc(st.onlyLabel || "Selected records") + '</b></span><button type="button" class="mv-btn ghost sm" data-a="u-only-clear">Show all</button></div>' : "";
+    h += '<div class="mv-bar"><label class="mv-search"><span class="sr-only">Search</span><input type="search" data-uf="q" id="uf-q" placeholder="Search" value="' + U.esc(st.q || "") + '"></label>';
     (selects || []).forEach(function (s) {
       h += '<label class="mv-filter"><span class="sr-only">' + U.esc(s.label) + '</span><select data-uf="' + s.k + '" id="uf-' + s.k + '"><option value="">' + U.esc(s.first) + "</option>";
       s.opts.forEach(function (o) { h += '<option value="' + U.esc(o.id) + '"' + (st[s.k] === o.id ? " selected" : "") + ">" + U.esc(o.name) + "</option>"; });
@@ -3009,6 +3017,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   function render() {
     if (!P.cur) return;
     var h = U.notes();
+    U._tblDone = false; U._onlyN = null;
     if (U.state === "ready") { try { h += P.pages[P.cur](); } catch (e) { console.error(e); h += '<p class="mv-note warn">Something went wrong showing this screen.</p>'; } }
     var focusId = document.activeElement && box.contains(document.activeElement) ? document.activeElement.id : null;
     var caret = focusId === "uf-q" ? document.activeElement.selectionStart : null;
@@ -3023,6 +3032,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var b = e.target.closest("[data-a]"); if (!b) return;
     var a = b.getAttribute("data-a");
     if (a === "u-clear") { P.st[P.cur] = {}; render(); return; }
+    if (a === "u-only-clear") { var so = P.st[P.cur] || {}; delete so.only; delete so.onlyLabel; render(); return; }
     if (a === "u-cancel-form") { delete P.forms[P.formKey]; history.length > 1 ? history.back() : (location.hash = P.slug); return; }
     if (P.acts[a]) { U.clearFlash(); P.acts[a](b.getAttribute("data-id"), b); }
   });
@@ -3046,6 +3056,8 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       var k = slug + "." + key;
       if (P.cur !== k) { if (!P.keepForm) delete P.forms[k]; if (!P.keepFlash && P.cur) U.clearFlash(); }
       P.keepForm = false; P.keepFlash = false;
+      if (U.kpiNext && U.kpiNext.key === k) { var s0 = P.st[k] = {}; s0.only = U.kpiNext.only; s0.onlyLabel = U.kpiNext.label; U.kpiNext = null; }
+      else if (P.cur !== k && P.st[k] && P.st[k].only) { delete P.st[k].only; delete P.st[k].onlyLabel; }
       P.cur = k; P.slug = slug; ph.hidden = true; box.hidden = false;
       render();
       var t = document.getElementById("page-title"); if (t && P.titles && P.titles[k]) { var tt = P.titles[k](); if (tt) t.textContent = tt; }
@@ -3053,6 +3065,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     close: function () { P.cur = null; box.hidden = true; }
   });
   P.titles = {};
+  U._curSt = function () { return P.cur ? P.st[P.cur] : null; };
   U.title = function (k, fn) { P.titles[k] = fn; };
 
   /* ---------- shared lookups ---------- */
@@ -3216,7 +3229,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var all = U.rows("recce"), open = all.filter(U.isOpen);
     var assigned = all.reduce(function (s, r) { return s + (+r.units || 0); }, 0), processed = all.reduce(function (s, r) { return s + rDone(r); }, 0);
     return U.kpis("recce", [["Recce in progress", open.length, "in-progress"], ["Sites pending", open.reduce(function (s, r) { return s + rPending(r); }, 0), "in-progress"],
-      ["Past target date", open.filter(function (r) { return r.target < U.today(); }).length, "in-progress"], ["Pending PPT", all.filter(function (r) { return r.ppt_by && !r.ppt && r.status !== "Canceled"; }).length, "pending-ppt"],
+      ["Past target date", open.filter(function (r) { return r.target < U.today(); }).length, "in-progress", open.filter(function (r) { return r.target < U.today(); })], ["Pending PPT", all.filter(function (r) { return r.ppt_by && !r.ppt && r.status !== "Canceled"; }).length, "pending-ppt"],
       ["Completed recce", all.filter(function (r) { return r.status === "Completed"; }).length, "completed"], ["All recce", all.length, "master"]]) +
       '<p class="mv-count">Progress: <b>' + processed + "</b> of " + assigned + " sites processed (completed, denied or canceled)" + (assigned ? " · " + Math.round(processed / assigned * 100) + "%" : "") + "</p>";
   });
@@ -3364,7 +3377,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var all = U.rows("designs"), open = all.filter(function (d) { return d.status === "In Progress"; });
     var assigned = all.reduce(function (s, d) { return s + (+d.count || 0); }, 0), processed = all.reduce(function (s, d) { return s + (+dD(d).completed || 0) + (+dD(d).cancel || 0); }, 0);
     return U.kpis("design", [["Designs in progress", open.length, "in-progress"], ["Designs pending", open.reduce(function (s, d) { return s + dPending(d); }, 0), "in-progress"],
-      ["Past due date", open.filter(function (d) { return d.due < U.today(); }).length, "in-progress"], ["Waiting client approval", all.reduce(function (s, d) { return s + dAppPending(d); }, 0), "client-approval"],
+      ["Past due date", open.filter(function (d) { return d.due < U.today(); }).length, "in-progress", open.filter(function (d) { return d.due < U.today(); })], ["Waiting client approval", all.reduce(function (s, d) { return s + dAppPending(d); }, 0), "client-approval"],
       ["Completed design jobs", all.filter(function (d) { return d.status === "Completed"; }).length, "completed"], ["All design jobs", all.length, "master"]]) +
       '<p class="mv-count">Progress: <b>' + processed + "</b> of " + assigned + " designs processed (completed or canceled)" + (assigned ? " · " + Math.round(processed / assigned * 100) + "%" : "") + "</p>";
   });
@@ -4086,9 +4099,9 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   U.page("projects.dashboard", function () {
     if (!base(["recce", "designs"])) return U.loading;
     var all = U.rows("projects"), open = all.filter(function (p) { return p.status === "In Progress"; });
-    return U.kpis("projects", [["Projects in progress", open.length, "in-progress"], ["Past target date", open.filter(function (p) { return p.due < U.today(); }).length, "in-progress"], ["Pending create project", approvedFree().length, "pending-create"],
+    return U.kpis("projects", [["Projects in progress", open.length, "in-progress"], ["Past target date", open.filter(function (p) { return p.due < U.today(); }).length, "in-progress", open.filter(function (p) { return p.due < U.today(); })], ["Pending create project", approvedFree().length, "pending-create"],
       ["Jobs in progress", U.rows("jobs").filter(function (j) { return j.status === "Pending" || j.status === "In Progress"; }).length, "jobs-in-progress"], ["Quality check due", jobItemsFlat(function (r) { return qcDue(r.j, r.it) > 0; }).length, "quality-check-due"],
-      ["Installation certificate pending", U.rows("dispatches").filter(function (d) { return d.installation && !d.install_cert; }).length, "installation-pending"], ["Completed projects", all.filter(function (p) { return p.status === "Completed"; }).length, "master"], ["Canceled projects", all.filter(function (p) { return p.status === "Canceled"; }).length, "canceled"]]);
+      ["Installation certificate pending", U.rows("dispatches").filter(function (d) { return d.installation && !d.install_cert; }).length, "installation-pending"], ["Completed projects", all.filter(function (p) { return p.status === "Completed"; }).length, "master", all.filter(function (p) { return p.status === "Completed"; })], ["Canceled projects", all.filter(function (p) { return p.status === "Canceled"; }).length, "canceled"]]);
   });
 
   /* ================= Jobs ================= */
