@@ -3606,9 +3606,10 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   function asgOf(jid, lid, stage) { return U.rows("job_assign").filter(function (a) { return a.job_id === jid && a.lid === lid && (!stage || a.stage === stage); }); }
   function out(jid, lid, stage) { return q3(asgOf(jid, lid, stage).reduce(function (s, a) { return s + n(a.completed); }, 0)); }
   function used(jid, lid, stage) { return q3(asgOf(jid, lid, stage).reduce(function (s, a) { return s + (a.closed ? n(a.completed) : n(a.qty)); }, 0)); }
-  function stageIn(j, it, stage) { var i = it.steps.indexOf(stage); return i <= 0 ? n(it.qty) : out(j.id, it.lid, it.steps[i - 1]); }
+  /* like the plugin: every ticked step can be worked on in parallel; QC opens as all steps finish */
+  function stageIn(j, it, stage) { return n(it.qty); }
   function avail(j, it, stage) { return q3(stageIn(j, it, stage) - used(j.id, it.lid, stage)); }
-  function finalOut(j, it) { return it.steps && it.steps.length ? out(j.id, it.lid, it.steps[it.steps.length - 1]) : n(it.qty); }
+  function finalOut(j, it) { return it.steps && it.steps.length ? Math.min.apply(null, it.steps.map(function (s) { return out(j.id, it.lid, s); })) : n(it.qty); }
   function qcRecs(jid, lid) { return U.rows("qc").filter(function (r) { return r.job_id === jid && r.lid === lid; }).sort(function (a, b) { return String(a.createdAt).localeCompare(String(b.createdAt)); }); }
   function passed(jid, lid) { return q3(qcRecs(jid, lid).reduce(function (s, r) { return s + n(r.passed); }, 0)); }
   function onHold(jid, lid) { var r = qcRecs(jid, lid); return r.length ? n(r[r.length - 1].hold) : 0; }
