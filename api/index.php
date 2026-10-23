@@ -16,7 +16,15 @@ function reject(string $message, int $status = 400, string $code = 'invalid_argu
 }
 set_exception_handler(function (Throwable $e): void {
     // Do not return credentials, SQL, paths or driver diagnostics to the browser.
-    error_log('Umang API failure: ' . get_class($e));
+    $detail = get_class($e);
+    if ($e instanceof PDOException) {
+        // Log diagnostic codes only; exception messages can contain SQL or private values.
+        $sqlState = preg_replace('/[^A-Za-z0-9]/', '', (string)$e->getCode());
+        $driverCode = $e->errorInfo[1] ?? null;
+        $detail .= ' SQLSTATE=' . ($sqlState !== '' ? $sqlState : 'unknown')
+            . ' driver_code=' . (is_numeric($driverCode) ? (string)(int)$driverCode : 'unknown');
+    }
+    error_log('Umang API failure: ' . $detail);
     reject('Database service unavailable. Check the private configuration and hosting error log.', 503, 'unavailable');
 });
 $configFile = dirname(__DIR__, 2) . '/config/database.php';
