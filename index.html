@@ -4054,14 +4054,14 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   });
   U.act("st-update", function (id) {
     var a = U.get("job_assign", id); if (!a) return; var j = U.get("jobs", a.job_id) || {}, it = (j.items || []).find(function (x) { return x.lid === a.lid; }) || {}, left = q3(n(a.qty) - n(a.completed));
-    U.modal({ mod: "projects", title: "Record " + a.stage + " output", sub: "Job " + esc(j.no) + " · " + esc(itemName(it)) + " · Pending: <b>" + U.num(left) + "</b> of " + U.num(a.qty), v: { date: U.today(), by: a.assignee },
-      fields: [{ k: "qty", label: "Completed now", type: "number", min: 0, step: "any" }, { k: "date", label: "Date", type: "date", req: 1 }, BY, { k: "close", label: "Close this assignment (nothing more will come from it)", type: "check" }, { k: "remarks", label: "Remarks", type: "textarea" }],
-      validate: function (v) { if (n(v.qty) < 0) return "Qty can’t be negative."; if (n(v.qty) > left + 1e-6) return "Completed can’t be more than the " + U.num(left) + " pending."; if (!(n(v.qty) > 0) && !v.close) return "Enter the completed qty, or tick Close."; return null; },
+    U.modal({ mod: "projects", title: "Update " + a.stage, sub: "Job " + esc(j.no) + " · " + esc(itemName(it)) + " · Pending: <b>" + U.num(left) + "</b> of " + U.num(a.qty), v: {},
+      fields: [{ k: "qty", label: "Completed Qty", type: "number", req: 1, min: 0, step: "any" }, { k: "by", label: "Update By", type: "select", req: 1, opts: USERS, first: "Select User" }, { k: "remarks", label: "Remarks", type: "textarea" }],
+      validate: function (v) { if (!(n(v.qty) > 0)) return "Enter a completed qty above 0."; if (n(v.qty) > left + 1e-6) return "Completed Qty must be within the " + U.num(left) + " pending."; return null; },
       save: async function (v) {
-        var c = q3(n(a.completed) + n(v.qty)), closed = !!v.close || c >= n(a.qty) - 1e-6;
-        await U.upd("job_assign", id, { completed: c, closed: closed, log: (a.log || []).concat([{ date: v.date, qty: q3(v.qty), by: v.by, remarks: v.remarks || "", close: !!v.close }]) });
+        var c = q3(n(a.completed) + n(v.qty)), closed = c >= n(a.qty) - 1e-6;
+        await U.upd("job_assign", id, { completed: c, closed: closed, log: (a.log || []).concat([{ date: U.today(), at: new Date().toISOString(), qty: q3(v.qty), by: v.by, remarks: v.remarks || "" }]) });
         await syncJob(a.job_id);
-        return a.stage + " output saved for job " + j.no + "." + (closed && c < n(a.qty) ? " The remaining " + U.num(n(a.qty) - c) + " is free to assign again." : "");
+        return a.stage + " updated for job " + j.no + ".";
       } });
   });
   function stagePages(stage) {
@@ -4087,7 +4087,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       if (actions) c.push(['<span class="sr-only">Actions</span>', actions, "act"]);
       return U.bar(st, [], true) + U.table(c, rows, null, "Nothing here yet.") + U.count(rows.length, "assignment");
     }
-    U.page("projects.pending-" + s, function () { return alist(function (a) { return !a.closed; }, function (r) { return U.btn("st-update", r.a.id, "Record output", true); }); });
+    U.page("projects.pending-" + s, function () { return alist(function (a) { return !a.closed; }, function (r) { return U.btn("st-update", r.a.id, "Update", true); }); });
     U.page("projects." + s + "-master", function () { return alist(function () { return true; }); });
   }
   STAGES.forEach(stagePages);
