@@ -29,7 +29,7 @@ jobs:
           FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
         shell: python
         run: |
-          import os, ssl, ftplib, sys
+          import os, ssl, ftplib, sys, subprocess, re
           from pathlib import Path
           required = ["FTP_SERVER", "FTP_USERNAME", "FTP_PASSWORD", "FTP_PORT", "FTP_SERVER_DIR"]
           missing = [k for k in required if not os.environ.get(k)]
@@ -56,7 +56,14 @@ jobs:
                       ftp.storbinary("STOR index.html", source)
                   print("index.html uploaded successfully.")
                   print("Database and document storage migration is a separate step.")
-          except ssl.SSLCertVerificationError:
+          except ssl.SSLCertVerificationError as error:
+              print("Certificate verification reason:", error.verify_message, flush=True)
+              # Public certificate inspection only: no login or credentials are sent.
+              probe = subprocess.run(["openssl", "s_client", "-starttls", "ftp", "-connect", host + ":" + os.environ["FTP_PORT"], "-showcerts"], input="", capture_output=True, text=True, timeout=30)
+              cert = re.search(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", probe.stdout, re.S)
+              if cert:
+                  details = subprocess.run(["openssl", "x509", "-noout", "-subject", "-issuer", "-dates", "-ext", "subjectAltName"], input=cert.group(), capture_output=True, text=True, timeout=10)
+                  print("Public server certificate:", details.stdout, flush=True)
               sys.exit("FTPS certificate verification failed. Set FTP_SERVER to the provider's certificate-matching FTP hostname. Certificate validation has not been disabled.")
           except Exception as error:
               # Avoid including server responses or credentials in public workflow logs.
