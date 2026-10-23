@@ -536,6 +536,8 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 body.on-home { background: radial-gradient(900px 520px at 12% -10%, #24345e 0%, transparent 60%), radial-gradient(800px 600px at 110% 110%, #2a1f55 0%, transparent 60%), #0f1730; background-attachment: fixed; color: #e8eefc; }
 #home-view .hm-brand { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
 #home-view .hm-logo { width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(135deg, #5fe0c8, #5b8cf5); color: #0f1730; display: grid; place-items: center; font-weight: 800; font-size: 24px; flex: none; }
+#home-view .hm-logo.has-firm-logo { background: #fff; padding: 4px; }
+#home-view .hm-logo img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
 #home-view .hm-brand b { display: block; font-size: 20px; font-weight: 700; color: #f2f5ff; }
 #home-view .hm-brand b + span { font-size: 13px; color: #8d9bc4; }
 #home-view .head h1 { color: #f2f5ff; font-weight: 700; letter-spacing: -.02em; }
@@ -1470,8 +1472,34 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     subs[coll] = db.collection("masters/" + coll + "/rows").onSnapshot(function (snap) {
       if (window.UmangServer) dbState = "ready";
       data[coll] = snap.docs.map(function (d) { var o = Object.assign({}, d.data()); o.id = d.id; return o; });
+      if (coll === "firm") renderHomeFirmLogo();
       if (cur && (MASTERS[cur].coll === coll || needs(cur).indexOf(coll) !== -1)) rerender();
     }, function () { subs[coll] = null; dbState = "error"; render(); });
+  }
+  function renderHomeFirmLogo() {
+    var holder = document.querySelector("#home-view .hm-logo");
+    if (!holder) return;
+    var firm = active("firm").find(function (r) { return r.logo && r.logo.id; });
+    var logoId = firm ? String(firm.logo.id) : "";
+    if (holder.getAttribute("data-logo-id") === logoId) return;
+    holder.setAttribute("data-logo-id", logoId);
+    holder.classList.remove("has-firm-logo");
+    holder.textContent = "U";
+    holder.setAttribute("aria-hidden", "true");
+    if (!firm) return;
+    var img = document.createElement("img");
+    img.alt = (firm.name || "Firm") + " logo";
+    img.onload = function () {
+      if (holder.getAttribute("data-logo-id") !== logoId) return;
+      holder.textContent = "";
+      holder.appendChild(img);
+      holder.classList.add("has-firm-logo");
+      holder.removeAttribute("aria-hidden");
+    };
+    img.onerror = function () {
+      if (holder.getAttribute("data-logo-id") === logoId) holder.removeAttribute("data-logo-id");
+    };
+    img.src = window.UmangBlobURL(firm.logo.id);
   }
   function needs(key) {
     var out = [];
@@ -1868,6 +1896,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   if (!C) { dbState = "none"; return; }
   C.use("db").then(function (d) {
     db = d; dbState = d ? "ready" : "none";
+    watch("firm");
     if (cur) { watch(MASTERS[cur].coll); needs(cur).forEach(watch); }
     render();
   });
