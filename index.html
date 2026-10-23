@@ -1266,18 +1266,18 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   var MASTERS = {
     "m-firm": { coll: "firm", one: "Firm", many: "Firms", fields: [
       ["name", "Name", "text", 1], ["short_name", "Short Name", "upper", 1, { unique: true, hint: "Used in quotation numbers, e.g. UMANG" }],
-      ["gst", "GST", "gstin"], ["cin", "CIN", "text"], ["address", "Address", "textarea"], ["contact", "Contact", "textarea"],
-      ["bank_details", "Bank Details", "textarea"], ["terms_conditions", "Terms & Conditions", "textarea"], ["logo", "Logo", "image", 0, { hint: "PNG or JPG. Printed at the top left of quotation PDFs." }]
-    ], cols: ["logo", "name", "short_name", "gst"] },
+      ["cin", "CIN", "text"], ["gst", "GST", "gstin"], ["address", "Address", "textarea"], ["terms_conditions", "Terms & Conditions", "textarea"],
+      ["contact", "Contact", "textarea"], ["bank_details", "Bank Details", "textarea"], ["logo", "Logo", "image", 0, { hint: "PNG or JPG. Printed at the top left of quotation PDFs." }]
+    ], cols: ["logo", "name", "short_name", "gst"], noStatus: 1 },
     "m-customers": { coll: "customers", one: "Customer", many: "Customers", fields: [
-      ["name", "Customer Name", "text", 1], ["category_id", "Category", "select", 0, { of: "customer-category" }],
-      ["subcategory_ids", "Sub-Category", "multi", 0, { of: "customer-subcategory" }],
-      ["state_id", "State", "select", 0, { of: "state" }], ["city_id", "City", "cityselect"],
+      ["name", "Customer Name", "text", 1], ["category_id", "Category Name", "select", 0, { of: "customer-category" }],
+      ["subcategory_ids", "Sub-Category Name", "multi", 0, { of: "customer-subcategory" }], ["address", "Address", "textarea"],
+      ["state_id", "State Name", "select", 0, { of: "state" }], ["city_id", "City Name", "cityselect"],
       ["gstin_uin", "GSTIN/UIN", "gstin"], ["pan_no", "PAN No.", "pan"], ["mobile", "Mobile", "mobile"], ["email_id", "Email ID", "email"],
-      ["address", "Address", "textarea"], ["contacts", "Contact Persons", "contacts"]
-    ], cols: ["name", "category_id", "city_id", "mobile", "email_id"] },
+      ["contacts", "Contact Persons", "contacts"]
+    ], cols: ["name", "category_id", "city_id", "mobile", "email_id"], noStatus: 1 },
     "m-state": { coll: "state", one: "State", many: "States", fields: [["name", "State Name", "text", 1]], cols: ["name"] },
-    "m-city": { coll: "city", one: "City", many: "Cities", fields: [["state_id", "State", "select", 1, { of: "state" }], ["name", "City Name", "text", 1, { uniqueWith: "state_id" }]], cols: ["name", "state_id"] },
+    "m-city": { coll: "city", one: "City", many: "Cities", fields: [["state_id", "State Name", "select", 1, { of: "state" }], ["name", "City Name", "text", 1, { uniqueWith: "state_id" }]], cols: ["name", "state_id"] },
     "m-customer-category": { coll: "customer-category", one: "Customer Category", many: "Customer Categories", fields: [["name", "Category Name", "text", 1]], cols: ["name"] },
     "m-customer-subcategory": { coll: "customer-subcategory", one: "Customer Sub-Category", many: "Customer Sub-Categories", fields: [["name", "Sub-Category Name", "text", 1]], cols: ["name"] },
     "m-lead-category": { coll: "lead-category", one: "Lead Category", many: "Lead Categories", fields: [["name", "Lead Category", "text", 1]], cols: ["name"] },
@@ -1286,12 +1286,13 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     "m-send-mode": { coll: "send-mode", one: "Send Mode", many: "Send Modes", fields: [["name", "Send Mode", "text", 1]], cols: ["name"] },
     "m-users": { coll: "users", one: "User", many: "Users", fields: [
       ["name", "User Name", "text", 1], ["email", "Email", "email", 1, { unique: true }], ["mobile", "Mobile", "mobile"],
-      ["role_id", "User Role", "select", 0, { of: "user-roles" }], ["designation_id", "Designation", "select", 0, { of: "designation" }]
+      ["role_id", "User Role", "select", 0, { of: "user-roles" }], ["designation_id", "Designation", "select", 0, { of: "designation" }],
+      ["signature", "Signature", "image", 0, { hint: "PNG or JPG of the signature." }]
     ], cols: ["name", "email", "mobile", "role_id", "designation_id"], note: "Passwords and screen access are set up with real sign-in, not here." },
     "m-user-roles": { coll: "user-roles", one: "User Role", many: "User Roles", fields: [["name", "User Role", "text", 1]], cols: ["name"] },
     "m-designation": { coll: "designation", one: "Designation", many: "Designations", fields: [["name", "Designation", "text", 1]], cols: ["name"] },
-    "m-user-document-types": { coll: "user-document-types", one: "User Document Type", many: "User Document Types", fields: [["name", "Document Type", "text", 1]], cols: ["name"] },
-    "m-items": { coll: "items", one: "Item", many: "Items", fields: [["name", "Item Name", "text", 1]], cols: ["name"] },
+    "m-user-document-types": { coll: "user-document-types", one: "User Document Type", many: "User Document Types", fields: [["name", "User Document Type", "text", 1]], cols: ["name"] },
+    "m-items": { coll: "items", one: "Item", many: "Items", fields: [["name", "Item Name", "text", 1], ["category", "Category", "stage", 0, { choices: ["Charge"] }]], cols: ["name", "category"] },
     "m-uom": { coll: "uom", one: "UOM", many: "UOM", fields: [["name", "UOM", "text", 1]], cols: ["name"], note: "Foot, Inch, cm and Metre are fixed units used to work out area. They are locked and can't be edited." },
     "m-gst": { coll: "gst", one: "GST %", many: "GST rates", fields: [["name", "GST %", "number", 1]], cols: ["name"] },
     "m-machines": { coll: "machines", one: "Machine", many: "Machines", fields: [["name", "Machine Name", "text", 1], ["job_step", "Machine Category", "stage", 1]], cols: ["name", "job_step"] },
@@ -1299,8 +1300,8 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       ["name", "Vendor Name", "text", 1], ["contact_person", "Contact Person", "text"], ["mobile", "Mobile", "mobile"],
       ["email", "Email", "email"], ["gstin", "GSTIN", "gstin"], ["address", "Address", "textarea"]
     ], cols: ["name", "contact_person", "mobile", "gstin"] },
-    "m-transporters": { coll: "transporters", one: "Transporter/Courier", many: "Transporters/Courier", fields: [["name", "Name", "text", 1], ["contact_person", "Contact Person", "text"], ["mobile", "Mobile", "mobile"]], cols: ["name", "contact_person", "mobile"] },
-    "m-vehicles": { coll: "vehicles", one: "Vehicle", many: "Vehicles", fields: [["name", "Vehicle Number", "upper", 1]], cols: ["name"] },
+    "m-transporters": { coll: "transporters", one: "Transporter/Courier", many: "Transporters/Courier", fields: [["name", "Transporter / Courier", "text", 1], ["mobile", "Mobile", "mobile"]], cols: ["name", "mobile"] },
+    "m-vehicles": { coll: "vehicles", one: "Vehicle", many: "Vehicles", fields: [["name", "Vehicle Name / Number", "text", 1]], cols: ["name"] },
     "m-delivery-modes": { coll: "delivery-modes", one: "Delivery Mode", many: "Delivery Modes", fields: [["name", "Delivery Mode", "text", 1]], cols: ["name"] }
   };
   var STAGES = ["Printing", "Laser", "Fabrication", "Cutting"];
@@ -1352,7 +1353,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var hint = o.hint ? '<p class="mf-hint">' + esc(o.hint) + "</p>" : "";
     if (t === "textarea") return '<div class="field wide">' + label + '<textarea id="' + id + '" name="' + f[0] + '" rows="3"' + req + ">" + esc(val) + "</textarea>" + err + "</div>";
     if (t === "select" || t === "cityselect" || t === "stage") {
-      var opts = t === "stage" ? STAGES.map(function (s) { return { id: s, name: s }; })
+      var opts = t === "stage" ? (o.choices || STAGES).map(function (s) { return { id: s, name: s }; })
         : t === "cityselect" ? active("city").filter(function (c) { return vals.state_id && c.state_id === vals.state_id; })
         : active(o.of);
       if (val && !opts.some(function (x) { return x.id === val; })) {
@@ -1408,7 +1409,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       var t = f[2], opts = null;
       if (t === "select" && f[4] && f[4].of) opts = rows(f[4].of).filter(function (r) { return r.status !== "Inactive" || r.id === colF[c]; }).slice().sort(byName);
       else if (t === "cityselect") opts = rows("city").filter(function (r) { return (!colF.state_id || r.state_id === colF.state_id) && (r.status !== "Inactive" || r.id === colF[c]); }).slice().sort(byName);
-      else if (t === "stage") opts = STAGES.map(function (s) { return { id: s, name: s }; });
+      else if (t === "stage") opts = ((f[4] && f[4].choices) || STAGES).map(function (s) { return { id: s, name: s }; });
       if (!opts) return;
       var l = f[1].replace(/ Name$/, ""), pl = /y$/.test(l) ? l.slice(0, -1) + "ies" : /s$/.test(l) ? l : l + "s";
       out.push({ k: c, label: l, plural: pl.toLowerCase(), opts: opts });
@@ -1421,7 +1422,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var def = MASTERS[cur], coll = def.coll, list = rows(coll).slice().sort(byName);
     var ql = q.trim().toLowerCase();
     var shown = list.filter(function (r) {
-      if (statusF && (r.status || "Active") !== statusF) return false;
+      if (statusF && !def.noStatus && (r.status || "Active") !== statusF) return false;
       for (var fk in colF) if (colF[fk] && r[fk] !== colF[fk]) return false;
       if (!ql) return true;
       return def.cols.concat(["address", "gst", "gstin_uin", "pan_no"]).some(function (c) { return String(display(def, c, r)).toLowerCase().indexOf(ql) !== -1; });
@@ -1436,7 +1437,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     if (def.note) h += '<p class="mv-note">' + esc(def.note) + "</p>";
     if (editing) h += formHtml(def);
     h += '<div class="mv-bar"><label class="mv-search"><span class="sr-only">Search ' + esc(def.many) + '</span><input type="search" id="mv-q" placeholder="Search ' + esc(def.many) + '" value="' + esc(q) + '"></label>';
-    h += '<label class="mv-filter"><span class="sr-only">Status</span><select id="mv-status"><option value="">All status</option><option' + (statusF === "Active" ? " selected" : "") + '>Active</option><option' + (statusF === "Inactive" ? " selected" : "") + ">Inactive</option></select></label>";
+    if (!def.noStatus) h += '<label class="mv-filter"><span class="sr-only">Status</span><select id="mv-status"><option value="">All status</option><option' + (statusF === "Active" ? " selected" : "") + '>Active</option><option' + (statusF === "Inactive" ? " selected" : "") + ">Inactive</option></select></label>";
     colFilters(def).forEach(function (cf) {
       h += '<label class="mv-filter"><span class="sr-only">' + esc(cf.label) + '</span><select id="mv-cf-' + cf.k + '" data-cf="' + cf.k + '"><option value="">All ' + esc(cf.plural) + "</option>";
       cf.opts.forEach(function (o) { h += '<option value="' + esc(o.id) + '"' + (colF[cf.k] === o.id ? " selected" : "") + ">" + esc(o.name) + "</option>"; });
@@ -1450,13 +1451,13 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     } else if (dbState === "ready" && loaded) {
       h += '<div class="mv-table-wrap"><table class="mv-table"><thead><tr><th scope="col">#</th>';
       def.cols.forEach(function (c) { h += '<th scope="col">' + esc(def.fields.find(function (f) { return f[0] === c; })[1]) + "</th>"; });
-      h += '<th scope="col">Status</th>' + (ro ? "" : '<th scope="col"><span class="sr-only">Actions</span></th>') + "</tr></thead><tbody>";
+      h += (def.noStatus ? "" : '<th scope="col">Status</th>') + (ro ? "" : '<th scope="col"><span class="sr-only">Actions</span></th>') + "</tr></thead><tbody>";
       if (!shown.length) h += '<tr><td colspan="' + (def.cols.length + 3) + '" class="mv-nomatch">No entries match this search.</td></tr>';
       shown.forEach(function (r, i) {
         var st = r.status || "Active";
         h += "<tr><td class='num'>" + (i + 1) + "</td>";
         def.cols.forEach(function (c, ci) { h += "<td" + (ci === 0 ? " class='strong'" : "") + ">" + (display(def, c, r) || '<span class="dim">—</span>') + "</td>"; });
-        h += '<td><span class="pill ' + (st === "Active" ? "on" : "off") + '">' + st + "</span></td>";
+        if (!def.noStatus) h += '<td><span class="pill ' + (st === "Active" ? "on" : "off") + '">' + st + "</span></td>";
         if (!ro) h += '<td class="act">' + (r.protected ? '<span class="lock-tag" title="Fixed unit used to work out area"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Locked</span>' : '<button type="button" class="mv-btn ghost sm" data-act="edit" data-id="' + esc(r.id) + '">Edit</button>') + '</td>';
         h += "</tr>";
       });
@@ -1474,7 +1475,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var h = '<form class="mv-form" id="mv-form" novalidate><h2>' + (isNew ? "Add " : "Edit ") + esc(def.one) + '</h2><div class="mv-grid">';
     def.fields.forEach(function (f) { h += inputFor(f, vals[f[0]] != null ? vals[f[0]] : "", vals); });
     var locked = r.protected;
-    h += '<div class="field"><label for="mf-status">Status</label><select id="mf-status" name="status"' + (locked ? " disabled" : "") + '><option' + (vals.status !== "Inactive" ? " selected" : "") + '>Active</option><option' + (vals.status === "Inactive" ? " selected" : "") + ">Inactive</option></select></div>";
+    if (!def.noStatus) h += '<div class="field"><label for="mf-status">Status</label><select id="mf-status" name="status"' + (locked ? " disabled" : "") + '><option' + (vals.status !== "Inactive" ? " selected" : "") + '>Active</option><option' + (vals.status === "Inactive" ? " selected" : "") + ">Inactive</option></select></div>";
     h += "</div>";
     if (formErr) h += '<p class="mv-form-err" role="alert">' + esc(formErr) + "</p>";
     h += '<div class="mv-actions"><button type="submit" class="mv-btn primary"' + (saving ? " disabled" : "") + ">" + (saving ? "Saving…" : "Save") + '</button><button type="button" class="mv-btn ghost" data-act="cancel">Cancel</button></div></form>';
