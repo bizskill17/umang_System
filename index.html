@@ -1330,20 +1330,20 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var C = window.claude && typeof window.claude.use === "function" ? window.claude : null;
     var u = C ? await C.use("user") : null;
     if (!u) { AUTH.full = true; authDone(); return; }
-    var me = await u.me(); AUTH.me = me; AUTH.full = !!me.isOwner; AUTH.uid = me.id || "";
+    var me = await u.me(); AUTH.me = me; AUTH.full = !!me.isOwner; AUTH.uid = me.id || ""; AUTH.nm = String(me.name || "").trim().replace(/\s+/g, " ").toLowerCase();
     var db = await C.use("db");
     if (!db) { AUTH.denied = !AUTH.full; AUTH.why = "Sign in to claude.ai to use this app."; authDone(); return; }
     db.collection("masters/designation/rows").onSnapshot(function (s) { AUTH.desig = {}; s.docs.forEach(function (d) { AUTH.desig[d.id] = (d.data() || {}).name || ""; }); if (AUTH.ready) setNames(); }, function () {});
     db.collection("masters/users/rows").onSnapshot(function (snap) {
       var rows = snap.docs.map(function (d) { var o = Object.assign({}, d.data()); o.id = d.id; return o; });
-      var row = AUTH.uid ? rows.find(function (r) { return r.account_id === AUTH.uid; }) : null;
+      var norm = function (s) { return String(s || "").trim().replace(/\s+/g, " ").toLowerCase(); };
+      var row = (AUTH.uid && rows.find(function (r) { return r.account_id === AUTH.uid; })) || (AUTH.nm && rows.find(function (r) { return norm(r.name) === AUTH.nm; })) || null;
       AUTH.row = row || null;
       AUTH.allowed = row && Array.isArray(row.allowed_views) ? row.allowed_views : null;
       AUTH.denied = !AUTH.full && (!row || row.status === "Inactive");
-      AUTH.why = !AUTH.uid ? "This app can\u2019t identify your Claude account here. Open it while signed in to claude.ai, or ask the owner for help."
-        : !row ? "Your Claude account" + (me.name ? " (" + me.name + ")" : "") + " isn\u2019t linked to a user yet. Ask the owner to open Master Data \u2192 Users and choose you under Claude Account."
+      AUTH.why = !AUTH.nm ? "This app can\u2019t read your Claude account name here. Open it while signed in to claude.ai, or ask the owner for help."
+        : !row ? "No user named \u201c" + me.name + "\u201d is in Master Data \u2192 Users. Ask the owner to add you with exactly this name."
         : "Your user is marked Inactive. Ask the owner to make it Active.";
-      if (!row && AUTH.uid && !AUTH.full && !AUTH.asked) { AUTH.asked = true; db.collection("access_requests").doc(AUTH.uid).set({ at: new Date().toISOString() }).catch(function () {}); }
       authDone();
     }, function () { AUTH.denied = !AUTH.full; AUTH.why = "Couldn\u2019t check your access. Reload the page to try again."; authDone(); });
   })();
@@ -1378,11 +1378,10 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     "m-send-mode": { coll: "send-mode", one: "Send Mode", many: "Send Modes", fields: [["name", "Send Mode", "text", 1]], cols: ["name"] },
     "m-users": { coll: "users", one: "User", many: "Users", fields: [
       ["name", "User Name", "text", 1], ["email", "Email", "email", 1, { unique: true }], ["mobile", "Mobile", "mobile"],
-      ["account_id", "Claude Account", "account", 0],
       ["role_id", "User Role", "select", 0, { of: "user-roles" }], ["designation_id", "Designation", "select", 0, { of: "designation" }],
       ["signature", "Signature", "image", 0, { hint: "PNG or JPG of the signature." }],
       ["allowed_views", "View Permissions", "perms"]
-    ], cols: ["name", "email", "mobile", "role_id", "designation_id", "account_id"], note: "People open this app with their Claude account. Link each user to theirs under Claude Account, then use View Permissions to choose which screens they see. Someone who opens the app before being linked appears in the Claude Account list as waiting. The app owner always sees everything." },
+    ], cols: ["name", "email", "mobile", "role_id", "designation_id"], note: "People open this app with their Claude account. The User Name here must match the name on that account. Use View Permissions to choose which screens each person sees; the app owner always sees everything." },
     "m-user-roles": { coll: "user-roles", one: "User Role", many: "User Roles", fields: [["name", "User Role", "text", 1]], cols: ["name"] },
     "m-designation": { coll: "designation", one: "Designation", many: "Designations", fields: [["name", "Designation", "text", 1]], cols: ["name"] },
     "m-user-document-types": { coll: "user-document-types", one: "User Document Type", many: "User Document Types", fields: [["name", "User Document Type", "text", 1]], cols: ["name"] },
