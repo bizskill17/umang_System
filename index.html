@@ -466,6 +466,10 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .rji-table .rji-c2 { background: color-mix(in srgb, #d97706 8%, transparent); }
 .rji-table .rji-c3 { background: color-mix(in srgb, #0d9488 8%, transparent); }
 .rji-table .rji-na { color: var(--muted); text-align: center; }
+.dl-table { font-size: 13px; }
+.dl-table td input.dl-qty { width: 110px; min-width: 90px; }
+.dl-rem { margin-top: 14px; }
+.dl-rem textarea { width: 100%; }
 .st-acts { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; }
 .st-acts .st-chg { padding: 0 8px; display: inline-grid; place-items: center; }
 .ji-table .ji-lock { display: block; font-size: 11px; margin-top: 4px; }
@@ -4180,35 +4184,36 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   });
 
   /* ================= Delivery ================= */
-  function dlines(pid) { var out2 = []; liveJobs().filter(function (j) { return j.project_id === pid; }).forEach(function (j) { (j.items || []).forEach(function (it) { var d = deliverable(j, it); if (d > 0) out2.push({ job_id: j.id, jno: j.no, lid: it.lid, name: itemName(it), size: it.width ? it.width + " × " + it.height + " " + it.uom : "", max: d, qty: String(d), on: true }); }); }); return out2; }
+  function fabAssignee(jid, lid) { var s = {}; asgOf(jid, lid, "Fabrication").forEach(function (a) { var nm = a.machine_id ? U.nm("machines", a.machine_id) : U.nm("vendors", a.vendor_id); if (nm) s[nm] = 1; }); return Object.keys(s).join(", "); }
+  function dlines(pid) { var out2 = []; liveJobs().filter(function (j) { return j.project_id === pid; }).sort(function (a, b) { return (a.seq || 0) - (b.seq || 0); }).forEach(function (j) { (j.items || []).forEach(function (it) { var d = deliverable(j, it); if (d > 0) out2.push({ job_id: j.id, jno: j.no, lid: it.lid, item: U.nm("items", it.item_id) || "Item", desc: it.description || "", loc: it.location || "", fab: fabAssignee(j.id, it.lid), jq: n(it.qty), already: dispatched(j.id, it.lid), uom: it.uom || "", max: d, qty: "", name: itemName(it) }); }); }); return out2; }
   function dHtml(v) {
-    if (!v.project_id) return '<p class="mf-hint">Choose a project to see the QC-passed items ready to dispatch.</p>';
+    var h = '<div class="mv-table-wrap dl-wrap"><table class="mv-table dl-table"><thead><tr><th>Sl.</th><th>Job No.</th><th>Job Item</th><th>Description</th><th>Location</th><th>Fabrication Assignee</th><th class="numcell">Job Qty</th><th class="numcell">Already Dispatched</th><th class="numcell">Pending Dispatch Qty</th><th>UOM</th><th>Dispatch Qty</th></tr></thead><tbody>';
+    if (!v.project_id) return h + '<tr><td colspan="11" class="mv-nomatch">Select a Project to load QC-passed Job Items.</td></tr></tbody></table></div>';
     if (v._dp !== v.project_id) { v.dl = dlines(v.project_id); v._dp = v.project_id; }
-    if (!v.dl.length) return '<p class="mv-note">Nothing from this project has passed QC and is waiting for dispatch.</p>';
-    var h = '<div class="mv-table-wrap"><table class="mv-table"><thead><tr><th>Send</th><th>Job No.</th><th>Item</th><th>Size</th><th class="numcell">Ready</th><th class="numcell">Dispatch Qty</th></tr></thead><tbody>';
-    v.dl.forEach(function (d, i) { h += '<tr><td><input type="checkbox" class="row-chk" name="dl_on_' + i + '" aria-label="Send ' + esc(d.name) + '"' + (d.on ? " checked" : "") + "></td><td class='nowrap'>" + esc(d.jno) + "</td><td><b>" + esc(d.name) + "</b></td><td>" + esc(d.size) + "</td><td class='numcell'>" + U.num(d.max) + '</td><td class="numcell"><input class="row-inp" style="min-width:90px;width:110px" type="number" min="0" step="any" name="dl_qty_' + i + '" aria-label="Dispatch qty for ' + esc(d.name) + '" value="' + esc(d.qty) + '"></td></tr>'; });
+    if (!v.dl.length) return h + '<tr><td colspan="11" class="mv-nomatch">No QC-passed Job Items pending for Delivery.</td></tr></tbody></table></div>';
+    var dash = '<span class="dim">—</span>';
+    v.dl.forEach(function (d, i) { h += "<tr><td>" + (i + 1) + "</td><td class='nowrap'>" + esc(d.jno) + "</td><td><b>" + esc(d.item) + "</b></td><td>" + (esc(d.desc) || dash) + "</td><td>" + (esc(d.loc) || dash) + "</td><td>" + (esc(d.fab) || dash) + "</td><td class='numcell'>" + U.num(d.jq) + "</td><td class='numcell'>" + U.num(d.already) + "</td><td class='numcell'><b>" + U.num(d.max) + "</b></td><td>" + (esc(d.uom) || dash) + '</td><td><input class="row-inp dl-qty" type="number" min="0" max="' + esc(d.max) + '" step="any" inputmode="decimal" placeholder="Enter Qty" name="dl_qty_' + i + '" aria-label="Dispatch qty for ' + esc(d.name) + '" value="' + esc(d.qty) + '"></td></tr>'; });
     return h + "</tbody></table></div>";
   }
-  function dRead(fm, v) { (v.dl || []).forEach(function (d, i) { var a = fm.elements["dl_on_" + i], b = fm.elements["dl_qty_" + i]; if (a) d.on = a.checked; if (b) d.qty = String(b.value).trim(); }); }
-  var D_FIELDS = function (v) { return [
-    { k: "date", label: "Dispatch Date", type: "date", req: 1 },
-    { k: "project_id", label: "Project", type: "select", req: 1, live: 1, opts: function () { return U.rows("projects").filter(function (p) { return p.status === "In Progress"; }).filter(function (p) { return dlines(p.id).length; }).map(function (p) { return { id: p.id, name: p.no + " · " + cust(p) }; }); }, first: "Choose a project", hint: "Only projects with QC-passed items waiting are listed." },
-    { k: "mode", label: "Delivery Mode", type: "select", req: 1, opts: function () { return U.mact("delivery-modes"); }, first: "Choose a mode" },
-    { k: "transporter", label: "Transporter/Courier", type: "select", opts: function () { return U.mact("transporters"); }, first: "Choose" },
-    { k: "vehicle", label: "Vehicle", type: "select", opts: function () { return U.mact("vehicles"); }, first: "Choose" },
-    { k: "lr_no", label: "LR / Docket No.", type: "text" },
-    { k: "delivered_by", label: "Delivered By", type: "select", opts: USERS, first: "Choose a person" },
-    { k: "installation", label: "Installation Required", type: "check" },
-    { k: "challan", label: "Delivery Challan / Photo", type: "file" },
-    { k: "remarks", label: "Remarks", type: "textarea" }]; };
+  function dRead(fm, v) { (v.dl || []).forEach(function (d, i) { var b = fm.elements["dl_qty_" + i]; if (b) d.qty = String(b.value).trim(); }); }
+  var D_FIELDS = function (v) { v = v || {}; return [
+    { k: "project_id", label: "Project", type: "select", req: 1, live: 1, opts: function () { return U.rows("projects").filter(function (p) { return p.status === "In Progress"; }).filter(function (p) { return dlines(p.id).length; }).map(function (p) { return { id: p.id, name: p.no + " · " + cust(p) }; }); }, first: "Select Project" },
+    { k: "date", label: "Delivery Date", type: "date", req: 1 },
+    { k: "delivered_by", label: "Delivered By", type: "select", req: 1, opts: USERS, first: "Select User" },
+    { k: "mode_type", label: "Delivery Mode", type: "select", req: 1, live: 1, opts: function () { return [{ id: "In House", name: "In House" }, { id: "Outsource", name: "Outsource" }]; }, first: "Select Delivery Mode" },
+    { k: "party_user", label: "User", type: "select", req: 1, opts: USERS, first: "Select User", show: function (v) { return v.mode_type === "In House"; } },
+    { k: "party_vendor", label: "Vendor", type: "select", req: 1, opts: function () { return U.mact("vendors"); }, first: "Select Vendor", show: function (v) { return v.mode_type === "Outsource"; } },
+    { k: "transporter", label: "Transporter/Courier", type: "select", opts: function () { return U.mact("transporters"); }, first: "Select Transporter/Courier" },
+    { k: "vehicle", label: "Vehicle", type: "select", opts: function () { return U.mact("vehicles"); }, first: "Select Vehicle" },
+    { k: "installation", label: "Installation Required", type: "check" }]; };
   U.page("projects.add-delivery", function () {
     if (!base([U.m("delivery-modes"), U.m("transporters"), U.m("vehicles")])) return U.loading;
     return U.formPage("projects.add-delivery", {
-      init: function () { return { date: U.today() }; }, title: function () { return "Add Delivery"; }, fields: D_FIELDS, extra: dHtml, readExtra: dRead, submit: "Save dispatch",
-      validate: function (v) { var on = (v.dl || []).filter(function (d) { return d.on; }); if (!on.length) return "Tick at least one item to dispatch."; for (var i = 0; i < on.length; i++) { if (!(n(on[i].qty) > 0)) return on[i].name + ": enter a dispatch qty above 0."; if (n(on[i].qty) > on[i].max + 1e-6) return on[i].name + ": you can dispatch at most " + U.num(on[i].max) + "."; } return null; },
+      init: function () { return { date: U.today() }; }, title: function () { return "Add Delivery"; }, fields: D_FIELDS, extra: function (v) { return dHtml(v) + '<div class="field wide dl-rem"><label for="dl_remarks">Delivery Remarks</label><textarea id="dl_remarks" name="dl_remarks" rows="3" placeholder="Enter delivery remarks">' + esc(v.remarks || "") + "</textarea></div>"; }, readExtra: function (fm, v) { dRead(fm, v); var r = fm.elements.dl_remarks; if (r) v.remarks = String(r.value); }, submit: "Save Delivery",
+      validate: function (v) { var on = (v.dl || []).filter(function (d) { return d.qty !== ""; }), has = false; for (var i = 0; i < on.length; i++) { var q = Number(on[i].qty); if (!isFinite(q) || q < 0) return "Dispatch Qty cannot be negative."; if (q > on[i].max + 1e-6) return "Dispatch Qty cannot be greater than Pending Dispatch Qty (" + U.num(on[i].max) + ")."; if (q > 0) has = true; } if (!has) return "Please enter Dispatch Qty for at least one item."; return null; },
       save: async function (v) {
         var fy = U.fy2(v.date), s = await U.seq("dsp-" + U.fy(v.date), U.maxSeq("dispatches", "seq", function (r) { return r.fy === U.fy(v.date); }));
-        var p = proj(v.project_id), body = Object.assign(U.pick(v, D_FIELDS(v)), { fy: U.fy(v.date), seq: s, no: "DSP - " + fy + " - " + String(s).padStart(4, "0"), customer_id: p.customer_id, installation: !!v.installation, items: v.dl.filter(function (d) { return d.on; }).map(function (d) { return { job_id: d.job_id, lid: d.lid, qty: q3(d.qty) }; }) });
+        var p = proj(v.project_id), body = Object.assign(U.pick(v, D_FIELDS(v)), { fy: U.fy(v.date), seq: s, no: "DSP - " + fy + " - " + String(s).padStart(4, "0"), customer_id: p.customer_id, installation: !!v.installation, remarks: v.remarks || "", party: v.mode_type === "Outsource" ? v.party_vendor : v.party_user, items: v.dl.filter(function (d) { return n(d.qty) > 0; }).map(function (d) { return { job_id: d.job_id, lid: d.lid, qty: q3(d.qty) }; }) });
         await U.add("dispatches", body);
         var left = projState(Object.assign({}, p)).pending_delivery;
         return { go: "projects.delivered", msg: "Dispatch " + body.no + " saved." + (left <= 0 ? " Everything for project " + p.no + " is now delivered." : "") };
@@ -4225,7 +4230,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     if (!base([U.m("delivery-modes"), U.m("transporters"), U.m("vehicles")])) return U.loading;
     var st = U.st(), rows = U.rows("dispatches").filter(filter).filter(function (d) { return U.match(st, [d.no, proj(d.project_id).no, cust(d), d.lr_no].join(" "), d.date); }).sort(function (a, b) { return (b.fy || "").localeCompare(a.fy || "") || (b.seq || 0) - (a.seq || 0); });
     var c = [["Dispatch No.", function (d) { return '<b class="nowrap">' + esc(d.no) + "</b>"; }], ["Date", function (d) { return '<span class="nowrap">' + U.dmy(d.date) + "</span>"; }], ["Project", function (d) { return esc(proj(d.project_id).no); }], ["Customer", function (d) { return esc(cust(d)); }, "strong"],
-      ["Items", function (d) { return (d.items || []).length; }, "numcell"], ["Qty", function (d) { return U.num((d.items || []).reduce(function (s, x) { return s + n(x.qty); }, 0)); }, "numcell"], ["Mode", function (d) { return esc(U.nm("delivery-modes", d.mode)); }],
+      ["Items", function (d) { return (d.items || []).length; }, "numcell"], ["Qty", function (d) { return U.num((d.items || []).reduce(function (s, x) { return s + n(x.qty); }, 0)); }, "numcell"], ["Mode", function (d) { return esc(d.mode_type ? d.mode_type + (d.party ? " \u00b7 " + (d.mode_type === "Outsource" ? U.nm("vendors", d.party) : U.user(d.party)) : "") : U.nm("delivery-modes", d.mode)); }],
       ["Transporter / Vehicle", function (d) { return esc([U.nm("transporters", d.transporter), U.nm("vehicles", d.vehicle), d.lr_no].filter(Boolean).join(" · ")); }], ["Installation", function (d) { return d.installation ? (d.install_cert ? U.fileLink(d.install_cert, "Certificate") : U.pill("Pending", "warn")) : '<span class="dim">Not needed</span>'; }],
       ["Challan", function (d) { return U.fileLink(d.challan, "Open"); }]];
     if (actions) c.push(['<span class="sr-only">Actions</span>', actions, "act"]);
