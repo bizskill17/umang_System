@@ -458,6 +458,7 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .ji-table .erp-ro { width: 76px; min-width: 0 !important; background: color-mix(in srgb, var(--c, #888) 6%, transparent); }
 .ji-table td input[type=text][name^=ji_loc] { min-width: 140px; }
 .ji-table .ji-uom-ro { width: 96px; }
+.ji-table .ji-lock { display: block; font-size: 11px; margin-top: 4px; }
 .ji-table td { vertical-align: top; }
 .ji-table .qc-item_id .ss-btn { min-height: 38px; height: auto; padding-top: 7px; padding-bottom: 7px; align-items: flex-start; }
 .ji-table .qc-item_id .ss-val { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.35; }
@@ -3615,6 +3616,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   function dispatched(jid, lid) { var s = 0; U.rows("dispatches").forEach(function (d) { (d.items || []).forEach(function (x) { if (x.job_id === jid && x.lid === lid) s += n(x.qty); }); }); return q3(s); }
   function deliverable(j, it) { return q3(passed(j.id, it.lid) - dispatched(j.id, it.lid)); }
   function itemName(it) { return (U.nm("items", it.item_id) || "") + (it.description ? (U.nm("items", it.item_id) ? " · " : "") + it.description : ""); }
+  function workDone(jid, lid) { var m = 0; STAGES.forEach(function (s) { m = Math.max(m, used(jid, lid, s)); }); return q3(Math.max(m, passed(jid, lid) + onHold(jid, lid), dispatched(jid, lid))); }
   function jobDone(j) { return (j.items || []).every(function (it) { return passed(j.id, it.lid) >= n(it.qty) - 1e-6; }); }
   async function syncJob(jid) {
     var j = U.get("jobs", jid); if (!j || j.status === "Canceled") return;
@@ -3683,6 +3685,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       }
     });
   });
+  U.title("projects.add-job", function () { var st = P.forms["projects.add-job"]; return st && st.v._id ? "Edit Job" : "Add Job"; });
   U.title("projects.add", function () { var st = P.forms["projects.add"]; return st && st.v._id ? "Edit Project" : st && st.v.quotation_id ? "Create Project" : "Add Project"; });
   U.act("p-create", function (qid) {
     var q = U.get("quotations", qid); if (!q) return; var l = U.get("leads", q.lead_id) || {};
@@ -3835,18 +3838,18 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
 
   /* ================= Jobs ================= */
   function projQuotes(pid) { var p = proj(pid); return pid ? U.rows("quotations").filter(function (q) { return q.status === "Approved" && (q.id === p.quotation_id || q.project_id === pid); }) : []; }
-  function quoteLines(pid, qid) {
+  function quoteLines(pid, qid, exclJ) {
     var qs = projQuotes(pid).filter(function (q) { return !qid || q.id === qid; }), out2 = [];
     qs.forEach(function (q) { (q.items || []).forEach(function (it, i) {
       var src = q.id + ":" + i, done = 0;
-      liveJobs().forEach(function (j) { (j.items || []).forEach(function (x) { if (x.src === src) done += n(x.qty); }); });
+      liveJobs().forEach(function (j) { if (j.id === exclJ) return; (j.items || []).forEach(function (x) { if (x.src === src) done += n(x.qty); }); });
       out2.push({ src: src, qno: q.no, item_id: it.item_id, description: it.description || "", location: it.location || "", width: it.width || "", height: it.height || "", uom: it.uom || "", qq: n(it.qty), done: q3(done), max: q3(n(it.qty) - done), qty: q3(Math.max(0, n(it.qty) - done)), on: n(it.qty) - done > 0, steps: {} });
     }); });
     return out2;
   }
   var JDEL = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11H8L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z"/></svg>';
   function jiBlank() { return { src: "", on: true, qty: "", item_id: "", description: "", location: "", width: "", height: "", uom: "", steps: {} }; }
-  function jiLines(v) { var key = v.project_id + "|" + (v.quotation_id || ""); if (v._jp !== key) { v._lines = v.quotation_id || !projQuotes(v.project_id).length ? quoteLines(v.project_id, v.quotation_id) : []; v._jp = key; v.jitems = v._lines.filter(function (l) { return l.max > 0; }).map(function (l) { return Object.assign({}, l, { qty: "", steps: {} }); }); if (!v.jitems.length) v.jitems = [jiBlank()]; } return v._lines; }
+  function jiLines(v) { var key = v.project_id + "|" + (v.quotation_id || ""); if (v._jp !== key) { v._lines = v.quotation_id || !projQuotes(v.project_id).length ? quoteLines(v.project_id, v.quotation_id, v._id) : []; v._jp = key; v.jitems = v._lines.filter(function (l) { return l.max > 0; }).map(function (l) { return Object.assign({}, l, { qty: "", steps: {} }); }); if (!v.jitems.length) v.jitems = [jiBlank()]; } return v._lines; }
   function jiApplySrc(it, val, lines) {
     if (val === it._sel) return it;
     var keep = { location: it.location, steps: it.steps, uom: it.uom }, l = lines.find(function (x) { return x.src === val; });
@@ -3868,15 +3871,16 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       if (lines.length) o += lines.map(function (l) { return '<option value="' + esc(l.src) + '"' + (l.src === sel ? " selected" : "") + ">" + esc(itemName(l) || "Item") + (l.width ? " (" + esc(l.width + "×" + l.height) + ")" : "") + "</option>"; }).join("");
       if (others.length) o += others.map(function (x) { return '<option value="I:' + esc(x.id) + '"' + ("I:" + x.id === sel ? " selected" : "") + ">" + esc(x.name) + "</option>"; }).join("");
       var dim = function (k) { return manual ? '<input type="number" name="ji_' + k + "_" + i + '" min="0" step="any" inputmode="decimal" value="' + esc(it[k]) + '"' + lab(k === "width" ? "Width" : "Height") + ' data-oninput="ji-calc">' : '<input type="text" class="erp-ro" value="' + esc(it[k]) + '" readonly tabindex="-1"' + lab(k === "width" ? "Width" : "Height") + ">"; };
-      h += '<tr class="ji-tr" data-i="' + i + '"><td class="qc-item_id"><select name="ji_src_' + i + '"' + lab("Particular") + ' data-onchange="ji-pick">' + o + "</select></td>" +
+      var lk = it._lock > 0;
+      h += '<tr class="ji-tr" data-i="' + i + '"><td class="qc-item_id"><select name="ji_src_' + i + '"' + lab("Particular") + (lk ? ' disabled title="Work has started on this item, so it can\u2019t be changed."' : ' data-onchange="ji-pick"') + ">" + o + "</select>" + (lk ? '<span class="dim ji-lock">Started \u00b7 ' + U.num(it._lock) + " done or assigned</span>" : "") + "</td>" +
         '<td class="qc-width">' + dim("width") + '</td><td class="qc-height">' + dim("height") + "</td>" +
         '<td class="qc-description"><textarea class="ji-loc" name="ji_loc_' + i + '" rows="1" placeholder="Enter Location"' + lab("Location") + ' data-oninput="ji-grow">' + esc(it.location) + "</textarea></td>" +
         '<td class="qc-out">' + (manual ? "—" : U.num(it.qq)) + '</td><td class="qc-out">' + (manual ? "—" : U.num(it.done)) + "</td>" +
         '<td class="qc-qty"><input type="number" name="ji_qty_' + i + '" min="0" step="any" inputmode="decimal" value="' + esc(it.qty) + '"' + (manual ? "" : ' max="' + esc(it.max) + '" title="Up to ' + esc(U.num(it.max)) + '"') + lab("Quantity") + ' data-oninput="ji-calc"></td>' +
         '<td class="qc-uom">' + (!manual ? '<input type="text" class="erp-ro ji-uom-ro" value="' + esc(it.uom) + '" readonly tabindex="-1"' + lab("Unit") + ">" : '<select name="ji_uom_' + i + '"' + lab("Unit") + ' data-onchange="ji-calc"><option value="">Select Unit</option>' + uoms.map(function (x) { return "<option" + (x.name === it.uom ? " selected" : "") + ">" + esc(x.name) + "</option>"; }).join("") + (it.uom && !uoms.some(function (x) { return x.name === it.uom; }) ? "<option selected>" + esc(it.uom) + "</option>" : "") + "</select>") + "</td>" +
         '<td class="qc-out"><output id="ji_area_' + i + '">' + (a === "" ? "—" : U.num(a)) + "</output></td>" +
-        '<td class="ji-steps-cell"><div class="ji-stg">' + STAGES.map(function (s) { return '<label class="mf-check"><input type="checkbox" name="ji_st_' + s + "_" + i + '"' + (it.steps[s] ? " checked" : "") + "> " + s + "</label>"; }).join("") + "</div></td>" +
-        '<td class="qc-act"><button type="button" class="qi-del" data-a="ji-del" data-id="' + i + '" title="Remove job item" aria-label="Remove job item ' + (i + 1) + '"' + (v.jitems.length > 1 ? "" : " disabled") + ">" + JDEL + "</button></td></tr>";
+        '<td class="ji-steps-cell"><div class="ji-stg">' + STAGES.map(function (s) { return '<label class="mf-check"><input type="checkbox" name="ji_st_' + s + "_" + i + '"' + (it.steps[s] ? " checked" : "") + (lk ? " disabled" : "") + "> " + s + "</label>"; }).join("") + "</div></td>" +
+        '<td class="qc-act"><button type="button" class="qi-del" data-a="ji-del" data-id="' + i + '" title="Remove job item" aria-label="Remove job item ' + (i + 1) + '"' + (v.jitems.length > 1 && !lk ? "" : " disabled") + ">" + JDEL + "</button></td></tr>";
     });
     return h + "</tbody></table></div></div>";
   }
@@ -3904,9 +3908,27 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     st.v.jitems.forEach(function (it, i) { var a = U.qCalc({ width: it.width, height: it.height, qty: it.qty, uom: it.uom }).area, e = document.getElementById("ji_area_" + i); if (e) e.textContent = a === "" ? "—" : U.num(a); });
   });
   U.act("ji-add", function () { U.render(); P.forms["projects.add-job"].v.jitems.push(jiBlank()); U.paint(); });
-  U.act("ji-del", function (i) { U.render(); var l = P.forms["projects.add-job"].v.jitems; if (l.length > 1) l.splice(+i, 1); U.paint(); });
+  U.act("ji-del", function (i) { U.render(); var l = P.forms["projects.add-job"].v.jitems; if (l.length > 1 && !(l[+i]._lock > 0)) l.splice(+i, 1); U.paint(); });
+  U.act("j-edit", function (id) {
+    var j = U.get("jobs", id); if (!j) return;
+    var v = { _id: id, date: j.date, project_id: j.project_id, quotation_id: j.quotation_id || "", designer: j.designer || "" };
+    v._lines = v.quotation_id || !projQuotes(v.project_id).length ? quoteLines(v.project_id, v.quotation_id, id) : []; v._jp = v.project_id + "|" + v.quotation_id;
+    v.jitems = (j.items || []).map(function (it) {
+      var l = it.src && v._lines.find(function (x) { return x.src === it.src; }), st = {}; (it.steps || []).forEach(function (s) { st[s] = true; });
+      var row = l ? Object.assign({}, l, { _sel: it.src }) : { src: it.src || "", item_id: it.item_id, description: it.description, width: it.width, height: it.height, uom: it.uom, qq: "", done: "", max: Infinity };
+      return Object.assign(row, { lid: it.lid, qty: String(it.qty), location: it.location || "", steps: st, on: true, _lock: workDone(id, it.lid) });
+    });
+    P.forms["projects.add-job"] = { v: v, err: "", saving: false }; P.keepForm = true; location.hash = "projects.add-job";
+  });
   var J_FIELDS = function (v) {
     v = v || {}; var qs = projQuotes(v.project_id);
+    if (v._id) { var jj = U.get("jobs", v._id) || {}; return [
+      { k: "no_v", label: "Job No.", type: "static", value: function () { return "<b>" + esc(jj.no) + "</b>"; } },
+      { k: "date", label: "Date", type: "date", req: 1 },
+      { k: "proj_v", label: "Project", type: "static", value: function () { return esc(proj(v.project_id).no) + " \u00b7 " + esc(cust(proj(v.project_id))); } },
+      { k: "qtn_v", label: "Quotation No.", type: "static", value: function () { return esc((U.get("quotations", v.quotation_id) || {}).no) || '<span class="dim">\u2014</span>'; } },
+      { k: "designer", label: "Designer", type: "select", opts: USERS, first: "Select Designer" },
+      { k: "owner_v", label: "Project Owner", type: "static", value: function () { return esc(U.user(proj(v.project_id).owner)) || '<span class="dim">Not set on the project</span>'; } }]; }
     if (v.quotation_id && !qs.some(function (q) { return q.id === v.quotation_id; })) v.quotation_id = "";
     if (!v.quotation_id && qs.length === 1) v.quotation_id = qs[0].id;
     return [
@@ -3918,7 +3940,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   U.page("projects.add-job", function () {
     if (!base()) return U.loading;
     return U.formPage("projects.add-job", {
-      init: function () { return { date: U.today() }; }, title: function () { return "Add Job"; },
+      init: function () { return { date: U.today() }; }, title: function (v) { return v._id ? "Edit Job " + ((U.get("jobs", v._id) || {}).no || "") : "Add Job"; },
       fields: J_FIELDS, extra: jiHtml, readExtra: jiRead,
       validate: function (v) {
         var on = v.jitems || [], used = {};
@@ -3927,13 +3949,17 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
           if (!it.src && !it.item_id) return nm + ": select a particular.";
           if (it.src) { if (used[it.src]) return nm + ": this quotation item is already in another row."; used[it.src] = 1; }
           if (!(n(it.qty) > 0)) return nm + ": enter a quantity above 0.";
+          if (it._lock > 0 && n(it.qty) < it._lock - 1e-6) return nm + ": quantity can\u2019t be less than the " + U.num(it._lock) + " already assigned or done.";
           if (!it.uom) return nm + (it.src ? ": this quotation item has no unit. Add one on the quotation first." : ": select a unit.");
           if (!STAGES.some(function (s) { return it.steps[s]; })) return nm + ": tick at least one applicable step.";
           if (it.src && n(it.qty) > it.max + 1e-6) return nm + ": quantity can’t be more than the " + U.num(it.max) + " left on the quotation (Qtn Qty " + U.num(it.qq) + ", already in jobs " + U.num(it.done) + ")."; }
         return null;
       },
       save: async function (v) {
-        var items = v.jitems.map(function (it, i) { return { lid: "L" + (i + 1), src: it.src, item_id: it.item_id || "", description: it.description || "", location: it.location || "", width: it.width || "", height: it.height || "", uom: it.uom || "", qty: q3(it.qty), steps: STAGES.filter(function (s) { return it.steps[s]; }) }; });
+        var taken = {}, nx = 1; v.jitems.forEach(function (it) { if (it.lid) taken[it.lid] = 1; });
+        var newLid = function () { while (taken["L" + nx]) nx++; taken["L" + nx] = 1; return "L" + nx; };
+        var items = v.jitems.map(function (it) { return { lid: it.lid || newLid(), src: it.src, item_id: it.item_id || "", description: it.description || "", location: it.location || "", width: it.width || "", height: it.height || "", uom: it.uom || "", qty: q3(it.qty), steps: STAGES.filter(function (s) { return it.steps[s]; }) }; });
+        if (v._id) { var oj = U.get("jobs", v._id); await U.upd("jobs", v._id, { date: v.date, designer: v.designer || "", items: items }); await syncJob(v._id); return { go: "projects.jobs-in-progress", msg: "Job " + oj.no + " saved." }; }
         var p = proj(v.project_id), fy = U.fy2(v.date), key = "job-" + U.fy(v.date), s = await U.seq(key, U.maxSeq("jobs", "seq", function (r) { return r.fy === U.fy(v.date); }));
         var body = { date: v.date, designer: v.designer || "", owner: p.owner || "", project_id: v.project_id, quotation_id: v.quotation_id || "", customer_id: p.customer_id, items: items, fy: U.fy(v.date), seq: s, no: fy + " - " + s, status: "Pending" };
         await U.add("jobs", body);
@@ -3987,7 +4013,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var c = cols.map(function (k) { return JC[k]; }); c.push(["Action", function (j) { return '<span class="row-acts"><button type="button" class="mv-btn ghost sm" data-a="j-view" data-id="' + esc(j.id) + '">View</button>' + (actions ? actions(j) : "") + "</span>"; }, "act"]);
     return U.bar(st, [], true) + U.table(c, rows, function () { return "click-row j-row"; }, U.rows("jobs").length ? "No jobs match." : "No jobs yet.") + U.count(rows.length, "job");
   }
-  U.page("projects.jobs-in-progress", function () { return jlist(function (j) { return j.status === "Pending" || j.status === "In Progress"; }, JPLUG, function (j) { return U.btn("j-cancel", j.id, "Cancel"); }); });
+  U.page("projects.jobs-in-progress", function () { return jlist(function (j) { return j.status === "Pending" || j.status === "In Progress"; }, JPLUG, function (j) { return U.btn("j-edit", j.id, "Edit") + U.btn("j-cancel", j.id, "Cancel"); }); });
   U.page("projects.jobs-master", function () { return jlist(function () { return true; }, JPLUG); });
   U.page("projects.completed-jobs", function () { return jlist(function (j) { return j.status === "Completed"; }, JPLUG); });
   U.page("projects.canceled-jobs", function () { return jlist(function (j) { return j.status === "Canceled"; }, JPLUG.concat(["reason"])); });
