@@ -4295,7 +4295,8 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     { k: "date", label: "Date", type: "date", req: 1 },
     { k: "project_id", label: "Project", type: "select", req: 1, opts: function () { return U.rows("projects").filter(function (p) { return p.status !== "Canceled"; }).sort(function (a, b) { return (b.seq || 0) - (a.seq || 0); }).map(function (p) { return { id: p.id, name: p.no + " · " + cust(p) }; }); }, first: "Choose a project" },
     { k: "department", label: "Department", type: "select", req: 1, opts: function () { return STAGES.concat(["Design", "Installation", "Store", "Other"]).map(function (s) { return { id: s, name: s }; }); }, first: "Choose a department" },
-    { k: "person", label: "Person", type: "select", req: 1, opts: USERS, first: "Choose a person" },
+    { k: "person", label: "Person Responsible", type: "select", req: 1, opts: USERS, first: "Choose a person" },
+    { k: "entered_by", label: "Entered By", type: "select", req: 1, opts: USERS, first: "Choose a person" },
     { k: "photo", label: "Photo", type: "file", accept: ".jpg,.jpeg,.png,.webp,.pdf" },
     { k: "remarks", label: "Remarks", type: "textarea", req: 1, hint: "What was spoiled, how much and why." }]; };
   U.page("projects.wastage-form", function () {
@@ -4318,10 +4319,10 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var st = U.st(), rows = wRows();
     var wp = {}; U.rows("wastage").forEach(function (w) { if (w.project_id) wp[w.project_id] = 1; });
     return U.bar(st, [{ k: "wproj", label: "Project No.", first: "All", opts: Object.keys(wp).map(function (id) { return { id: id, name: proj(id).no || id }; }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name), undefined, { numeric: true }); }) },
-      { k: "wperson", label: "Wastage Person", first: "All", opts: U.mact("users") }, { k: "dept", label: "Department", first: "All Departments", opts: WDEPTS() }], true) +
+      { k: "wperson", label: "Person Responsible", first: "All", opts: U.mact("users") }, { k: "dept", label: "Department", first: "All Departments", opts: WDEPTS() }], true) +
       (U.downloads && rows.length ? '<div><button type="button" class="mv-btn ghost" data-a="w-export">Download Excel (CSV)</button></div>' : "") +
       U.table([["Sl.", function (w, i) { return i + 1; }, "numcell"], ["Date", function (w) { return '<span class="nowrap">' + U.dmy(w.date) + "</span>"; }], ["Project No.", function (w) { return '<b class="nowrap">' + esc(proj(w.project_id).no) + "</b>"; }], ["Customer Name", function (w) { return esc(cust(proj(w.project_id))); }],
-        ["Department", function (w) { return esc(w.department); }], ["Wastage Person", function (w) { return esc(U.user(w.person)); }], ["Remarks", function (w) { return esc(w.remarks).replace(/\n/g, "<br>"); }],
+        ["Department", function (w) { return esc(w.department); }], ["Person Responsible", function (w) { return esc(U.user(w.person)); }], ["Entered By", function (w) { return esc(U.user(w.entered_by)); }], ["Remarks", function (w) { return esc(w.remarks).replace(/\n/g, "<br>"); }],
         ["Photo", function (w) { var f = w.photo; if (!f || !f.id) return ""; var img = /^image\//.test(f.type || "") || /\.(jpe?g|png|gif|webp)$/i.test(f.name || ""); return img ? '<a class="file-link w-thumb-link" href="/_blob/' + esc(f.id) + '" data-blob="' + esc(f.id) + '" data-type="' + esc(f.type || "image/jpeg") + '" data-name="' + esc(f.name || "Photo") + '" aria-label="Open wastage photo"><img class="w-thumb" data-thumb="' + esc(f.id) + '" alt="Wastage photo"></a>' : U.fileLink(f, "Open"); }],
         ["Action", function (w) { return '<span class="row-acts">' + U.btn("w-edit", w.id, "Edit") + '<button type="button" class="mv-btn ghost sm w-del" data-a="w-del" data-id="' + esc(w.id) + '">Delete</button></span>'; }, "act"]], rows, null, "No wastage records found.") + U.count(rows.length, "entry", "entries");
   });
@@ -4330,7 +4331,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var text = "﻿" + [head].concat(rows).map(function (r) { return r.map(q).join(","); }).join("\r\n");
     try { await U.downloads.save({ filename: name, data: text }); } catch (e) { if (!e || e.code !== "declined") U.flash("Couldn’t download the file."); }
   };
-  U.act("w-export", function () { U.csv("Wastage " + U.today() + ".csv", ["Sl.", "Date", "Project No.", "Customer Name", "Department", "Wastage Person", "Remarks"], wRows().map(function (w, i) { var p = proj(w.project_id); return [i + 1, U.dmy(w.date), p.no, cust(p), w.department, U.user(w.person), w.remarks]; })); });
+  U.act("w-export", function () { U.csv("Wastage " + U.today() + ".csv", ["Sl.", "Date", "Project No.", "Customer Name", "Department", "Person Responsible", "Entered By", "Remarks"], wRows().map(function (w, i) { var p = proj(w.project_id); return [i + 1, U.dmy(w.date), p.no, cust(p), w.department, U.user(w.person), U.user(w.entered_by), w.remarks]; })); });
   var THUMBS = {};
   function loadThumbs() { document.querySelectorAll("img[data-thumb]:not([src])").forEach(function (im) { var id = im.getAttribute("data-thumb"); if (THUMBS[id]) { im.src = THUMBS[id]; return; } im.setAttribute("src", "data:image/gif;base64,R0lGODlhAQABAAAAACw="); fetch("/_blob/" + id).then(function (r) { if (!r.ok) throw 0; return r.blob(); }).then(function (b) { THUMBS[id] = URL.createObjectURL(b); document.querySelectorAll('img[data-thumb="' + id + '"]').forEach(function (x) { x.src = THUMBS[id]; }); }).catch(function () { im.alt = "Photo"; im.classList.add("w-thumb-x"); }); }); }
   new MutationObserver(loadThumbs).observe(document.body, { childList: true, subtree: true });
