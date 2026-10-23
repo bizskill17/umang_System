@@ -1436,6 +1436,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     if (canWrite === false) h += '<p class="mv-note">You can view these entries. Ask the owner for edit access to add or change them.</p>';
     if (def.note) h += '<p class="mv-note">' + esc(def.note) + "</p>";
     if (editing) h += formHtml(def);
+    if (!editing) {
     h += '<div class="mv-bar"><label class="mv-search"><span class="sr-only">Search ' + esc(def.many) + '</span><input type="search" id="mv-q" placeholder="Search ' + esc(def.many) + '" value="' + esc(q) + '"></label>';
     if (!def.noStatus) h += '<label class="mv-filter"><span class="sr-only">Status</span><select id="mv-status"><option value="">All status</option><option' + (statusF === "Active" ? " selected" : "") + '>Active</option><option' + (statusF === "Inactive" ? " selected" : "") + ">Inactive</option></select></label>";
     colFilters(def).forEach(function (cf) {
@@ -1463,6 +1464,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       });
       h += "</tbody></table></div>";
       h += '<p class="mv-count">' + shown.length + " of " + list.length + " " + esc(list.length === 1 ? def.one.toLowerCase() : def.many.toLowerCase()) + "</p>";
+    }
     }
     var focusId = document.activeElement && box.contains(document.activeElement) ? document.activeElement.id : null;
     var caret = focusId === "mv-q" ? document.activeElement.selectionStart : null;
