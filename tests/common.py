@@ -2,7 +2,7 @@ def setup(p, src, w=1366):
     b=p.chromium.launch(); pg=b.new_page(viewport={"width":w,"height":900}); errs=[]
     pg.on("pageerror",lambda e:errs.append(str(e))); pg.on("console",lambda m: m.type=="error" and "ERR_TUNNEL" not in m.text and errs.append(m.text))
     pg.route("**/pdf-lib.min.js", lambda r: r.fulfill(path="/opt/npm-tools/node_modules/pdf-lib/dist/pdf-lib.min.js", content_type="application/javascript"))
-    pg.goto("file://"+src); pg.fill("#login-email","admin"); pg.fill("#login-password","x"); pg.click(".login-btn"); pg.wait_for_timeout(150)
+    pg.goto("file://"+src); pg.wait_for_timeout(250)
     pg.evaluate("""async()=>{const d=U.db; const a=(p,o)=>d.collection(p).add(o);
       const c1=await a('masters/customers/rows',{name:'Acme Retail',status:'Active',address:'12 MG Road, Pune',gstin_uin:'27ABCDE1234F1Z5'});
       const u1=await a('masters/users/rows',{name:'Ravi Kumar',status:'Active'}); const u2=await a('masters/users/rows',{name:'Sita Rao',status:'Active'});

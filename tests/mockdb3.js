@@ -18,5 +18,5 @@
   };}
   window.__store=store;
   var db={collection:collRef, doc:function(p){ var s=split(p); return docRef(s[0],s[1]); }};
-  window.claude={use:function(name){ return Promise.resolve(name==="db"?db:name==="assets"?{upload:function(b,o){return Promise.resolve({id:"a"+(++n),url:"/_blob/a"+n,contentType:(o&&o.type)||b.type})}}:name==="downloads"?{save:function(o){window.__saved=o;return Promise.resolve()}}:(name==="user"?{can:function(){return Promise.resolve(true);}}:null)); }};
+  window.claude={use:function(name){ return Promise.resolve(name==="db"?db:name==="assets"?{upload:function(b,o){return Promise.resolve({id:"a"+(++n),url:"/_blob/a"+n,contentType:(o&&o.type)||b.type})}}:name==="downloads"?{save:function(o){window.__saved=o;return Promise.resolve()}}:(name==="user"?{can:function(){return Promise.resolve(true);},isOwner:function(){return Promise.resolve(!window.__mockUser);},me:function(){var m=window.__mockUser||{isOwner:true,name:"Owner",email:"owner@x.com"};return Promise.resolve({id:"u1",name:m.name||"",email:m.email||null,isOwner:!!m.isOwner,canEdit:!!m.isOwner,avatarUrl:"",color:"#888"});}}:null)); }};
 })();

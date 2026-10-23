@@ -473,6 +473,27 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .w-thumb { width: 48px; height: 42px; object-fit: cover; border-radius: 5px; display: block; background: var(--line-soft, #e5e7eb); }
 .w-thumb-link { display: inline-block; }
 .w-del { color: #b42318 !important; border-color: color-mix(in srgb, #b42318 45%, transparent) !important; }
+.auth-msg { text-align: center; padding: 8px 4px; }
+.pm-wrap { border: 1px solid var(--line, #d0d7de); border-radius: 12px; padding: 14px; background: color-mix(in srgb, #fff 55%, transparent); }
+.pm-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.pm-top b { font-size: 15px; }
+.pm-all, .pm-gall { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.pm-group { border: 1px solid var(--line-soft, #e5e7eb); border-radius: 10px; margin-top: 8px; background: rgba(255,255,255,.7); }
+.pm-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; }
+.pm-exp { all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; padding: 4px 0; }
+.pm-exp:focus-visible { outline: 2px solid var(--c, #2563eb); outline-offset: 2px; border-radius: 6px; }
+.pm-sym { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff; background: var(--c, #2563eb); flex: none; }
+.pm-head { display: flex; flex-direction: column; min-width: 0; }
+.pm-head small { color: var(--muted); font-size: 12px; }
+.pm-chev { margin-left: auto; transition: transform .15s; }
+.pm-group.open .pm-chev { transform: rotate(180deg); }
+.pm-items { display: none; flex-wrap: wrap; gap: 8px; padding: 4px 10px 12px; }
+.pm-group.open .pm-items { display: flex; }
+.pm-wrap input[type=checkbox] { width: 16px !important; height: 16px !important; min-width: 0 !important; min-height: 0 !important; padding: 0 !important; margin: 0 !important; flex: none; box-shadow: none !important; accent-color: var(--c, #2563eb); }
+.pm-chip { white-space: nowrap; line-height: 1.2; }
+.pm-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line-soft, #e5e7eb); border-radius: 999px; font-size: 13px; background: #fff; cursor: pointer; }
+.auth-msg h2 { font-size: 18px; margin: 0 0 8px; }
+.auth-msg p { margin: 0; color: var(--muted); }
 .st-acts { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; }
 .st-acts .st-chg { padding: 0 8px; display: inline-grid; place-items: center; }
 .ji-table .ji-lock { display: block; font-size: 11px; margin-top: 4px; }
@@ -1094,6 +1115,17 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
 
   MENUS.masters = { name: "Master Data", start: "m-firm", items: [["label:Leads"]].concat(MENUS.leads.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; }),
     [["label:Projects"]], MENUS.projects.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; })) };
+  window.UmangMenus = MENUS;
+  /* ---------- View permissions (same rules as the plugin) ---------- */
+  function pkey(slug, key) { return key.indexOf("m-") === 0 ? "master:" + key : slug + "." + key; }
+  var AUTH = { ready: false, full: false, denied: false, allowed: null, row: null, me: null, email: "", ver: 0, why: "" };
+  window.UmangAuth = AUTH;
+  function allow(slug, key) { if (!AUTH.ready || AUTH.denied) return false; if (AUTH.full || !AUTH.allowed) return true; return AUTH.allowed.indexOf(pkey(slug, key)) !== -1; }
+  AUTH.allow = allow; AUTH.pkey = pkey;
+  function realItems(slug) { return MENUS[slug].items.filter(function (it) { return it[0].indexOf("label:") !== 0 && it[0].indexOf("group:") !== 0; }); }
+  function modAllowed(slug) { var m = MENUS[slug]; if (m.add && allow(slug, m.add[0])) return true; return realItems(slug).some(function (it) { return allow(slug, it[0]); }); }
+  function firstAllowed(slug) { var m = MENUS[slug]; if (allow(slug, m.start)) return m.start; var it = realItems(slug).find(function (x) { return allow(slug, x[0]); }); return it ? it[0] : (m.add && allow(slug, m.add[0]) ? m.add[0] : null); }
+  AUTH.modAllowed = modAllowed;
   var home = document.getElementById("home-view");
   var view = document.getElementById("mod-view");
   var side = document.getElementById("side-menu");
@@ -1114,6 +1146,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     m.items.forEach(function (it) {
       if (it[0].indexOf("label:") === 0) { root.push({ label: it[0].slice(6) }); stack = [{ depth: -1, children: root }]; return; }
       var depth = it[3] || 0;
+      if (it[0].indexOf("group:") !== 0 && !allow(slug, it[0])) return;
       while (stack[stack.length - 1].depth >= depth) stack.pop();
       var node = { key: it[0], title: it[1], desc: it[2], children: [] };
       stack[stack.length - 1].children.push(node);
@@ -1122,6 +1155,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     function li(n) {
       var kids = n.children.map(li).join("");
       if (n.key.indexOf("group:") === 0) {
+        if (!kids) return "";
         var g = n.key.slice(6);
         return '<li><button type="button" class="nav-group" data-group-toggle="' + g + '" aria-expanded="true">' + esc(n.title) + CHEV + '</button><ul class="nav-sub" data-group-list="' + g + '">' + kids + "</ul></li>";
       }
@@ -1129,12 +1163,12 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     }
     var html = '<ul class="nav">';
     root.forEach(function (n) { html += n.label !== undefined ? '</ul><div class="nav-label">' + esc(n.label) + '</div><ul class="nav">' : li(n); });
-    nav.innerHTML = html + "</ul>";
+    nav.innerHTML = (html + "</ul>").replace(/<ul class="nav"><\/ul>/g, "").replace(/<div class="nav-label">[^<]*<\/div>(?=<div class="nav-label">|$)/g, "");
     nav.querySelectorAll("[data-group-toggle]").forEach(function (b) {
       b.addEventListener("click", function () { setGroup(b.getAttribute("data-group-toggle"), b.getAttribute("aria-expanded") !== "true"); });
     });
     var add = document.getElementById("side-add");
-    add.hidden = !m.add;
+    add.hidden = !m.add || !allow(slug, m.add[0]);
     if (m.add) {
     add.setAttribute("href", "#" + slug + "." + m.add[0]);
     add.setAttribute("data-title", m.add[1]);
@@ -1174,9 +1208,27 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && side.classList.contains("open")) setMenu(false, true); });
   drawerQuery.addEventListener("change", function () { setMenu(false); });
 
+  var builtVer = -1;
   function showModule(slug, page) {
     var m = MENUS[slug];
-    if (builtFor !== slug) buildNav(slug);
+    if (!modAllowed(slug)) { location.hash = "home"; return; }
+    if (builtFor !== slug || builtVer !== AUTH.ver) { buildNav(slug); builtVer = AUTH.ver; }
+    if (!page) page = firstAllowed(slug) || m.start;
+    var denied = document.getElementById("page-denied");
+    if (!allow(slug, page)) {
+      var info = (m.add && m.add[0] === page ? m.add : null) || m.items.find(function (x) { return x[0] === page; }) || [page, "This view"];
+      side.querySelectorAll(".nav-item").forEach(function (a) { a.removeAttribute("aria-current"); });
+      document.getElementById("page-title").textContent = info[1]; document.getElementById("crumb-page").textContent = info[1];
+      var cm = document.getElementById("crumb-mod"); cm.textContent = m.name; cm.setAttribute("href", "#" + slug);
+      document.querySelector(".content").className = "content m-" + slug;
+      (window.UmangPages || []).forEach(function (p) { p.close(); });
+      document.getElementById("page-ph").hidden = true;
+      if (!denied) { denied = document.createElement("div"); denied.id = "page-denied"; denied.className = "mv-note warn"; denied.setAttribute("role", "alert"); document.getElementById("page-ph").parentNode.appendChild(denied); }
+      denied.textContent = "You do not have permission to access this view."; denied.hidden = false;
+      home.hidden = true; view.hidden = false; document.body.classList.add("in-module"); setMenu(false);
+      return;
+    }
+    if (denied) denied.hidden = true;
     var key = slug + "." + (page || m.start);
     var item = side.querySelector('.nav-item[href="#' + key + '"]') || side.querySelector('.nav-item[href="#' + slug + "." + m.start + '"]');
     side.querySelectorAll(".nav-item").forEach(function (a) { a.removeAttribute("aria-current"); });
@@ -1239,13 +1291,20 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     b.addEventListener("click", function () { signedIn = false; location.hash = "login"; show(); });
   });
 
+  form.hidden = true;
+  document.querySelectorAll('[aria-label="Log out"]').forEach(function (b) { b.hidden = true; });
+  var authMsg = document.createElement("div"); authMsg.className = "auth-msg"; authMsg.setAttribute("role", "status");
+  login.querySelector(".login-card").appendChild(authMsg);
   function show() {
     var raw = (location.hash || "").replace("#", ""), parts = raw.split("."), slug = parts[0];
-    if (!signedIn) {
+    if (!AUTH.ready || AUTH.denied) {
+      authMsg.innerHTML = !AUTH.ready ? "<p>Checking your access\u2026</p>" : "<h2>Your account isn\u2019t set up yet</h2><p></p>";
+      if (AUTH.ready) authMsg.querySelector("p").textContent = AUTH.why;
       login.hidden = false; home.hidden = true; view.hidden = true; setMenu(false);
       document.body.classList.remove("in-module", "on-home"); document.body.classList.add("on-login");
       return;
     }
+    document.querySelectorAll('#home-view .tile[href^="#"]').forEach(function (t) { var s = t.getAttribute("href").slice(1); if (MENUS[s]) t.hidden = !modAllowed(s); });
     login.hidden = true; document.body.classList.remove("on-login");
     if (slug === "design" || slug === "designs") slug = "design";
     if (MENUS[slug]) { document.body.classList.remove("on-home"); showModule(slug, parts[1]); window.scrollTo(0, 0); return; }
@@ -1255,6 +1314,35 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     document.getElementById("hm-greet").textContent = (hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening") + (nm && nm.charAt(0) !== "[" ? ", " + nm.split(" ")[0] : "");
   }
   window.addEventListener("hashchange", show);
+  function setNames() {
+    var r = AUTH.row, nm = (r && r.name) || (AUTH.me && AUTH.me.name) || (AUTH.full ? "Owner" : "");
+    var role = r && r.designation_id ? (AUTH.desig[r.designation_id] || "") : (AUTH.me && AUTH.me.isOwner ? "Owner" : "");
+    document.querySelectorAll(".user-name, .side-user-name").forEach(function (n) { n.textContent = nm || "User"; });
+    document.querySelectorAll(".side-user-role").forEach(function (n) { n.textContent = role; });
+    document.querySelectorAll(".avatar").forEach(function (a) { a.textContent = (nm || "U").charAt(0).toUpperCase(); });
+  }
+  AUTH.desig = {};
+  function authDone() { AUTH.ready = true; AUTH.ver++; setNames(); builtFor = null; show(); window.dispatchEvent(new Event("umang-auth")); }
+  (async function initAuth() {
+    var C = window.claude && typeof window.claude.use === "function" ? window.claude : null;
+    var u = C ? await C.use("user") : null;
+    if (!u) { AUTH.full = true; authDone(); return; }
+    var me = await u.me(); AUTH.me = me; AUTH.full = !!me.isOwner; AUTH.email = String(me.email || "").trim().toLowerCase();
+    var db = await C.use("db");
+    if (!db) { AUTH.denied = !AUTH.full; AUTH.why = "Sign in to claude.ai to use this app."; authDone(); return; }
+    db.collection("masters/designation/rows").onSnapshot(function (s) { AUTH.desig = {}; s.docs.forEach(function (d) { AUTH.desig[d.id] = (d.data() || {}).name || ""; }); if (AUTH.ready) setNames(); }, function () {});
+    db.collection("masters/users/rows").onSnapshot(function (snap) {
+      var rows = snap.docs.map(function (d) { var o = Object.assign({}, d.data()); o.id = d.id; return o; });
+      var row = AUTH.email ? rows.find(function (r) { return String(r.email || "").trim().toLowerCase() === AUTH.email; }) : null;
+      AUTH.row = row || null;
+      AUTH.allowed = row && Array.isArray(row.allowed_views) ? row.allowed_views : null;
+      AUTH.denied = !AUTH.full && (!row || row.status === "Inactive");
+      AUTH.why = !AUTH.email ? "Your Claude account\u2019s email isn\u2019t available to this app, so it can\u2019t match you to a user. Ask the owner for help."
+        : !row ? "No user with the email " + AUTH.email + " is in the Users master. Ask the owner to add you under Master Data \u2192 Users."
+        : "Your user (" + AUTH.email + ") is marked Inactive. Ask the owner to make it Active.";
+      authDone();
+    }, function () { AUTH.denied = !AUTH.full; AUTH.why = "Couldn\u2019t check your access. Reload the page to try again."; authDone(); });
+  })();
   show();
 })();
 </script>
@@ -1287,8 +1375,9 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     "m-users": { coll: "users", one: "User", many: "Users", fields: [
       ["name", "User Name", "text", 1], ["email", "Email", "email", 1, { unique: true }], ["mobile", "Mobile", "mobile"],
       ["role_id", "User Role", "select", 0, { of: "user-roles" }], ["designation_id", "Designation", "select", 0, { of: "designation" }],
-      ["signature", "Signature", "image", 0, { hint: "PNG or JPG of the signature." }]
-    ], cols: ["name", "email", "mobile", "role_id", "designation_id"], note: "Passwords and screen access are set up with real sign-in, not here." },
+      ["signature", "Signature", "image", 0, { hint: "PNG or JPG of the signature." }],
+      ["allowed_views", "View Permissions", "perms"]
+    ], cols: ["name", "email", "mobile", "role_id", "designation_id"], note: "People sign in with their Claude account. The Email here must match that account\u2019s email. Use View Permissions to choose which screens each person sees; the app owner always sees everything." },
     "m-user-roles": { coll: "user-roles", one: "User Role", many: "User Roles", fields: [["name", "User Role", "text", 1]], cols: ["name"] },
     "m-designation": { coll: "designation", one: "Designation", many: "Designations", fields: [["name", "Designation", "text", 1]], cols: ["name"] },
     "m-user-document-types": { coll: "user-document-types", one: "User Document Type", many: "User Document Types", fields: [["name", "User Document Type", "text", 1]], cols: ["name"] },
@@ -1346,7 +1435,55 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     return esc(v);
   }
 
+  var PMOPEN = { 0: true };
+  function permGroups() {
+    var M = window.UmangMenus || {}, out = [], order = ["leads", "recce", "design", "quotations", "projects", "invoices", "complaints"];
+    order.forEach(function (slug) {
+      var m = M[slug]; if (!m) return; var items = [], gt = {};
+      if (m.add) items.push([slug + "." + m.add[0], m.add[1]]);
+      m.items.forEach(function (it) {
+        var k = it[0], d = it[3] || 0;
+        if (k.indexOf("label:") === 0 || k.indexOf("m-") === 0) return;
+        if (k.indexOf("group:") === 0) { gt[d] = it[1]; return; }
+        var pre = d > 1 && gt[d - 1] ? gt[d - 1] + " \u2192 " : "";
+        items.push([slug + "." + k, pre + it[1]]);
+      });
+      out.push({ name: m.name, items: items });
+    });
+    if (M.masters) out.push({ name: "Master Data", items: M.masters.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return ["master:" + it[0], it[1]]; }) });
+    return out;
+  }
+  function permsHtml(val) {
+    var all = !Array.isArray(val), gs = permGroups();
+    var h = '<div class="field wide pm-wrap"><div class="pm-top"><div><b>View Permissions</b><p class="mf-hint">Select which left-menu views this user can see and access.</p></div><label class="pm-all"><input type="checkbox" data-pm="all"> Select All</label></div>';
+    gs.forEach(function (g, gi) {
+      var open = !!PMOPEN[gi];
+      h += '<section class="pm-group' + (open ? " open" : "") + '"><div class="pm-bar"><button type="button" class="pm-exp" data-pm-exp="' + gi + '" aria-expanded="' + open + '"><span class="pm-sym" aria-hidden="true">' + esc(g.name.charAt(0)) + '</span><span class="pm-head"><b>' + esc(g.name) + '</b><small class="pm-count"></small></span><span class="pm-chev" aria-hidden="true">\u2304</span></button><label class="pm-gall"><input type="checkbox" data-pm="grp"> Select All</label></div><div class="pm-items">';
+      g.items.forEach(function (it) { h += '<label class="pm-chip"><input type="checkbox" name="allowed_views" value="' + esc(it[0]) + '"' + (all || val.indexOf(it[0]) !== -1 ? " checked" : "") + "> " + esc(it[1]) + "</label>"; });
+      h += "</div></section>";
+    });
+    return h + "</div>";
+  }
+  function pmSync(root) {
+    var wrap = root.querySelector(".pm-wrap"); if (!wrap) return;
+    var boxes = [].slice.call(wrap.querySelectorAll('input[name="allowed_views"]')), on = boxes.filter(function (c) { return c.checked; }).length, a = wrap.querySelector('[data-pm="all"]');
+    a.checked = on === boxes.length; a.indeterminate = on > 0 && on < boxes.length;
+    wrap.querySelectorAll(".pm-group").forEach(function (g) { var bs = [].slice.call(g.querySelectorAll('input[name="allowed_views"]')), n = bs.filter(function (c) { return c.checked; }).length, gc = g.querySelector('[data-pm="grp"]'); gc.checked = n === bs.length; gc.indeterminate = n > 0 && n < bs.length; g.querySelector(".pm-count").textContent = n + " of " + bs.length + " selected"; });
+  }
+  document.addEventListener("change", function (e) {
+    var t = e.target, wrap = t.closest && t.closest(".pm-wrap"); if (!wrap) return;
+    var k = t.getAttribute("data-pm");
+    if (k === "all") wrap.querySelectorAll('input[name="allowed_views"]').forEach(function (c) { c.checked = t.checked; });
+    if (k === "grp") t.closest(".pm-group").querySelectorAll('input[name="allowed_views"]').forEach(function (c) { c.checked = t.checked; });
+    pmSync(wrap.parentNode);
+  });
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-pm-exp]"); if (!b) return;
+    var i = +b.getAttribute("data-pm-exp"), g = b.closest(".pm-group"), open = !g.classList.contains("open");
+    g.classList.toggle("open", open); b.setAttribute("aria-expanded", String(open)); PMOPEN[i] = open;
+  });
   function inputFor(f, val, vals) {
+    if (f[2] === "perms") return permsHtml(val === "" ? undefined : val);
     var id = "mf-" + f[0], req = f[3] ? " required" : "", o = f[4] || {}, t = f[2], h = "";
     var label = '<label for="' + id + '">' + esc(f[1]) + (f[3] ? ' <span class="req" aria-hidden="true">*</span>' : "") + "</label>";
     var err = '<p class="field-err" id="' + id + '-err" hidden></p>';
@@ -1469,6 +1606,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var focusId = document.activeElement && box.contains(document.activeElement) ? document.activeElement.id : null;
     var caret = focusId === "mv-q" ? document.activeElement.selectionStart : null;
     box.innerHTML = h;
+    pmSync(box);
     if (focusId) { var el = document.getElementById(focusId); if (el) { el.focus(); if (caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret); } }
   }
 
@@ -1488,6 +1626,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var form = document.getElementById("mv-form"), vals = Object.assign({}, editing.vals);
     def.fields.forEach(function (f) {
       if (f[2] === "multi") { vals[f[0]] = Array.prototype.map.call(form.querySelectorAll('input[name="' + f[0] + '"]:checked'), function (c) { return c.value; }); return; }
+      if (f[2] === "perms") { var pb = form.querySelectorAll('input[name="' + f[0] + '"]'), pc = Array.prototype.filter.call(pb, function (c) { return c.checked; }); if (pb.length) vals[f[0]] = pc.length === pb.length ? null : pc.map(function (c) { return c.value; }); return; }
       if (f[2] === "contacts") {
         vals.contacts = Array.prototype.map.call(form.querySelectorAll(".mf-contact"), function (rw) {
           var c = {}; rw.querySelectorAll("[data-c]").forEach(function (i) { c[i.getAttribute("data-c")] = i.value.trim(); }); return c;
