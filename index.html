@@ -4081,7 +4081,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
         .filter(function (r) { if (st.who && r.a.assignee !== st.who) return false; return U.match(st, [r.j.no, r.p.no, cust(r.j), itemName(r.it), U.nm("machines", r.a.machine_id), U.nm("vendors", r.a.vendor_id)].join(" "), r.a.date); })
         .sort(function (x, y) { return String(y.a.createdAt).localeCompare(String(x.a.createdAt)); });
       var c = [["Date", function (r) { return '<span class="nowrap">' + U.dmy(r.a.date) + "</span>"; }], ["Job No.", function (r) { return '<b class="nowrap">' + esc(r.j.no) + "</b>"; }], ["Project", function (r) { return esc(r.p.no); }], ["Item", function (r) { return esc(itemName(r.it)); }, "strong"],
-        ["Machine / Vendor", function (r) { return r.a.machine_id ? esc(U.nm("machines", r.a.machine_id)) : esc(U.nm("vendors", r.a.vendor_id)) + ' <span class="dim">(vendor)</span>'; }],
+        ["Machine", function (r) { return esc(U.nm("machines", r.a.machine_id)); }], ["Vendor", function (r) { return esc(U.nm("vendors", r.a.vendor_id)); }],
         ["Assigned", function (r) { return U.num(r.a.qty); }, "numcell"], ["Completed", function (r) { return U.num(r.a.completed); }, "numcell"], ["Pending", function (r) { return r.a.closed ? '<span class="dim">Closed</span>' : "<b>" + U.num(n(r.a.qty) - n(r.a.completed)) + "</b>"; }, "numcell"],
         ["Target", function (r) { return '<span class="nowrap' + (!r.a.closed && r.a.target && r.a.target < U.today() ? " late" : "") + '">' + U.dmy(r.a.target) + "</span>"; }]];
       if (actions) c.push(['<span class="sr-only">Actions</span>', actions, "act"]);
