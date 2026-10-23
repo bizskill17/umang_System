@@ -470,6 +470,8 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .dl-table td input.dl-qty { width: 110px; min-width: 90px; }
 .dl-rem { margin-top: 14px; }
 .dl-rem textarea { width: 100%; }
+.w-thumb { width: 48px; height: 42px; object-fit: cover; border-radius: 5px; display: block; background: var(--line-soft, #e5e7eb); }
+.w-thumb-link { display: inline-block; }
 .st-acts { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; }
 .st-acts .st-chg { padding: 0 8px; display: inline-grid; place-items: center; }
 .ji-table .ji-lock { display: block; font-size: 11px; margin-top: 4px; }
@@ -4294,24 +4296,34 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     { k: "remarks", label: "Remarks", type: "textarea", req: 1, hint: "What was spoiled, how much and why." }]; };
   U.page("projects.wastage-form", function () {
     if (!U.base(["wastage"])) return U.loading;
-    return U.formPage("projects.wastage-form", { init: function () { return { date: U.today() }; }, title: function () { return "Wastage Form"; }, fields: W_FIELDS,
-      save: async function (v) { var b = U.pick(v, W_FIELDS()); await U.add("wastage", b); return { go: "projects.wastage-master", msg: "Wastage recorded for project " + proj(v.project_id).no + "." }; } });
+    return U.formPage("projects.wastage-form", { init: function () { return { date: U.today() }; }, title: function (v) { return v._id ? "Edit Wastage" : "Wastage Form"; }, fields: W_FIELDS,
+      save: async function (v) { var b = U.pick(v, W_FIELDS()); if (v._id) { await U.upd("wastage", v._id, b); return { go: "projects.wastage-master", msg: "Wastage entry saved." }; } await U.add("wastage", b); return { go: "projects.wastage-master", msg: "Wastage recorded for project " + proj(v.project_id).no + "." }; } });
   });
-  function wRows() { var st = U.st(); return U.rows("wastage").filter(function (w) { if (st.dept && w.department !== st.dept) return false; return U.match(st, [proj(w.project_id).no, cust(proj(w.project_id)), w.department, U.user(w.person), w.remarks].join(" "), w.date); }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)); }); }
+  U.title("projects.wastage-form", function () { var st = P.forms["projects.wastage-form"]; return st && st.v._id ? "Edit Wastage" : "Wastage Form"; });
+  U.act("w-edit", function (id) { var w = U.get("wastage", id); if (!w) return; P.forms["projects.wastage-form"] = { v: Object.assign({}, w, { _id: id }), err: "", saving: false }; P.keepForm = true; location.hash = "projects.wastage-form"; });
+  var WDEPTS = function () { var s = {}; STAGES.concat(["Design", "Installation", "Store", "Other"]).forEach(function (x) { s[x] = 1; }); U.rows("wastage").forEach(function (w) { if (w.department) s[w.department] = 1; }); return Object.keys(s).sort().map(function (x) { return { id: x, name: x }; }); };
+  function wRows() { var st = U.st(); return U.rows("wastage").filter(function (w) { if (st.dept && w.department !== st.dept) return false; if (st.wproj && w.project_id !== st.wproj) return false; if (st.wperson && w.person !== st.wperson) return false; return U.match(st, [proj(w.project_id).no, cust(proj(w.project_id)), w.department, U.user(w.person), w.remarks].join(" "), w.date); }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)); }); }
   U.page("projects.wastage-master", function () {
     if (!U.base(["wastage"])) return U.loading;
     var st = U.st(), rows = wRows();
-    return U.bar(st, [{ k: "dept", label: "Department", first: "All departments", opts: STAGES.concat(["Design", "Installation", "Store", "Other"]).map(function (s) { return { id: s, name: s }; }) }], true) +
+    var wp = {}; U.rows("wastage").forEach(function (w) { if (w.project_id) wp[w.project_id] = 1; });
+    return U.bar(st, [{ k: "wproj", label: "Project No.", first: "All", opts: Object.keys(wp).map(function (id) { return { id: id, name: proj(id).no || id }; }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name), undefined, { numeric: true }); }) },
+      { k: "wperson", label: "Wastage Person", first: "All", opts: U.mact("users") }, { k: "dept", label: "Department", first: "All Departments", opts: WDEPTS() }], true) +
       (U.downloads && rows.length ? '<div><button type="button" class="mv-btn ghost" data-a="w-export">Download Excel (CSV)</button></div>' : "") +
-      U.table([["Date", function (w) { return '<span class="nowrap">' + U.dmy(w.date) + "</span>"; }], ["Project", function (w) { return '<b class="nowrap">' + esc(proj(w.project_id).no) + "</b>"; }], ["Customer", function (w) { return esc(cust(proj(w.project_id))); }],
-        ["Department", function (w) { return esc(w.department); }], ["Person", function (w) { return esc(U.user(w.person)); }], ["Remarks", function (w) { return esc(w.remarks); }, "strong"], ["Photo", function (w) { return U.fileLink(w.photo, "Open"); }]], rows, null, "No wastage recorded.") + U.count(rows.length, "entry", "entries");
+      U.table([["Sl.", function (w, i) { return i + 1; }, "numcell"], ["Date", function (w) { return '<span class="nowrap">' + U.dmy(w.date) + "</span>"; }], ["Project No.", function (w) { return '<b class="nowrap">' + esc(proj(w.project_id).no) + "</b>"; }], ["Customer Name", function (w) { return esc(cust(proj(w.project_id))); }],
+        ["Department", function (w) { return esc(w.department); }], ["Wastage Person", function (w) { return esc(U.user(w.person)); }], ["Remarks", function (w) { return esc(w.remarks).replace(/\n/g, "<br>"); }],
+        ["Photo", function (w) { var f = w.photo; if (!f || !f.id) return ""; var img = /^image\//.test(f.type || "") || /\.(jpe?g|png|gif|webp)$/i.test(f.name || ""); return img ? '<a class="file-link w-thumb-link" href="/_blob/' + esc(f.id) + '" data-blob="' + esc(f.id) + '" data-type="' + esc(f.type || "image/jpeg") + '" data-name="' + esc(f.name || "Photo") + '" aria-label="Open wastage photo"><img class="w-thumb" data-thumb="' + esc(f.id) + '" alt="Wastage photo"></a>' : U.fileLink(f, "Open"); }],
+        ["Action", function (w) { return U.btn("w-edit", w.id, "Edit"); }, "act"]], rows, null, "No wastage records found.") + U.count(rows.length, "entry", "entries");
   });
   U.csv = async function (name, head, rows) {
     var q = function (x) { x = String(x == null ? "" : x); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
     var text = "﻿" + [head].concat(rows).map(function (r) { return r.map(q).join(","); }).join("\r\n");
     try { await U.downloads.save({ filename: name, data: text }); } catch (e) { if (!e || e.code !== "declined") U.flash("Couldn’t download the file."); }
   };
-  U.act("w-export", function () { U.csv("Wastage " + U.today() + ".csv", ["Date", "Project", "Customer", "Department", "Person", "Remarks"], wRows().map(function (w) { var p = proj(w.project_id); return [U.dmy(w.date), p.no, cust(p), w.department, U.user(w.person), w.remarks]; })); });
+  U.act("w-export", function () { U.csv("Wastage " + U.today() + ".csv", ["Sl.", "Date", "Project No.", "Customer Name", "Department", "Wastage Person", "Remarks"], wRows().map(function (w, i) { var p = proj(w.project_id); return [i + 1, U.dmy(w.date), p.no, cust(p), w.department, U.user(w.person), w.remarks]; })); });
+  var THUMBS = {};
+  function loadThumbs() { document.querySelectorAll("img[data-thumb]:not([src])").forEach(function (im) { var id = im.getAttribute("data-thumb"); if (THUMBS[id]) { im.src = THUMBS[id]; return; } im.setAttribute("src", "data:image/gif;base64,R0lGODlhAQABAAAAACw="); fetch("/_blob/" + id).then(function (r) { if (!r.ok) throw 0; return r.blob(); }).then(function (b) { THUMBS[id] = URL.createObjectURL(b); document.querySelectorAll('img[data-thumb="' + id + '"]').forEach(function (x) { x.src = THUMBS[id]; }); }).catch(function () { im.alt = "Photo"; im.classList.add("w-thumb-x"); }); }); }
+  new MutationObserver(loadThumbs).observe(document.body, { childList: true, subtree: true });
   U.dispatched = dispatched; U.liveJobs = liveJobs;
   U.PJ = { approvedFree: approvedFree, jobItemsFlat: jobItemsFlat, avail: avail, qcDue: qcDue, onHold: onHold };
 })();
