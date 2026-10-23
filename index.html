@@ -3913,11 +3913,12 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     { k: "date", label: "Date", type: "date", req: 1 },
     { k: "project_id", label: "Project", type: "select", req: 1, live: 1, opts: function () { return U.rows("projects").filter(function (p) { return p.status === "In Progress"; }).sort(function (a, b) { return (b.seq || 0) - (a.seq || 0); }).map(function (p) { return { id: p.id, name: p.no + " · " + cust(p) }; }); }, first: "Choose a project" },
     { k: "quotation_id", label: "Quotation No.", type: "select", req: 1, live: 1, opts: function () { return qs.map(function (q) { return { id: q.id, name: [q.no || "Quotation", q.date ? U.dmy(q.date) : ""].filter(Boolean).join(" \u00b7 ") }; }); }, first: "Choose a quotation", show: function () { return qs.length > 0; } },
-    { k: "target", label: "Target Date", type: "date", req: 1 }]; };
+    { k: "designer", label: "Designer", type: "select", opts: USERS, first: "Select Designer" },
+    { k: "owner_v", label: "Project Owner", type: "static", value: function (v) { return v.project_id ? esc(U.user(proj(v.project_id).owner)) || '<span class="dim">Not set on the project</span>' : '<span class="dim">Shown after you choose a project</span>'; } }]; };
   U.page("projects.add-job", function () {
     if (!base()) return U.loading;
     return U.formPage("projects.add-job", {
-      init: function () { return { date: U.today(), target: addDays(U.today(), 7) }; }, title: function () { return "Add Job"; },
+      init: function () { return { date: U.today() }; }, title: function () { return "Add Job"; },
       fields: J_FIELDS, extra: jiHtml, readExtra: jiRead,
       validate: function (v) {
         var on = v.jitems || [], used = {};
@@ -3934,7 +3935,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       save: async function (v) {
         var items = v.jitems.map(function (it, i) { return { lid: "L" + (i + 1), src: it.src, item_id: it.item_id || "", description: it.description || "", location: it.location || "", width: it.width || "", height: it.height || "", uom: it.uom || "", qty: q3(it.qty), steps: STAGES.filter(function (s) { return it.steps[s]; }) }; });
         var p = proj(v.project_id), fy = U.fy2(v.date), key = "job-" + U.fy(v.date), s = await U.seq(key, U.maxSeq("jobs", "seq", function (r) { return r.fy === U.fy(v.date); }));
-        var body = { date: v.date, target: v.target, remarks: v.remarks || "", project_id: v.project_id, quotation_id: v.quotation_id || "", customer_id: p.customer_id, items: items, fy: U.fy(v.date), seq: s, no: fy + " - " + s, status: "Pending" };
+        var body = { date: v.date, designer: v.designer || "", owner: p.owner || "", project_id: v.project_id, quotation_id: v.quotation_id || "", customer_id: p.customer_id, items: items, fy: U.fy(v.date), seq: s, no: fy + " - " + s, status: "Pending" };
         await U.add("jobs", body);
         return { go: "projects.jobs-in-progress", msg: "Job " + body.no + " added with " + items.length + " item" + (items.length === 1 ? "" : "s") + "." };
       }
