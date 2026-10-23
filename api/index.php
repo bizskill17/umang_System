@@ -137,11 +137,12 @@ function permittedWrite(string $path): bool {
     if ($allowed === null) return true;
     $modules = [
         'leads' => ['leads'], 'quotations' => ['leads','quotations','projects'], 'quote_followups' => ['leads','quotations'],
-        'projects' => ['leads','projects'], 'recce' => ['recce','projects'], 'recce_updates' => ['recce'],
+        'projects' => ['projects'], 'recce' => ['recce','projects'], 'recce_updates' => ['recce'],
         'designs' => ['design','projects'], 'design_updates' => ['design'], 'jobs' => ['projects'],
         'job_assign' => ['projects'], 'qc' => ['projects'], 'dispatches' => ['projects'],
         'wastage' => ['projects'], 'invoices' => ['invoices'], 'payments' => ['invoices'], 'complaints' => ['complaints'], 'complaint_updates' => ['complaints']
     ];
+    if ($path === 'projects' && in_array('leads.pending-create-project', $allowed, true)) return true;
     if ($path === 'counters') return count($allowed) > 0;
     $root = explode('/', $path)[0];
     foreach ($modules[$root] ?? [] as $module) foreach ($allowed as $view) if (str_starts_with($view, $module . '.')) return true;
