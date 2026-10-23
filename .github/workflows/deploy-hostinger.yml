@@ -1,0 +1,63 @@
+name: Deploy to Hostinger
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - .github/workflows/deploy-hostinger.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hostinger-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Upload website using encrypted FTP
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        shell: python
+        run: |
+          import os, ssl, ftplib, sys
+          from pathlib import Path
+          required = ["FTP_SERVER", "FTP_USERNAME", "FTP_PASSWORD", "FTP_PORT", "FTP_SERVER_DIR"]
+          missing = [k for k in required if not os.environ.get(k)]
+          if missing:
+              sys.exit("Missing repository secrets: " + ", ".join(missing))
+          host = os.environ["FTP_SERVER"].strip()
+          if "://" in host or "/" in host:
+              sys.exit("FTP_SERVER must contain only a hostname or IP, without ftp:// or a path.")
+          payload = Path("index.html")
+          if not payload.is_file() or payload.stat().st_size == 0:
+              sys.exit("index.html is missing or empty.")
+          try:
+              with ftplib.FTP_TLS(context=ssl.create_default_context(), timeout=60) as ftp:
+                  ftp.connect(host, int(os.environ["FTP_PORT"]))
+                  ftp.login(os.environ["FTP_USERNAME"], os.environ["FTP_PASSWORD"])
+                  ftp.prot_p()
+                  folder = os.environ["FTP_SERVER_DIR"].strip()
+                  try:
+                      ftp.cwd(folder)
+                  except ftplib.error_perm:
+                      sys.exit("FTP_SERVER_DIR cannot be opened. Verify the directory relative to the FTP account root; use ./ if already rooted in public_html.")
+                  # Upload only the application file. Never mirror/delete remote files.
+                  with payload.open("rb") as source:
+                      ftp.storbinary("STOR index.html", source)
+                  print("index.html uploaded successfully.")
+                  print("Database and document storage migration is a separate step.")
+          except ssl.SSLCertVerificationError:
+              sys.exit("FTPS certificate verification failed. Set FTP_SERVER to the provider's certificate-matching FTP hostname. Certificate validation has not been disabled.")
+          except Exception as error:
+              # Avoid including server responses or credentials in public workflow logs.
+              sys.exit("Deployment failed (" + type(error).__name__ + "). Check FTP credentials, encrypted FTP support and directory settings.")
