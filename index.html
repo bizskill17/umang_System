@@ -4048,8 +4048,8 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       fields: [{ k: "qty", label: "Qty", type: "number", req: 1, min: 0, step: "any" },
         { k: "machine_id", label: "Machine", type: "select", opts: function () { return U.mact("machines").filter(function (m) { return m.job_step === stage; }); }, first: "Choose a " + stage.toLowerCase() + " machine", live: 1, show: function (v) { return !v.vendor_id || !!v.machine_id; } },
         { k: "vendor_id", label: "Vendor", type: "select", live: 1, opts: function () { return U.mact("vendors"); }, first: "Choose a vendor", show: function (v) { return !v.machine_id; } },
-        { k: "date", label: "Assignment Date", type: "date" }, { k: "target", label: "Target Date", type: "date" }, { k: "remarks", label: "Remarks", type: "textarea" }],
-      validate: function (v) { if (!(n(v.qty) > 0)) return "Enter a qty above 0."; if (n(v.qty) > av + 1e-6) return "You can assign at most " + U.num(av) + "."; if (!v.machine_id && !v.vendor_id) return "Choose a machine or a vendor."; return null; },
+        { k: "date", label: "Assignment Date", type: "date" }, { k: "target", label: "Target Date", type: "date", req: 1 }, { k: "remarks", label: "Remarks", type: "textarea" }],
+      validate: function (v) { if (!(n(v.qty) > 0)) return "Enter a qty above 0."; if (n(v.qty) > av + 1e-6) return "You can assign at most " + U.num(av) + "."; if (!v.machine_id && !v.vendor_id) return "Choose a machine or a vendor."; if (!v.target) return "Choose a target date."; if (v.target < (v.date || U.today())) return "The target date can’t be before the assignment date."; return null; },
       save: async function (v) { await U.add("job_assign", { job_id: j.id, lid: it.lid, stage: stage, qty: q3(v.qty), date: v.date || U.today(), machine_id: v.machine_id || "", vendor_id: v.machine_id ? "" : (v.vendor_id || ""), assignee: "", target: v.target || "", remarks: v.remarks || "", completed: 0, closed: false, log: [] }); await syncJob(j.id); return U.num(v.qty) + " assigned to " + stage + " for job " + j.no + "."; } });
   });
   U.act("st-update", function (id) {
