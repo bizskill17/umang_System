@@ -474,6 +474,9 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .w-thumb-link { display: inline-block; }
 .w-del { color: #b42318 !important; border-color: color-mix(in srgb, #b42318 45%, transparent) !important; }
 .auth-msg { text-align: center; padding: 8px 4px; }
+.login-err { color: #b42318; font-size: 13px; margin: 0 0 10px; }
+.owner-continue { all: unset; cursor: pointer; display: block; margin: 14px auto 0; font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: underline; }
+.owner-continue:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 4px; }
 .acc-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .acc-row .acc-q { flex: 1 1 200px; }
 .acc-row select { flex: 1 1 220px; }
@@ -1258,12 +1261,12 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     setMenu(false);
   }
 
-  /* ---------- Sign in (preview: no real check) ---------- */
+  /* ---------- Sign in: User Name or Email + Password from Master Data -> Users ---------- */
   var login = document.getElementById("login-view");
-  var signedIn = false;
   var form = document.getElementById("login-form");
   var email = document.getElementById("login-email");
   var pw = document.getElementById("login-password");
+  var remember = document.getElementById("login-remember");
   function fieldError(input, msg) {
     var err = document.getElementById(input.id + "-err");
     err.textContent = msg || ""; err.hidden = !msg;
@@ -1275,34 +1278,65 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     this.setAttribute("aria-pressed", showing ? "false" : "true");
     this.setAttribute("aria-label", showing ? "Show password" : "Hide password");
   });
-  form.addEventListener("submit", function (e) {
-    e.preventDefault();
+  /* passwords are stored only as a salted PBKDF2 hash */
+  function hex(buf) { return Array.prototype.map.call(new Uint8Array(buf), function (x) { return ("0" + x.toString(16)).slice(-2); }).join(""); }
+  window.UmangPw = {
+    salt: function () { var a = new Uint8Array(16); crypto.getRandomValues(a); return hex(a.buffer); },
+    hash: async function (password, salt) {
+      var enc = new TextEncoder(), key = await crypto.subtle.importKey("raw", enc.encode(String(password)), "PBKDF2", false, ["deriveBits"]);
+      var bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: enc.encode(salt), iterations: 120000, hash: "SHA-256" }, key, 256);
+      return hex(bits);
+    }
+  };
+  var SKEY = "umang-session", USERS = null;
+  function readSess() { try { var s = localStorage.getItem(SKEY) || sessionStorage.getItem(SKEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+  function writeSess(o, keep) { try { localStorage.removeItem(SKEY); sessionStorage.removeItem(SKEY); if (o) (keep ? localStorage : sessionStorage).setItem(SKEY, JSON.stringify(o)); } catch (e) {} }
+  function norm(s) { return String(s || "").trim().replace(/\s+/g, " ").toLowerCase(); }
+  function applySession() {
+    AUTH.row = null; AUTH.allowed = null; AUTH.full = false; AUTH.signed = false;
+    if (AUTH.open) { AUTH.signed = true; AUTH.full = true; return; }
+    var s = readSess(); if (!s) return;
+    if (s.owner && AUTH.isOwner) { AUTH.signed = true; AUTH.full = true; return; }
+    if (s.uid && USERS) {
+      var r = USERS.find(function (x) { return x.id === s.uid; });
+      if (r && r.status !== "Inactive" && r.pw_hash && r.pw_hash === s.h) { AUTH.row = r; AUTH.allowed = Array.isArray(r.allowed_views) ? r.allowed_views : null; AUTH.signed = true; }
+    }
+  }
+  var authMsg = document.createElement("div"); authMsg.className = "auth-msg"; authMsg.setAttribute("role", "status");
+  var loginErr = document.createElement("p"); loginErr.className = "login-err"; loginErr.setAttribute("role", "alert"); loginErr.hidden = true;
+  form.insertBefore(loginErr, form.querySelector(".login-btn"));
+  var ownerBtn = document.createElement("button"); ownerBtn.type = "button"; ownerBtn.className = "owner-continue"; ownerBtn.textContent = "Continue as app owner"; ownerBtn.hidden = true;
+  var card = login.querySelector(".login-card"); card.insertBefore(authMsg, form); card.appendChild(ownerBtn);
+  ownerBtn.addEventListener("click", function () { writeSess({ owner: 1 }, true); authDone(); goIn(); });
+  function goIn() { var hh = (location.hash || "").replace("#", ""); if (!hh || hh === "login") location.hash = "home"; else show(); }
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault(); loginErr.hidden = true;
     var ev = email.value.trim(), ok = true;
-    if (!ev) { fieldError(email, "Enter your email or username."); ok = false; }
-    else fieldError(email);
+    if (!ev) { fieldError(email, "Enter your user name or email."); ok = false; } else fieldError(email);
     if (!pw.value) { fieldError(pw, "Enter your password."); ok = false; } else fieldError(pw);
     if (!ok) { (email.getAttribute("aria-invalid") ? email : pw).focus(); return; }
-    var local = ev.split("@")[0].replace(/[._-]+/g, " ").trim();
-    var name = local.replace(/\b\w/g, function (c) { return c.toUpperCase(); }) || ev;
-    document.querySelectorAll(".user-name, .side-user-name").forEach(function (n) { n.textContent = name; });
-    document.querySelectorAll(".avatar").forEach(function (a) { a.textContent = name.charAt(0).toUpperCase(); });
-    signedIn = true; pw.value = "";
-    var h = (location.hash || "").replace("#", "");
-    if (!h || h === "login") location.hash = "home"; else show();
+    var fail = function (m) { loginErr.textContent = m; loginErr.hidden = false; };
+    if (!USERS) return fail("Still loading users. Try again in a moment.");
+    var q = norm(ev), r = USERS.find(function (x) { return norm(x.email) === q; }) || USERS.find(function (x) { return norm(x.name) === q; });
+    if (!r) return fail("Wrong user name or password.");
+    if (r.status === "Inactive") return fail("This user is inactive. Ask the admin to make it Active.");
+    if (!r.pw_hash || !r.pw_salt) return fail("No password is set for this user. Ask the admin to set one in Master Data → Users.");
+    var btn = form.querySelector(".login-btn"); btn.disabled = true;
+    var hsh = ""; try { hsh = await window.UmangPw.hash(pw.value, r.pw_salt); } catch (x) {}
+    btn.disabled = false;
+    if (hsh !== r.pw_hash) return fail("Wrong user name or password.");
+    writeSess({ uid: r.id, h: r.pw_hash }, remember && remember.checked); pw.value = "";
+    authDone(); goIn();
   });
   document.querySelectorAll('[aria-label="Log out"]').forEach(function (b) {
-    b.addEventListener("click", function () { signedIn = false; location.hash = "login"; show(); });
+    b.addEventListener("click", function () { writeSess(null); authDone(); location.hash = "login"; });
   });
 
-  form.hidden = true;
-  document.querySelectorAll('[aria-label="Log out"]').forEach(function (b) { b.hidden = true; });
-  var authMsg = document.createElement("div"); authMsg.className = "auth-msg"; authMsg.setAttribute("role", "status");
-  login.querySelector(".login-card").appendChild(authMsg);
   function show() {
     var raw = (location.hash || "").replace("#", ""), parts = raw.split("."), slug = parts[0];
     if (!AUTH.ready || AUTH.denied) {
-      authMsg.innerHTML = !AUTH.ready ? "<p>Checking your access\u2026</p>" : "<h2>Your account isn\u2019t set up yet</h2><p></p>";
-      if (AUTH.ready) authMsg.querySelector("p").textContent = AUTH.why;
+      authMsg.innerHTML = AUTH.ready ? "" : "<p>Loading…</p>"; authMsg.hidden = AUTH.ready;
+      form.hidden = !AUTH.ready; ownerBtn.hidden = !(AUTH.ready && AUTH.isOwner);
       login.hidden = false; home.hidden = true; view.hidden = true; setMenu(false);
       document.body.classList.remove("in-module", "on-home"); document.body.classList.add("on-login");
       return;
@@ -1318,34 +1352,25 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   }
   window.addEventListener("hashchange", show);
   function setNames() {
-    var r = AUTH.row, nm = (r && r.name) || (AUTH.me && AUTH.me.name) || (AUTH.full ? "Owner" : "");
-    var role = r && r.designation_id ? (AUTH.desig[r.designation_id] || "") : (AUTH.me && AUTH.me.isOwner ? "Owner" : "");
+    var r = AUTH.row, nm = r ? r.name : (AUTH.full ? "Owner" : "");
+    var role = r ? (AUTH.desig[r.designation_id] || "") : (AUTH.full ? "Admin" : "");
     document.querySelectorAll(".user-name, .side-user-name").forEach(function (n) { n.textContent = nm || "User"; });
     document.querySelectorAll(".side-user-role").forEach(function (n) { n.textContent = role; });
     document.querySelectorAll(".avatar").forEach(function (a) { a.textContent = (nm || "U").charAt(0).toUpperCase(); });
+    document.querySelectorAll('[aria-label="Log out"]').forEach(function (b) { b.hidden = !!AUTH.open; });
   }
   AUTH.desig = {};
-  function authDone() { AUTH.ready = true; AUTH.ver++; setNames(); builtFor = null; show(); window.dispatchEvent(new Event("umang-auth")); }
+  function authDone() { applySession(); AUTH.denied = !AUTH.signed; AUTH.ready = true; AUTH.ver++; setNames(); builtFor = null; show(); window.dispatchEvent(new Event("umang-auth")); }
   (async function initAuth() {
     var C = window.claude && typeof window.claude.use === "function" ? window.claude : null;
-    var u = C ? await C.use("user") : null;
-    if (!u) { AUTH.full = true; authDone(); return; }
-    var me = await u.me(); AUTH.me = me; AUTH.full = !!me.isOwner; AUTH.uid = me.id || ""; AUTH.nm = String(me.name || "").trim().replace(/\s+/g, " ").toLowerCase();
-    var db = await C.use("db");
-    if (!db) { AUTH.denied = !AUTH.full; AUTH.why = "Sign in to claude.ai to use this app."; authDone(); return; }
+    var db = C ? await C.use("db") : null;
+    if (!db) { AUTH.open = true; authDone(); return; }
+    var u = await C.use("user"); AUTH.isOwner = u ? !!(await u.isOwner()) : false;
     db.collection("masters/designation/rows").onSnapshot(function (s) { AUTH.desig = {}; s.docs.forEach(function (d) { AUTH.desig[d.id] = (d.data() || {}).name || ""; }); if (AUTH.ready) setNames(); }, function () {});
     db.collection("masters/users/rows").onSnapshot(function (snap) {
-      var rows = snap.docs.map(function (d) { var o = Object.assign({}, d.data()); o.id = d.id; return o; });
-      var norm = function (s) { return String(s || "").trim().replace(/\s+/g, " ").toLowerCase(); };
-      var row = (AUTH.uid && rows.find(function (r) { return r.account_id === AUTH.uid; })) || (AUTH.nm && rows.find(function (r) { return norm(r.name) === AUTH.nm; })) || null;
-      AUTH.row = row || null;
-      AUTH.allowed = row && Array.isArray(row.allowed_views) ? row.allowed_views : null;
-      AUTH.denied = !AUTH.full && (!row || row.status === "Inactive");
-      AUTH.why = !AUTH.nm ? "This app can\u2019t read your Claude account name here. Open it while signed in to claude.ai, or ask the owner for help."
-        : !row ? "No user named \u201c" + me.name + "\u201d is in Master Data \u2192 Users. Ask the owner to add you with exactly this name."
-        : "Your user is marked Inactive. Ask the owner to make it Active.";
+      USERS = snap.docs.map(function (d) { var o = Object.assign({}, d.data()); o.id = d.id; return o; });
       authDone();
-    }, function () { AUTH.denied = !AUTH.full; AUTH.why = "Couldn\u2019t check your access. Reload the page to try again."; authDone(); });
+    }, function () { USERS = []; authDone(); });
   })();
   show();
 })();
@@ -1377,11 +1402,12 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     "m-lead-sources": { coll: "lead-sources", one: "Lead Source", many: "Lead Sources", fields: [["name", "Lead Source", "text", 1]], cols: ["name"] },
     "m-send-mode": { coll: "send-mode", one: "Send Mode", many: "Send Modes", fields: [["name", "Send Mode", "text", 1]], cols: ["name"] },
     "m-users": { coll: "users", one: "User", many: "Users", fields: [
-      ["name", "User Name", "text", 1], ["email", "Email", "email", 1, { unique: true }], ["mobile", "Mobile", "mobile"],
+      ["name", "User Name", "text", 1, { unique: true }], ["email", "Email", "email", 1, { unique: true }], ["mobile", "Mobile", "mobile"],
+      ["password", "Password", "password"],
       ["role_id", "User Role", "select", 0, { of: "user-roles" }], ["designation_id", "Designation", "select", 0, { of: "designation" }],
       ["signature", "Signature", "image", 0, { hint: "PNG or JPG of the signature." }],
       ["allowed_views", "View Permissions", "perms"]
-    ], cols: ["name", "email", "mobile", "role_id", "designation_id"], note: "People open this app with their Claude account. The User Name here must match the name on that account. Use View Permissions to choose which screens each person sees; the app owner always sees everything." },
+    ], cols: ["name", "email", "mobile", "role_id", "designation_id"], note: "People sign in with their User Name or Email and the Password set here. Use View Permissions to choose which screens each person sees." },
     "m-user-roles": { coll: "user-roles", one: "User Role", many: "User Roles", fields: [["name", "User Role", "text", 1]], cols: ["name"] },
     "m-designation": { coll: "designation", one: "Designation", many: "Designations", fields: [["name", "Designation", "text", 1]], cols: ["name"] },
     "m-user-document-types": { coll: "user-document-types", one: "User Document Type", many: "User Document Types", fields: [["name", "User Document Type", "text", 1]], cols: ["name"] },
@@ -1509,6 +1535,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   });
   function inputFor(f, val, vals) {
     if (f[2] === "perms") return permsHtml(val === "" ? undefined : val);
+    if (f[2] === "password") { var isNew = !(editing && editing.row && editing.row.id), has = editing && editing.row && editing.row.pw_hash; return '<div class="field"><label for="mf-password">Password' + (isNew ? ' <span class="req" aria-hidden="true">*</span>' : "") + '</label><input type="password" id="mf-password" name="password" autocomplete="new-password" placeholder="' + (isNew || !has ? "Enter a password" : "Leave blank to keep the current password") + '"><p class="mf-hint">' + (has ? "A password is set." : "No password set yet \u2014 this user can\u2019t sign in.") + '</p><p class="field-err" id="mf-password-err" hidden></p></div>'; }
     if (f[2] === "account") return accHtml(f, val);
     var id = "mf-" + f[0], req = f[3] ? " required" : "", o = f[4] || {}, t = f[2], h = "";
     var label = '<label for="' + id + '">' + esc(f[1]) + (f[3] ? ' <span class="req" aria-hidden="true">*</span>' : "") + "</label>";
@@ -1652,6 +1679,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var form = document.getElementById("mv-form"), vals = Object.assign({}, editing.vals);
     def.fields.forEach(function (f) {
       if (f[2] === "multi") { vals[f[0]] = Array.prototype.map.call(form.querySelectorAll('input[name="' + f[0] + '"]:checked'), function (c) { return c.value; }); return; }
+      if (f[2] === "password") { var pe = form.elements.password; vals.password = pe ? pe.value : ""; return; }
       if (f[2] === "perms") { var pb = form.querySelectorAll('input[name="' + f[0] + '"]'), pc = Array.prototype.filter.call(pb, function (c) { return c.checked; }); if (pb.length) vals[f[0]] = pc.length === pb.length ? null : pc.map(function (c) { return c.value; }); return; }
       if (f[2] === "contacts") {
         vals.contacts = Array.prototype.map.call(form.querySelectorAll(".mf-contact"), function (rw) {
@@ -1706,13 +1734,17 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   async function save(def) {
     var vals = readForm(def); editing.vals = vals;
     var errs = validate(def, vals);
+    if (def.coll === "users") { if (!editing.row.id && !vals.password) errs.password = "Enter a password."; else if (vals.password && vals.password.length < 4) errs.password = "Use at least 4 characters."; }
     if (Object.keys(errs).length) { formErr = errs.contacts || ""; render(); showErrors(errs); return; }
     if (!db) return;
     saving = true; formErr = ""; render();
     try {
       for (var fi = 0; fi < def.fields.length; fi++) { var ff = def.fields[fi]; if (ff[2] === "image" && vals["__f_" + ff[0]]) { if (!window.U || !U.assets) throw { code: "no_assets" }; vals[ff[0]] = await U.upload(vals["__f_" + ff[0]]); delete vals["__f_" + ff[0]]; editing.vals = vals; } }
     } catch (e) { saving = false; formErr = window.U ? U.err(e) : "Couldn\u2019t upload the file."; render(); return; }
-    var body = {}; def.fields.forEach(function (f) { if (vals[f[0]] !== undefined) body[f[0]] = vals[f[0]]; });
+    var body = {}; def.fields.forEach(function (f) { if (f[2] !== "password" && vals[f[0]] !== undefined) body[f[0]] = vals[f[0]]; });
+    if (editing.row.id) { var keep = Object.assign({}, editing.row); delete keep.id; body = Object.assign(keep, body); }
+    if (def.coll === "users" && vals.password) { try { body.pw_salt = window.UmangPw.salt(); body.pw_hash = await window.UmangPw.hash(vals.password, body.pw_salt); } catch (e) { saving = false; formErr = "Couldn\u2019t set the password in this browser."; render(); return; } }
+    delete body.password; editing.vals.password = "";
     if (def.coll === "customers" && body.city_id) {
       var c = rows("city").find(function (x) { return x.id === body.city_id; });
       if (!c || c.state_id !== body.state_id) body.city_id = "";
