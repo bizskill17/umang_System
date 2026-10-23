@@ -449,6 +449,14 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .q-terms p { margin: 4px 0 0; font-size: 13px; }
 .mv-sub { grid-column: 1 / -1; margin: 8px 0 0; padding-top: 14px; border-top: 1px solid var(--border); font-size: 15px; font-weight: 600; }
 .ji-steps { grid-column: 1 / -1; }
+.ji-table { min-width: 1240px; }
+.ji-table .ji-steps-cell { min-width: 230px; }
+.ji-table .ji-stg { display: grid; grid-template-columns: auto auto; gap: 4px 14px; }
+.ji-table .ji-stg .mf-check { font-size: 13px; white-space: nowrap; padding: 2px 0; min-height: 0; border: 0; background: none; box-shadow: none; gap: 6px; }
+.ji-table .ji-stg .mf-check input { width: 16px; height: 16px; }
+.ji-table .qc-item_id { min-width: 200px; max-width: 260px; }
+.ji-table .erp-ro { width: 76px; min-width: 0 !important; background: color-mix(in srgb, var(--c, #888) 6%, transparent); }
+.ji-table td input[type=text][name^=ji_loc] { min-width: 140px; }
 .ji-stg { display: flex; flex-wrap: wrap; gap: 8px; }
 .mv-form .mf-check input[type=checkbox], .row-chk { width: 18px; height: 18px; min-height: 0; padding: 0; accent-color: var(--c); }
 .mini-bar { display: inline-block; width: 70px; height: 8px; border-radius: 999px; background: var(--page); border: 1px solid var(--border); vertical-align: middle; overflow: hidden; }
@@ -3821,42 +3829,66 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     qs.forEach(function (q) { (q.items || []).forEach(function (it, i) {
       var src = q.id + ":" + i, done = 0;
       liveJobs().forEach(function (j) { (j.items || []).forEach(function (x) { if (x.src === src) done += n(x.qty); }); });
-      out2.push({ src: src, qno: q.no, item_id: it.item_id, description: it.description || "", location: it.location || "", width: it.width || "", height: it.height || "", uom: it.uom || "", max: q3(n(it.qty) - done), qty: q3(Math.max(0, n(it.qty) - done)), on: n(it.qty) - done > 0, steps: {} });
+      out2.push({ src: src, qno: q.no, item_id: it.item_id, description: it.description || "", location: it.location || "", width: it.width || "", height: it.height || "", uom: it.uom || "", qq: n(it.qty), done: q3(done), max: q3(n(it.qty) - done), qty: q3(Math.max(0, n(it.qty) - done)), on: n(it.qty) - done > 0, steps: {} });
     }); });
     return out2;
   }
+  var JDEL = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11H8L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z"/></svg>';
+  function jiBlank() { return { src: "", on: true, qty: "", item_id: "", description: "", location: "", width: "", height: "", uom: "", steps: {} }; }
+  function jiLines(v) { if (v._jp !== v.project_id) { v._lines = quoteLines(v.project_id); v._jp = v.project_id; v.jitems = v._lines.filter(function (l) { return l.max > 0; }).map(function (l) { return Object.assign({}, l, { steps: {} }); }); if (!v.jitems.length) v.jitems = [jiBlank()]; } return v._lines; }
+  function jiApplySrc(it, val, lines) {
+    if (val === it._sel) return it;
+    var keep = { location: it.location, steps: it.steps, uom: it.uom }, l = lines.find(function (x) { return x.src === val; });
+    if (l) return Object.assign({}, l, { on: true, location: l.location || keep.location, steps: keep.steps, _sel: val });
+    if (val.indexOf("I:") === 0) return Object.assign(jiBlank(), { item_id: val.slice(2), location: keep.location, steps: keep.steps, uom: keep.uom, _sel: val });
+    return Object.assign(jiBlank(), { steps: keep.steps, _sel: "" });
+  }
+  function jiSel(it) { return it.src || (it.item_id ? "I:" + it.item_id : ""); }
   function jiHtml(v) {
     if (!v.project_id) return '<p class="mf-hint">Choose a project to see its quotation items.</p>';
-    if (v._jp !== v.project_id) { v.jitems = quoteLines(v.project_id); v._jp = v.project_id; }
-    var h = '<div class="qi-wrap"><span class="mf-legend">Job Items <span class="req" aria-hidden="true">*</span></span><p class="mf-hint">Tick the items to make, set the job qty and choose the stages each one goes through. Items with no stage go straight to Quality Check.</p>';
-    if (!v.jitems.length) h += '<p class="mv-note">This project has no approved quotation items. Add items below.</p>';
+    var lines = jiLines(v), uoms = U.mact("uom"), others = U.mact("items");
+    var h = '<div class="qi-wrap" id="ji-wrap"><div class="qi-head"><span class="mf-legend">Jobs <span class="req" aria-hidden="true">*</span></span><button type="button" class="mv-btn ghost sm" data-a="ji-add">＋ Add Job</button></div>';
+    h += '<div class="mv-table-wrap qi-table-wrap"><table class="mv-table qi-table ji-table"><thead><tr><th>Particular <span class="req">*</span></th><th>Width</th><th>Height</th><th>Location</th><th>Qtn Qty</th><th>Job Qty</th><th>Quantity <span class="req">*</span></th><th>Unit <span class="req">*</span></th><th>Area (Sq. Ft)</th><th>Applicable Steps <span class="req">*</span></th><th>Action</th></tr></thead><tbody>';
     v.jitems.forEach(function (it, i) {
-      var manual = !it.src;
-      h += '<div class="qi-row ji-row"><div class="qi-top"><label class="chk"><input type="checkbox" name="ji_on_' + i + '"' + (it.on ? " checked" : "") + "> <b>" + (manual ? "Other item" : esc(itemName(it)) || "Item") + "</b></label>" + (manual ? '<button type="button" class="mv-btn ghost sm" data-a="ji-del" data-id="' + i + '">Remove</button>' : '<span class="dim">' + esc(it.qno) + (it.width ? " · " + esc(it.width + " × " + it.height) : "") + (it.location ? " · " + esc(it.location) : "") + "</span>") + '</div><div class="qi-grid">';
-      if (manual) {
-        h += '<div class="field qi-item_id"><label for="ji_item_' + i + '">Item</label><select id="ji_item_' + i + '" name="ji_item_' + i + '"><option value="">Choose item</option>' + U.mact("items").map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === it.item_id ? " selected" : "") + ">" + esc(x.name) + "</option>"; }).join("") + "</select></div>";
-        h += '<div class="field qi-description"><label for="ji_desc_' + i + '">Description</label><input id="ji_desc_' + i + '" name="ji_desc_' + i + '" value="' + esc(it.description) + '"></div>';
-        h += '<div class="field"><label for="ji_uom_' + i + '">UOM</label><select id="ji_uom_' + i + '" name="ji_uom_' + i + '"><option value="">Select</option>' + U.mact("uom").map(function (x) { return '<option' + (x.name === it.uom ? " selected" : "") + ">" + esc(x.name) + "</option>"; }).join("") + "</select></div>";
-      }
-      h += '<div class="field"><label for="ji_qty_' + i + '">Job Qty' + (manual ? "" : " (max " + U.num(it.max) + ")") + '</label><input id="ji_qty_' + i + '" name="ji_qty_' + i + '" type="number" min="0" step="any" inputmode="decimal" value="' + esc(it.qty) + '"></div>';
-      h += '<div class="field ji-steps"><span class="mf-legend">Stages</span><div class="ji-stg">' + STAGES.map(function (s) { return '<label class="mf-check"><input type="checkbox" name="ji_st_' + s + "_" + i + '"' + (it.steps[s] ? " checked" : "") + "> " + s + "</label>"; }).join("") + "</div></div>";
-      h += "</div></div>";
+      var sel = jiSel(it), manual = !it.src, a = U.qCalc({ width: it.width, height: it.height, qty: it.qty, uom: it.uom }).area, lab = function (t) { return ' aria-label="' + esc(t + " for job " + (i + 1)) + '"'; };
+      var o = '<option value="">Select Quotation Item</option>';
+      if (lines.length) o += '<optgroup label="Quotation items">' + lines.map(function (l) { return '<option value="' + esc(l.src) + '"' + (l.src === sel ? " selected" : "") + ">" + esc(itemName(l) || "Item") + (l.width ? " (" + esc(l.width + "×" + l.height) + ")" : "") + "</option>"; }).join("") + "</optgroup>";
+      o += '<optgroup label="Other items">' + others.map(function (x) { return '<option value="I:' + esc(x.id) + '"' + ("I:" + x.id === sel ? " selected" : "") + ">" + esc(x.name) + "</option>"; }).join("") + "</optgroup>";
+      var dim = function (k) { return manual ? '<input type="number" name="ji_' + k + "_" + i + '" min="0" step="any" inputmode="decimal" value="' + esc(it[k]) + '"' + lab(k === "width" ? "Width" : "Height") + ' data-oninput="ji-calc">' : '<input type="text" class="erp-ro" value="' + esc(it[k]) + '" readonly tabindex="-1"' + lab(k === "width" ? "Width" : "Height") + ">"; };
+      h += '<tr class="ji-tr" data-i="' + i + '"><td class="qc-item_id"><select name="ji_src_' + i + '"' + lab("Particular") + ' data-onchange="ji-pick">' + o + "</select></td>" +
+        '<td class="qc-width">' + dim("width") + '</td><td class="qc-height">' + dim("height") + "</td>" +
+        '<td class="qc-description"><input type="text" name="ji_loc_' + i + '" placeholder="Enter Location" value="' + esc(it.location) + '"' + lab("Location") + "></td>" +
+        '<td class="qc-out">' + (manual ? "—" : U.num(it.qq)) + '</td><td class="qc-out">' + (manual ? "—" : U.num(it.done)) + "</td>" +
+        '<td class="qc-qty"><input type="number" name="ji_qty_' + i + '" min="0" step="any" inputmode="decimal" value="' + esc(it.qty) + '"' + (manual ? "" : ' max="' + esc(it.max) + '" title="Up to ' + esc(U.num(it.max)) + '"') + lab("Quantity") + ' data-oninput="ji-calc"></td>' +
+        '<td class="qc-uom"><select name="ji_uom_' + i + '"' + lab("Unit") + ' data-onchange="ji-calc"><option value="">Select Unit</option>' + uoms.map(function (x) { return "<option" + (x.name === it.uom ? " selected" : "") + ">" + esc(x.name) + "</option>"; }).join("") + (it.uom && !uoms.some(function (x) { return x.name === it.uom; }) ? "<option selected>" + esc(it.uom) + "</option>" : "") + "</select></td>" +
+        '<td class="qc-out"><output id="ji_area_' + i + '">' + (a === "" ? "—" : U.num(a)) + "</output></td>" +
+        '<td class="ji-steps-cell"><div class="ji-stg">' + STAGES.map(function (s) { return '<label class="mf-check"><input type="checkbox" name="ji_st_' + s + "_" + i + '"' + (it.steps[s] ? " checked" : "") + "> " + s + "</label>"; }).join("") + "</div></td>" +
+        '<td class="qc-act"><button type="button" class="qi-del" data-a="ji-del" data-id="' + i + '" title="Remove job item" aria-label="Remove job item ' + (i + 1) + '"' + (v.jitems.length > 1 ? "" : " disabled") + ">" + JDEL + "</button></td></tr>";
     });
-    return h + '<button type="button" class="mv-btn ghost" data-a="ji-add">+ Add other item</button></div>';
+    return h + "</tbody></table></div></div>";
   }
   function jiRead(fm, v) {
+    var lines = v._lines || [];
     (v.jitems || []).forEach(function (it, i) {
       var g = function (k) { return fm.elements[k]; };
-      if (g("ji_on_" + i)) it.on = g("ji_on_" + i).checked;
+      if (g("ji_src_" + i)) { it._sel = jiSel(it); var nv = jiApplySrc(it, g("ji_src_" + i).value, lines); if (nv !== it) { v.jitems[i] = it = nv; it._changed = true; } }
+      if (it._changed) { delete it._changed; return; }
+      it.on = true;
       if (g("ji_qty_" + i)) it.qty = String(g("ji_qty_" + i).value).trim();
-      if (g("ji_item_" + i)) it.item_id = g("ji_item_" + i).value;
-      if (g("ji_desc_" + i)) it.description = String(g("ji_desc_" + i).value).trim();
+      if (g("ji_loc_" + i)) it.location = String(g("ji_loc_" + i).value).trim();
       if (g("ji_uom_" + i)) it.uom = g("ji_uom_" + i).value;
+      if (g("ji_width_" + i)) it.width = String(g("ji_width_" + i).value).trim();
+      if (g("ji_height_" + i)) it.height = String(g("ji_height_" + i).value).trim();
       STAGES.forEach(function (s) { var e = g("ji_st_" + s + "_" + i); if (e) it.steps[s] = e.checked; });
     });
   }
-  U.act("ji-add", function () { U.render(); var st = P.forms["projects.add-job"]; st.v.jitems.push({ src: "", on: true, qty: "", item_id: "", description: "", uom: "", steps: {} }); U.paint(); });
-  U.act("ji-del", function (i) { U.render(); P.forms["projects.add-job"].v.jitems.splice(+i, 1); U.paint(); });
+  U.act("ji-pick", function () { U.render(); });
+  U.act("ji-calc", function () {
+    var fm = document.getElementById("u-pform"), st = P.forms["projects.add-job"]; if (!fm || !st) return; jiRead(fm, st.v);
+    st.v.jitems.forEach(function (it, i) { var a = U.qCalc({ width: it.width, height: it.height, qty: it.qty, uom: it.uom }).area, e = document.getElementById("ji_area_" + i); if (e) e.textContent = a === "" ? "—" : U.num(a); });
+  });
+  U.act("ji-add", function () { U.render(); P.forms["projects.add-job"].v.jitems.push(jiBlank()); U.paint(); });
+  U.act("ji-del", function (i) { U.render(); var l = P.forms["projects.add-job"].v.jitems; if (l.length > 1) l.splice(+i, 1); U.paint(); });
   var J_FIELDS = function () { return [
     { k: "date", label: "Date", type: "date", req: 1 },
     { k: "project_id", label: "Project", type: "select", req: 1, live: 1, opts: function () { return U.rows("projects").filter(function (p) { return p.status === "In Progress"; }).sort(function (a, b) { return (b.seq || 0) - (a.seq || 0); }).map(function (p) { return { id: p.id, name: p.no + " · " + cust(p) }; }); }, first: "Choose a project" },
@@ -3868,16 +3900,19 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       init: function () { return { date: U.today(), target: addDays(U.today(), 7) }; }, title: function () { return "Add Job"; },
       fields: J_FIELDS, extra: jiHtml, readExtra: jiRead,
       validate: function (v) {
-        var on = (v.jitems || []).filter(function (it) { return it.on; });
-        if (!on.length) return "Tick at least one item for this job.";
-        for (var i = 0; i < on.length; i++) { var it = on[i], nm = itemName(it) || "Other item";
-          if (!it.src && !it.item_id && !it.description) return "Choose an item or enter a description for each other item.";
-          if (!(n(it.qty) > 0)) return nm + ": enter a job qty above 0.";
-          if (it.src && n(it.qty) > it.max + 1e-6) return nm + ": job qty can’t be more than the " + U.num(it.max) + " left on the quotation."; }
+        var on = v.jitems || [], used = {};
+        if (!on.length) return "Add at least one job item.";
+        for (var i = 0; i < on.length; i++) { var it = on[i], nm = "Row " + (i + 1) + (itemName(it) ? " (" + itemName(it) + ")" : "");
+          if (!it.src && !it.item_id) return nm + ": select a particular.";
+          if (it.src) { if (used[it.src]) return nm + ": this quotation item is already in another row."; used[it.src] = 1; }
+          if (!(n(it.qty) > 0)) return nm + ": enter a quantity above 0.";
+          if (!it.uom) return nm + ": select a unit.";
+          if (!STAGES.some(function (s) { return it.steps[s]; })) return nm + ": tick at least one applicable step.";
+          if (it.src && n(it.qty) > it.max + 1e-6) return nm + ": quantity can’t be more than the " + U.num(it.max) + " left on the quotation (Qtn Qty " + U.num(it.qq) + ", already in jobs " + U.num(it.done) + ")."; }
         return null;
       },
       save: async function (v) {
-        var items = v.jitems.filter(function (it) { return it.on; }).map(function (it, i) { return { lid: "L" + (i + 1), src: it.src, item_id: it.item_id || "", description: it.description || "", location: it.location || "", width: it.width || "", height: it.height || "", uom: it.uom || "", qty: q3(it.qty), steps: STAGES.filter(function (s) { return it.steps[s]; }) }; });
+        var items = v.jitems.map(function (it, i) { return { lid: "L" + (i + 1), src: it.src, item_id: it.item_id || "", description: it.description || "", location: it.location || "", width: it.width || "", height: it.height || "", uom: it.uom || "", qty: q3(it.qty), steps: STAGES.filter(function (s) { return it.steps[s]; }) }; });
         var p = proj(v.project_id), fy = U.fy2(v.date), key = "job-" + U.fy(v.date), s = await U.seq(key, U.maxSeq("jobs", "seq", function (r) { return r.fy === U.fy(v.date); }));
         var body = { date: v.date, target: v.target, remarks: v.remarks || "", project_id: v.project_id, customer_id: p.customer_id, items: items, fy: U.fy(v.date), seq: s, no: fy + " - " + s, status: "Pending" };
         await U.add("jobs", body);
