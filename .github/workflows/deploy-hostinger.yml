@@ -40,13 +40,21 @@ jobs:
           payload = Path("index.html")
           if not payload.is_file() or payload.stat().st_size == 0:
               sys.exit("index.html is missing or empty.")
+          stage = "connecting to FTP server"
+          print("Starting FTP connection.", flush=True)
           try:
               with ftplib.FTP_TLS(context=ssl.create_default_context(), timeout=60) as ftp:
                   ftp.connect(host, int(os.environ["FTP_PORT"]))
+                  stage = "TLS verification and login"
+                  print("FTP server connected; starting TLS verification.", flush=True)
                   ftp.login(os.environ["FTP_USERNAME"], os.environ["FTP_PASSWORD"])
+                  stage = "enabling encrypted data transfer"
+                  print("TLS and login successful.", flush=True)
                   ftp.prot_p()
                   # Use the FTP account starting directory; no directory secret needed.
                   # Upload only the application file. Never mirror/delete remote files.
+                  stage = "uploading index.html"
+                  print("Starting upload in FTP login directory.", flush=True)
                   with payload.open("rb") as source:
                       ftp.storbinary("STOR index.html", source)
                   print("index.html uploaded successfully.")
@@ -66,4 +74,4 @@ jobs:
               sys.exit("FTPS certificate verification failed. Set FTP_SERVER to the provider's certificate-matching FTP hostname. Certificate validation has not been disabled.")
           except Exception as error:
               # Avoid including server responses or credentials in public workflow logs.
-              sys.exit("Deployment failed (" + type(error).__name__ + "). Check FTP credentials, encrypted FTP support and directory settings.")
+              sys.exit("Deployment failed while " + stage + " (" + type(error).__name__ + "). Check server reachability and the matching connection settings.")
