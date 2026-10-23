@@ -458,6 +458,14 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .ji-table .erp-ro { width: 76px; min-width: 0 !important; background: color-mix(in srgb, var(--c, #888) 6%, transparent); }
 .ji-table td input[type=text][name^=ji_loc] { min-width: 140px; }
 .ji-table .ji-uom-ro { width: 96px; }
+.rji-table { font-size: 13px; }
+.rji-table th, .rji-table td { white-space: nowrap; }
+.rji-table th.rji-g { text-align: center; }
+.rji-table .rji-c0 { background: color-mix(in srgb, #2563eb 7%, transparent); }
+.rji-table .rji-c1 { background: color-mix(in srgb, #db2777 7%, transparent); }
+.rji-table .rji-c2 { background: color-mix(in srgb, #d97706 8%, transparent); }
+.rji-table .rji-c3 { background: color-mix(in srgb, #0d9488 8%, transparent); }
+.rji-table .rji-na { color: var(--muted); text-align: center; }
 .st-acts { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; }
 .st-acts .st-chg { padding: 0 8px; display: inline-grid; place-items: center; }
 .ji-table .ji-lock { display: block; font-size: 11px; margin-top: 4px; }
@@ -3798,6 +3806,37 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   U.act("p-deliver", function (id) { P.forms["projects.add-delivery"] = { v: { date: U.today(), project_id: id }, err: "", saving: false }; P.keepForm = true; location.hash = "projects.add-delivery"; });
   function pField(l, v) { v = v == null ? "" : String(v).trim(); return v ? '<div class="ld-field"><span>' + esc(l) + "</span><b>" + esc(v).replace(/\n/g, "<br>") + "</b></div>" : ""; }
   function pTable(title, head, rows) { if (!rows.length) return ""; return '<section class="ld-card"><div class="ld-card-title"><span>' + esc(title) + "</span><b>" + rows.length + '</b></div><div class="mv-table-wrap"><table class="mv-table"><thead><tr>' + head.map(function (x) { return "<th>" + esc(x) + "</th>"; }).join("") + "</tr></thead><tbody>" + rows.map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + (c === "" || c == null ? '<span class="dim">—</span>' : c) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table></div></section>"; }
+  function jiStatus(j, it) {
+    if (j.status === "Canceled") return "Canceled";
+    if (passed(j.id, it.lid) >= n(it.qty) - 1e-6) return "Completed";
+    var steps = it.steps || [];
+    if (steps.length && steps.every(function (s) { return out(j.id, it.lid, s) >= n(it.qty) - 1e-6; })) return "Pending QC";
+    if (!steps.length) return "Pending QC";
+    return asgOf(j.id, it.lid).length ? "In Progress" : "Pending";
+  }
+  function jiQc(j, it) { var r = qcRecs(j.id, it.lid); if (passed(j.id, it.lid) >= n(it.qty) - 1e-6) return "OK"; if (r.length && n(r[r.length - 1].hold) > 0) return "Hold"; return qcDue(j, it) > 0 ? "Due" : ""; }
+  function relJobItems(p) {
+    base([U.m("vendors")]);
+    var rows = []; U.rows("jobs").filter(function (j) { return j.project_id === p.id; }).sort(function (a, b) { return (b.seq || 0) - (a.seq || 0); }).forEach(function (j) { (j.items || []).forEach(function (it) { rows.push({ j: j, it: it }); }); });
+    if (!rows.length) return "";
+    var h = '<section class="ld-card"><div class="ld-card-title"><span>Related Job Items</span><b>' + rows.length + '</b></div><div class="mv-table-wrap"><table class="mv-table rji-table"><thead><tr><th rowspan="2">Job No.</th><th rowspan="2">Job Item</th><th rowspan="2">Description</th><th rowspan="2" class="numcell">Qty</th>';
+    STAGES.forEach(function (s, k) { h += '<th colspan="3" class="rji-g rji-c' + k + '">' + esc(s) + "</th>"; });
+    h += '<th rowspan="2">QC</th><th rowspan="2">Status</th></tr><tr>';
+    STAGES.forEach(function (s, k) { h += '<th class="rji-c' + k + '">Progress</th><th class="rji-c' + k + '">Assignee</th><th class="rji-c' + k + '">Assign Date</th>'; });
+    h += "</tr></thead><tbody>";
+    rows.forEach(function (r) {
+      var j = r.j, it = r.it, st = jiStatus(j, it);
+      h += "<tr><td><b class=\"nowrap\">" + esc(j.no) + "</b></td><td><b>" + esc(U.nm("items", it.item_id) || "Item") + "</b>" + (it.width ? '<br><span class="dim">' + esc(it.width + " \u00d7 " + it.height + " " + (it.uom || "")) + "</span>" : "") + "</td><td>" + (esc(it.description) || '<span class="dim">\u2014</span>') + '</td><td class="numcell">' + U.num(it.qty) + "</td>";
+      STAGES.forEach(function (s, k) {
+        if ((it.steps || []).indexOf(s) === -1) { h += '<td class="rji-c' + k + ' rji-na">\u2014</td><td class="rji-c' + k + ' rji-na">\u2014</td><td class="rji-c' + k + ' rji-na">\u2014</td>'; return; }
+        var done = out(j.id, it.lid, s), req = n(it.qty), cls = done >= req - 1e-6 ? "on" : done > 0 ? "warn" : "off";
+        var as = asgOf(j.id, it.lid, s), who = as.map(function (a) { return a.machine_id ? U.nm("machines", a.machine_id) : U.nm("vendors", a.vendor_id); }).filter(Boolean), dts = as.map(function (a) { return a.date ? U.dmy(a.date) : ""; }).filter(Boolean);
+        h += '<td class="rji-c' + k + '">' + U.pill(U.num(done) + "/" + U.num(req), cls) + '</td><td class="rji-c' + k + '">' + (who.length ? who.map(function (x) { return "<div>" + esc(x) + "</div>"; }).join("") : '<span class="dim">\u2014</span>') + '</td><td class="rji-c' + k + '">' + (dts.length ? dts.map(function (x) { return '<div class="nowrap">' + x + "</div>"; }).join("") : '<span class="dim">\u2014</span>') + "</td>";
+      });
+      h += "<td>" + (esc(jiQc(j, it)) || '<span class="dim">\u2014</span>') + "</td><td>" + U.pill(st, st === "Completed" ? "on" : st === "Canceled" ? "off" : "warn") + "</td></tr>";
+    });
+    return h + "</tbody></table></div></section>";
+  }
   U.act("p-view", function (id) {
     var p = U.get("projects", id); if (!p) return;
     U.modal({ mod: "projects", wide: 1, title: "Project Details", sub: esc(p.no) + " · " + esc(cust(p)), fields: [], submit: "Close", save: function () { return Promise.resolve(""); },
@@ -3817,6 +3856,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
         h += pTable("Quotation Details" + (q.no ? " - " + q.no : ""), ["Particulars", "Description", "Width", "Height", "Quantity", "Unit", "Job Qty"], (q.items || []).map(function (it, i) {
           var src = q.id + ":" + i, jq = 0; jobsOf.forEach(function (j) { (j.items || []).forEach(function (x) { if (x.src === src) jq += n(x.qty); }); });
           return [esc(U.nm("items", it.item_id)), esc(it.description), esc(it.width), esc(it.height), U.num(it.qty), esc(it.uom), jq ? U.num(jq) : ""]; }));
+        h += relJobItems(p);
         var drows = []; U.rows("dispatches").filter(function (d) { return d.project_id === p.id; }).forEach(function (d) { (d.items || []).forEach(function (x) { var j = U.get("jobs", x.job_id) || {}, it = (j.items || []).find(function (y) { return y.lid === x.lid; }) || {}; drows.push(["<b>" + esc(d.no) + "</b>", U.dmy(d.date), esc(j.no), esc(itemName(it)), U.num(x.qty) + " " + esc(it.uom || ""), esc(U.nm("delivery-modes", d.mode)), esc(U.user(d.delivered_by)), esc(d.remarks)]); }); });
         h += pTable("Dispatch History", ["Dispatch No.", "Delivery Date", "Job No.", "Item", "Dispatch Qty", "Mode", "Delivered By", "Remarks"], drows);
         return h;
