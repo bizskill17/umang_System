@@ -457,6 +457,7 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .ji-table .qc-item_id { min-width: 200px; max-width: 260px; }
 .ji-table .erp-ro { width: 76px; min-width: 0 !important; background: color-mix(in srgb, var(--c, #888) 6%, transparent); }
 .ji-table td input[type=text][name^=ji_loc] { min-width: 140px; }
+.ji-table .ji-uom-ro { width: 96px; }
 .ji-stg { display: flex; flex-wrap: wrap; gap: 8px; }
 .mv-form .mf-check input[type=checkbox], .row-chk { width: 18px; height: 18px; min-height: 0; padding: 0; accent-color: var(--c); }
 .mini-bar { display: inline-block; width: 70px; height: 8px; border-radius: 999px; background: var(--page); border: 1px solid var(--border); vertical-align: middle; overflow: hidden; }
@@ -3836,11 +3837,11 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   }
   var JDEL = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11H8L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z"/></svg>';
   function jiBlank() { return { src: "", on: true, qty: "", item_id: "", description: "", location: "", width: "", height: "", uom: "", steps: {} }; }
-  function jiLines(v) { var key = v.project_id + "|" + (v.quotation_id || ""); if (v._jp !== key) { v._lines = v.quotation_id || !projQuotes(v.project_id).length ? quoteLines(v.project_id, v.quotation_id) : []; v._jp = key; v.jitems = v._lines.filter(function (l) { return l.max > 0; }).map(function (l) { return Object.assign({}, l, { steps: {} }); }); if (!v.jitems.length) v.jitems = [jiBlank()]; } return v._lines; }
+  function jiLines(v) { var key = v.project_id + "|" + (v.quotation_id || ""); if (v._jp !== key) { v._lines = v.quotation_id || !projQuotes(v.project_id).length ? quoteLines(v.project_id, v.quotation_id) : []; v._jp = key; v.jitems = v._lines.filter(function (l) { return l.max > 0; }).map(function (l) { return Object.assign({}, l, { qty: "", steps: {} }); }); if (!v.jitems.length) v.jitems = [jiBlank()]; } return v._lines; }
   function jiApplySrc(it, val, lines) {
     if (val === it._sel) return it;
     var keep = { location: it.location, steps: it.steps, uom: it.uom }, l = lines.find(function (x) { return x.src === val; });
-    if (l) return Object.assign({}, l, { on: true, location: l.location || keep.location, steps: keep.steps, _sel: val });
+    if (l) return Object.assign({}, l, { on: true, qty: "", location: l.location || keep.location, steps: keep.steps, _sel: val });
     if (val.indexOf("I:") === 0) return Object.assign(jiBlank(), { item_id: val.slice(2), location: keep.location, steps: keep.steps, uom: keep.uom, _sel: val });
     return Object.assign(jiBlank(), { steps: keep.steps, _sel: "" });
   }
@@ -3863,7 +3864,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
         '<td class="qc-description"><input type="text" name="ji_loc_' + i + '" placeholder="Enter Location" value="' + esc(it.location) + '"' + lab("Location") + "></td>" +
         '<td class="qc-out">' + (manual ? "—" : U.num(it.qq)) + '</td><td class="qc-out">' + (manual ? "—" : U.num(it.done)) + "</td>" +
         '<td class="qc-qty"><input type="number" name="ji_qty_' + i + '" min="0" step="any" inputmode="decimal" value="' + esc(it.qty) + '"' + (manual ? "" : ' max="' + esc(it.max) + '" title="Up to ' + esc(U.num(it.max)) + '"') + lab("Quantity") + ' data-oninput="ji-calc"></td>' +
-        '<td class="qc-uom"><select name="ji_uom_' + i + '"' + lab("Unit") + ' data-onchange="ji-calc"><option value="">Select Unit</option>' + uoms.map(function (x) { return "<option" + (x.name === it.uom ? " selected" : "") + ">" + esc(x.name) + "</option>"; }).join("") + (it.uom && !uoms.some(function (x) { return x.name === it.uom; }) ? "<option selected>" + esc(it.uom) + "</option>" : "") + "</select></td>" +
+        '<td class="qc-uom">' + (!manual ? '<input type="text" class="erp-ro ji-uom-ro" value="' + esc(it.uom) + '" readonly tabindex="-1"' + lab("Unit") + ">" : '<select name="ji_uom_' + i + '"' + lab("Unit") + ' data-onchange="ji-calc"><option value="">Select Unit</option>' + uoms.map(function (x) { return "<option" + (x.name === it.uom ? " selected" : "") + ">" + esc(x.name) + "</option>"; }).join("") + (it.uom && !uoms.some(function (x) { return x.name === it.uom; }) ? "<option selected>" + esc(it.uom) + "</option>" : "") + "</select>") + "</td>" +
         '<td class="qc-out"><output id="ji_area_' + i + '">' + (a === "" ? "—" : U.num(a)) + "</output></td>" +
         '<td class="ji-steps-cell"><div class="ji-stg">' + STAGES.map(function (s) { return '<label class="mf-check"><input type="checkbox" name="ji_st_' + s + "_" + i + '"' + (it.steps[s] ? " checked" : "") + "> " + s + "</label>"; }).join("") + "</div></td>" +
         '<td class="qc-act"><button type="button" class="qi-del" data-a="ji-del" data-id="' + i + '" title="Remove job item" aria-label="Remove job item ' + (i + 1) + '"' + (v.jitems.length > 1 ? "" : " disabled") + ">" + JDEL + "</button></td></tr>";
@@ -3900,8 +3901,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     { k: "date", label: "Date", type: "date", req: 1 },
     { k: "project_id", label: "Project", type: "select", req: 1, live: 1, opts: function () { return U.rows("projects").filter(function (p) { return p.status === "In Progress"; }).sort(function (a, b) { return (b.seq || 0) - (a.seq || 0); }).map(function (p) { return { id: p.id, name: p.no + " · " + cust(p) }; }); }, first: "Choose a project" },
     { k: "quotation_id", label: "Quotation No.", type: "select", req: 1, live: 1, opts: function () { return qs.map(function (q) { return { id: q.id, name: (q.no || "Quotation") + " \u00b7 " + U.dmy(q.date) + " \u00b7 " + U.money(q.total) }; }); }, first: "Choose a quotation", show: function () { return qs.length > 0; } },
-    { k: "target", label: "Target Date", type: "date", req: 1 },
-    { k: "remarks", label: "Remarks", type: "textarea" }]; };
+    { k: "target", label: "Target Date", type: "date", req: 1 }]; };
   U.page("projects.add-job", function () {
     if (!base()) return U.loading;
     return U.formPage("projects.add-job", {
@@ -3914,7 +3914,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
           if (!it.src && !it.item_id) return nm + ": select a particular.";
           if (it.src) { if (used[it.src]) return nm + ": this quotation item is already in another row."; used[it.src] = 1; }
           if (!(n(it.qty) > 0)) return nm + ": enter a quantity above 0.";
-          if (!it.uom) return nm + ": select a unit.";
+          if (!it.uom) return nm + (it.src ? ": this quotation item has no unit. Add one on the quotation first." : ": select a unit.");
           if (!STAGES.some(function (s) { return it.steps[s]; })) return nm + ": tick at least one applicable step.";
           if (it.src && n(it.qty) > it.max + 1e-6) return nm + ": quantity can’t be more than the " + U.num(it.max) + " left on the quotation (Qtn Qty " + U.num(it.qq) + ", already in jobs " + U.num(it.done) + ")."; }
         return null;
