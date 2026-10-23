@@ -677,6 +677,8 @@ body.side-hidden .side-toggle .st-arrow { transform: rotate(180deg); }
   body.side-hidden .side { visibility: hidden; opacity: 0; padding: 0; border: 0; overflow: hidden; }
 }
 @media (prefers-reduced-motion: reduce) { .shell, .side-toggle .st-arrow { transition: none; } }
+body.in-module .wrap { max-width: none; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+@media (min-width: 1024px) { body.in-module .wrap { padding-left: 20px; padding-right: 20px; } body.in-module .shell { gap: 20px; } }
 body.in-module .crumb-row .crumb { color: #e3eeff; } body.in-module .crumb-row .crumb a { color: #fff; }
 .cell-wrap { display: inline-block; min-width: 180px; max-width: 260px; white-space: normal; }
 /* ---------- Cell borders on every table ---------- */
