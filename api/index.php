@@ -20,7 +20,37 @@ set_exception_handler(function (Throwable $e): void {
     reject('Database service unavailable. Check the private configuration and hosting error log.', 503, 'unavailable');
 });
 $configFile = dirname(__DIR__, 2) . '/config/database.php';
-if (!is_file($configFile)) reject('Setup required: create config/database.php alongside public_html. See the repository database setup guide.', 503, 'not_configured');
+if (!is_file($configFile)) {
+    $configDir = dirname($configFile);
+    if (!is_dir($configDir) && !@mkdir($configDir, 0700, true) && !is_dir($configDir)) {
+        reject('Setup required: hosting permissions prevent creating the private config folder. Create config/database.php alongside public_html.', 503, 'not_configured');
+    }
+    // Exclusive creation preserves any configuration already saved by the owner.
+    $previousMask = umask(0077);
+    $handle = @fopen($configFile, 'x');
+    umask($previousMask);
+    if ($handle !== false) {
+        $template = <<<'CONFIG'
+<?php
+return [
+    'host' => 'localhost',
+    'port' => 3306,
+    'database' => 'u299994438_system_umang',
+    'username' => 'u299994438_system_umang',
+    'password' => 'REPLACE_DATABASE_PASSWORD',
+    'admin_username' => 'admin',
+    'admin_password' => 'REPLACE_WITH_UNIQUE_PASSWORD_AT_LEAST_12_CHARACTERS',
+];
+CONFIG;
+        $written = fwrite($handle, $template . "\n");
+        fclose($handle);
+        if ($written !== strlen($template) + 1) {
+            @unlink($configFile);
+            reject('Could not create the private configuration file. Check hosting storage and permissions.', 503, 'not_configured');
+        }
+    }
+    if (!is_file($configFile)) reject('Setup required: hosting permissions prevent creating config/database.php alongside public_html.', 503, 'not_configured');
+}
 $config = require $configFile;
 if (!is_array($config)) reject('The private database configuration must return an array.', 503, 'not_configured');
 foreach (['host', 'database', 'username', 'password', 'admin_username'] as $key) {

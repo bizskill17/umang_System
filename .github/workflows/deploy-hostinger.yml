@@ -92,3 +92,26 @@ jobs:
           state-name: .umang-deploy-state.json
           dangerous-clean-slate: false
 
+
+      - name: Initialize private database configuration
+        run: |
+          python3 - <<'PY'
+          import json
+          import urllib.error
+          import urllib.request
+          url = 'https://system.umangcommunications.com/api/index.php?action=session'
+          try:
+              response = urllib.request.urlopen(url, timeout=30)
+          except urllib.error.HTTPError as error:
+              response = error
+          result = json.loads(response.read())
+          if response.status == 200:
+              print('Private configuration is present and the database is reachable.')
+          elif response.status == 503 and result.get('error', {}).get('code') == 'not_configured':
+              message = result['error'].get('msg', '')
+              if 'permissions prevent creating' in message or 'Could not create' in message:
+                  raise SystemExit(message)
+              print('Private configuration file is present. Enter the database and administrator passwords in Hostinger.')
+          else:
+              raise SystemExit('API setup check failed. Review the website setup message and hosting error log.')
+          PY

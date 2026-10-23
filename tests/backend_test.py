@@ -74,10 +74,23 @@ def main():
                     except OSError: time.sleep(.05)
                 base=f'http://127.0.0.1:{port}/api/index.php'
                 owner=Client(base)
+                # First visit creates a private placeholder folder/file without a database password.
+                private = root/'config'
+                original_config = config_path.read_bytes()
+                private.rename(root/'saved-config')
+                created = owner.call('session', expected=503)
+                assert created['error']['code'] == 'not_configured'
+                assert config_path.is_file()
+                assert 'REPLACE_DATABASE_PASSWORD' in config_path.read_text()
+                assert config_path.stat().st_mode & 0o777 == 0o600
+                assert private.stat().st_mode & 0o777 == 0o700
+                shutil.rmtree(private)
+                (root/'saved-config').rename(private)
                 # Private configuration is required and cannot be fetched from public webroot.
                 config_path.rename(config_path.with_suffix('.disabled'))
                 missing=owner.call('session',expected=503)
                 assert missing['error']['code']=='not_configured'
+                assert 'REPLACE_DATABASE_PASSWORD' in config_path.read_text()
                 config_path.with_suffix('.disabled').rename(config_path)
                 assert owner.call('session')['user'] is None
                 owner.call('list&path=leads',expected=401)
@@ -129,6 +142,7 @@ def main():
                 employee.call('list&path=leads',expected=401)
                 owner.call('delete',{'path':'leads','id':'lead1'})
                 assert not owner.call('get&path=leads&id=lead1')['exists']
+                assert config_path.read_bytes() == original_config, 'Existing config was overwritten'
                 owner.call('logout',{})
                 owner.call('list&path=leads',expected=401)
                 print('Backend integration passed: configuration, login, CSRF, UTF-8 CRUD, permissions, leases, password preservation, upload validation, private downloads and logout.')

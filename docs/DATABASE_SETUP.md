@@ -4,7 +4,9 @@ The website now uses a PHP API and MySQL on Hostinger. The private configuration
 
 ## 1. Create the private configuration
 
-In Hostinger File Manager, open the folder containing `public_html`. Create a `config` folder beside it, then create `database.php` inside `config`.
+Deployment visits the PHP API to create the private `config` folder and a placeholder `database.php` beside `public_html`. The website also attempts this automatically on its first visit. Existing configuration files are never overwritten.
+
+In Hostinger File Manager, open the folder containing `public_html`, then open `config/database.php`. If hosting permissions prevent automatic creation, create that folder and file manually.
 
 Copy the following into that file, replacing both passwords **on Hostinger only**:
 
