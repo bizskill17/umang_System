@@ -1,4 +1,5 @@
 name: Deploy to Hostinger
+
 on:
   push:
     branches: [main]
@@ -6,72 +7,38 @@ on:
       - index.html
       - .github/workflows/deploy-hostinger.yml
   workflow_dispatch:
+
 permissions:
   contents: read
+
 concurrency:
   group: hostinger-production
   cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out source
+      - name: Get the code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Upload website using encrypted FTP
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          FTP_PORT: ${{ secrets.FTP_PORT }}
-        shell: python
+
+      - name: Prepare website files
         run: |
-          import os, ssl, ftplib, sys, subprocess, re, socket
-          from pathlib import Path
-          required = ["FTP_SERVER", "FTP_USERNAME", "FTP_PASSWORD", "FTP_PORT"]
-          missing = [k for k in required if not os.environ.get(k)]
-          if missing:
-              sys.exit("Missing repository secrets: " + ", ".join(missing))
-          host = os.environ["FTP_SERVER"].strip()
-          if "://" in host or "/" in host:
-              sys.exit("FTP_SERVER must contain only a hostname or IP, without ftp:// or a path.")
-          payload = Path("index.html")
-          if not payload.is_file() or payload.stat().st_size == 0:
-              sys.exit("index.html is missing or empty.")
-          stage = "connecting to FTP server"
-          print("Starting FTP connection.", flush=True)
-          try:
-              with ftplib.FTP_TLS(context=ssl.create_default_context(), timeout=60) as ftp:
-                  ftp.connect(host, int(os.environ["FTP_PORT"]))
-                  stage = "TLS verification and login"
-                  print("FTP server connected; starting TLS verification.", flush=True)
-                  ftp.login(os.environ["FTP_USERNAME"], os.environ["FTP_PASSWORD"])
-                  stage = "enabling encrypted data transfer"
-                  print("TLS and login successful.", flush=True)
-                  ftp.prot_p()
-                  # Use the FTP account starting directory; no directory secret needed.
-                  # Upload only the application file. Never mirror/delete remote files.
-                  stage = "uploading index.html"
-                  print("Starting upload in FTP login directory.", flush=True)
-                  with payload.open("rb") as source:
-                      ftp.storbinary("STOR index.html", source)
-                  print("index.html uploaded successfully.")
-                  print("Database and document storage migration is a separate step.")
-          except ssl.SSLCertVerificationError as error:
-              print("Certificate verification reason:", error.verify_message, flush=True)
-              try:
-                  print("Reverse DNS hostname:", socket.gethostbyaddr(host)[0], flush=True)
-              except OSError:
-                  print("Reverse DNS hostname unavailable.", flush=True)
-              # Public certificate inspection only: no login or credentials are sent.
-              probe = subprocess.run(["openssl", "s_client", "-starttls", "ftp", "-connect", host + ":" + os.environ["FTP_PORT"], "-showcerts"], input="", capture_output=True, text=True, timeout=30)
-              cert = re.search(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", probe.stdout, re.S)
-              if cert:
-                  details = subprocess.run(["openssl", "x509", "-noout", "-subject", "-issuer", "-dates", "-ext", "subjectAltName"], input=cert.group(), capture_output=True, text=True, timeout=10)
-                  print("Public server certificate:", details.stdout, flush=True)
-              sys.exit("FTPS certificate verification failed. Set FTP_SERVER to the provider's certificate-matching FTP hostname. Certificate validation has not been disabled.")
-          except Exception as error:
-              # Avoid including server responses or credentials in public workflow logs.
-              sys.exit("Deployment failed while " + stage + " (" + type(error).__name__ + "). Check server reachability and the matching connection settings.")
+          mkdir -p deploy
+          cp index.html deploy/index.html
+
+      - name: Upload to Hostinger by FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT }}
+          protocol: ftp
+          local-dir: ./deploy/
+          server-dir: ./
+          state-name: .umang-deploy-state.json
+          dangerous-clean-slate: false
