@@ -472,6 +472,7 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .dl-rem textarea { width: 100%; }
 .w-thumb { width: 48px; height: 42px; object-fit: cover; border-radius: 5px; display: block; background: var(--line-soft, #e5e7eb); }
 .w-thumb-link { display: inline-block; }
+.w-del { color: #b42318 !important; border-color: color-mix(in srgb, #b42318 45%, transparent) !important; }
 .st-acts { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; }
 .st-acts .st-chg { padding: 0 8px; display: inline-grid; place-items: center; }
 .ji-table .ji-lock { display: block; font-size: 11px; margin-top: 4px; }
@@ -2469,6 +2470,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
 
   /* writes */
   U.add = function (path, data) { var t = U.now(); data.createdAt = data.createdAt || t; data.updatedAt = t; return U.db.collection(path).add(data); };
+  U.del = function (path, id) { return U.db.collection(path).doc(id).delete(); };
   U.upd = function (path, id, data) { data.updatedAt = U.now(); return U.db.collection(path).doc(id).update(data); };
   U.err = function (e) {
     if (e && e.msg) return e.msg;
@@ -4302,6 +4304,12 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       save: async function (v) { var b = U.pick(v, W_FIELDS()); if (v._id) { await U.upd("wastage", v._id, b); return { go: "projects.wastage-master", msg: "Wastage entry saved." }; } await U.add("wastage", b); return { go: "projects.wastage-master", msg: "Wastage recorded for project " + proj(v.project_id).no + "." }; } });
   });
   U.title("projects.wastage-form", function () { var st = P.forms["projects.wastage-form"]; return st && st.v._id ? "Edit Wastage" : "Wastage Form"; });
+  U.act("w-del", function (id) {
+    var w = U.get("wastage", id); if (!w) return;
+    U.modal({ mod: "projects", title: "Delete wastage entry?", sub: U.dmy(w.date) + " \u00b7 Project " + esc(proj(w.project_id).no) + " \u00b7 " + esc(w.department), submit: "Delete", danger: 1,
+      intro: function () { return '<p class="mf-hint">This removes the entry for good. It can\u2019t be undone.</p>'; }, fields: [],
+      save: async function () { await U.del("wastage", id); return "Wastage entry deleted."; } });
+  });
   U.act("w-edit", function (id) { var w = U.get("wastage", id); if (!w) return; P.forms["projects.wastage-form"] = { v: Object.assign({}, w, { _id: id }), err: "", saving: false }; P.keepForm = true; location.hash = "projects.wastage-form"; });
   var WDEPTS = function () { var s = {}; STAGES.concat(["Design", "Installation", "Store", "Other"]).forEach(function (x) { s[x] = 1; }); U.rows("wastage").forEach(function (w) { if (w.department) s[w.department] = 1; }); return Object.keys(s).sort().map(function (x) { return { id: x, name: x }; }); };
   function wRows() { var st = U.st(); return U.rows("wastage").filter(function (w) { if (st.dept && w.department !== st.dept) return false; if (st.wproj && w.project_id !== st.wproj) return false; if (st.wperson && w.person !== st.wperson) return false; return U.match(st, [proj(w.project_id).no, cust(proj(w.project_id)), w.department, U.user(w.person), w.remarks].join(" "), w.date); }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)); }); }
@@ -4315,7 +4323,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       U.table([["Sl.", function (w, i) { return i + 1; }, "numcell"], ["Date", function (w) { return '<span class="nowrap">' + U.dmy(w.date) + "</span>"; }], ["Project No.", function (w) { return '<b class="nowrap">' + esc(proj(w.project_id).no) + "</b>"; }], ["Customer Name", function (w) { return esc(cust(proj(w.project_id))); }],
         ["Department", function (w) { return esc(w.department); }], ["Wastage Person", function (w) { return esc(U.user(w.person)); }], ["Remarks", function (w) { return esc(w.remarks).replace(/\n/g, "<br>"); }],
         ["Photo", function (w) { var f = w.photo; if (!f || !f.id) return ""; var img = /^image\//.test(f.type || "") || /\.(jpe?g|png|gif|webp)$/i.test(f.name || ""); return img ? '<a class="file-link w-thumb-link" href="/_blob/' + esc(f.id) + '" data-blob="' + esc(f.id) + '" data-type="' + esc(f.type || "image/jpeg") + '" data-name="' + esc(f.name || "Photo") + '" aria-label="Open wastage photo"><img class="w-thumb" data-thumb="' + esc(f.id) + '" alt="Wastage photo"></a>' : U.fileLink(f, "Open"); }],
-        ["Action", function (w) { return U.btn("w-edit", w.id, "Edit"); }, "act"]], rows, null, "No wastage records found.") + U.count(rows.length, "entry", "entries");
+        ["Action", function (w) { return '<span class="row-acts">' + U.btn("w-edit", w.id, "Edit") + '<button type="button" class="mv-btn ghost sm w-del" data-a="w-del" data-id="' + esc(w.id) + '">Delete</button></span>'; }, "act"]], rows, null, "No wastage records found.") + U.count(rows.length, "entry", "entries");
   });
   U.csv = async function (name, head, rows) {
     var q = function (x) { x = String(x == null ? "" : x); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };

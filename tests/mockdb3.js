@@ -6,6 +6,7 @@
   function docRef(coll,id){ return {
     id:id,
     set:function(d){ store[coll]=store[coll]||{}; store[coll][id]=JSON.parse(JSON.stringify(d)); fire(coll); return Promise.resolve(); },
+    delete:function(){ if(store[coll]) delete store[coll][id]; fire(coll); return Promise.resolve(); },
     update:function(d){ if(!store[coll]||!store[coll][id]) return Promise.reject({code:"invalid_argument"}); Object.assign(store[coll][id], JSON.parse(JSON.stringify(d))); store[coll][id]=Object.assign({},store[coll][id]); fire(coll); return Promise.resolve(); },
     get:function(){ var d=store[coll]&&store[coll][id]; return Promise.resolve({id:id,exists:!!d,data:function(){return d;}}); },
     acquire:function(){ return Promise.resolve({acquired:true}); }
