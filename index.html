@@ -4006,7 +4006,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     cnos: ["Completed Nos", function (j) { return U.num((j.items || []).reduce(function (s, it) { return s + Math.min(n(it.qty), passed(j.id, it.lid)); }, 0)); }, "numcell"],
     cnl: ["Cancel", function (j) { return U.num(j.status === "Canceled" ? (j.items || []).reduce(function (s, it) { return s + n(it.qty); }, 0) : 0); }, "numcell"]
   };
-  var JPLUG = ["sl", "no", "date", "pno", "cust", "asg", "dsg", "dod", "tod", "own", "nos", "cnos", "cnl"];
+  var JPLUG = ["sl", "no", "date", "pno", "cust", "dsg", "dod", "own", "nos", "cnos", "cnl"];
   function jlist(filter, cols, actions) {
     if (!base(["designs"])) return U.loading;
     var st = U.st(), rows = U.rows("jobs").filter(filter).filter(function (j) { return U.match(st, [j.no, proj(j.project_id).no, cust(j)].join(" "), j.date); }).sort(function (a, b) { return (b.fy || "").localeCompare(a.fy || "") || (b.seq || 0) - (a.seq || 0); });
