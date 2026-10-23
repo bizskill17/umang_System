@@ -2857,7 +2857,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       { k: "site_contact", label: "Site Contact", type: "text" },
       { k: "units", label: "No of Recce", type: "number", req: 1, min: 1, step: 1, hint: "Number of sites to survey." },
       { k: "target", label: "Target Date", type: "date", req: 1 },
-      { k: "assigned_to", label: "Assigned To", type: "select", live: 1, opts: function () { return U.mact("users"); }, first: "Choose a person", show: function (v) { return !v.vendor_id; } },
+      { k: "assigned_to", label: "Assigned To", type: "select", live: 1, opts: function () { return U.mact("users"); }, first: "Choose a person", show: function (v) { return !v.vendor_id || !!v.assigned_to; } },
       { k: "vendor_id", label: "Outsourced To", type: "select", live: 1, opts: function () { return U.mact("vendors"); }, first: "Choose a vendor", show: function (v) { return !v.assigned_to; } },
       { k: "ppt_by", label: "PPT Assigned To", type: "select", req: 1, opts: function () { return U.mact("users"); }, first: "Choose a person" },
       { k: "site_address", label: "Site Address", type: "textarea" },
@@ -2873,12 +2873,11 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       fields: R_FIELDS,
       validate: function (v) {
         if (!v.assigned_to && !v.vendor_id) return "Choose who does the recce: a person in Assigned To or a vendor in Outsourced To.";
-        if (v.assigned_to && v.vendor_id) return "Choose either a person or a vendor, not both.";
         if (v._id) { var r = U.get("recce", v._id); if (r && Number(v.units) < rDone(r)) return "No of Recce can’t be less than the " + rDone(r) + " sites already worked."; }
         return null;
       },
       save: async function (v) {
-        var body = Object.assign(U.pick(v, R_FIELDS(v)), U.srcFields(v)); delete body.src;
+        var body = Object.assign(U.pick(v, R_FIELDS(v)), U.srcFields(v)); delete body.src; if (v.assigned_to) body.vendor_id = "";
         body.units = Number(v.units);
         if (v._id) { var r = U.get("recce", v._id); body.status = rPending(Object.assign({}, r, body)) > 0 ? "In Progress" : "Completed"; await U.upd("recce", v._id, body); return { go: "recce.in-progress", msg: "Recce " + r.no + " saved." }; }
         var fy = U.fy(v.date), n = await U.seq("recce-" + fy, U.maxSeq("recce", "seq", function (r) { return r.fy === fy; }));
@@ -3003,7 +3002,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       { k: "cust", label: "Customer", type: "static", value: function (v) { return esc(U.nm("customers", U.srcCustomer(v.src))) || '<span class="dim">Shown after you choose a lead or project</span>'; } },
       { k: "count", label: "No. of Designs", type: "number", req: 1, min: 1, step: 1 },
       { k: "due", label: "Due Date", type: "date", req: 1 },
-      { k: "designer", label: "Designer", type: "select", live: 1, opts: function () { return U.mact("users"); }, first: "Choose a designer", show: function (v) { return !v.vendor_id; } },
+      { k: "designer", label: "Designer", type: "select", live: 1, opts: function () { return U.mact("users"); }, first: "Choose a designer", show: function (v) { return !v.vendor_id || !!v.designer; } },
       { k: "vendor_id", label: "Outsourced To", type: "select", live: 1, opts: function () { return U.mact("vendors"); }, first: "Choose a vendor", show: function (v) { return !v.designer; } },
       { k: "approval_required", label: "Client approval required", type: "check", hint: "Finished designs wait in Pending Client Approval until the client approves them." },
       { k: "doc", label: "Document", type: "file" },
@@ -3019,12 +3018,11 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       extra: function (v) { if (!v.src) return ""; var l = U.recceLinks(U.srcFields(v)); return l ? '<p class="mf-hint">Recce PPTs for this ' + (v.src[0] === "P" ? "project" : "lead") + ": " + l + "</p>" : ""; },
       validate: function (v) {
         if (!v.designer && !v.vendor_id) return "Choose a designer or a vendor.";
-        if (v.designer && v.vendor_id) return "Choose either a designer or a vendor, not both.";
         if (v._id) { var d = U.get("designs", v._id), used = (+dD(d).completed || 0) + (+dD(d).cancel || 0); if (Number(v.count) < used) return "No. of Designs can’t be less than the " + used + " already done."; }
         return null;
       },
       save: async function (v) {
-        var body = Object.assign(U.pick(v, D_FIELDS()), U.srcFields(v)); delete body.src; body.count = Number(v.count); body.approval_required = !!v.approval_required;
+        var body = Object.assign(U.pick(v, D_FIELDS()), U.srcFields(v)); delete body.src; if (v.designer) body.vendor_id = ""; body.count = Number(v.count); body.approval_required = !!v.approval_required;
         if (v._id) { var d = U.get("designs", v._id); body.status = dStatus(Object.assign({}, d, body)); await U.upd("designs", v._id, body); return { go: "design.in-progress", msg: "Design " + d.no + " saved." }; }
         var fy = U.fy(v.date), n = await U.seq("design-" + fy, U.maxSeq("designs", "seq", function (r) { return r.fy === fy; }));
         body.fy = fy; body.seq = n; body.no = "DSN-" + fy + "/" + n; body.status = "In Progress"; body.done = { completed: 0, cancel: 0, approved: 0 };
@@ -3953,7 +3951,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var p = key.split("|"), j = U.get("jobs", p[0]), stage = p[2]; if (!j) return; var it = j.items.find(function (x) { return x.lid === p[1]; }); var av = avail(j, it, stage);
     U.modal({ mod: "projects", title: "Assign " + stage, sub: "Job " + esc(j.no) + " · " + esc(itemName(it)) + " · Available: <b>" + U.num(av) + "</b>", v: { qty: String(av), date: U.today() },
       fields: [{ k: "qty", label: "Qty", type: "number", req: 1, min: 0, step: "any" }, { k: "date", label: "Date", type: "date", req: 1 },
-        { k: "machine_id", label: "Machine", type: "select", opts: function () { return U.mact("machines").filter(function (m) { return m.job_step === stage; }); }, first: "Choose a " + stage.toLowerCase() + " machine", live: 1, show: function (v) { return !v.vendor_id; } },
+        { k: "machine_id", label: "Machine", type: "select", opts: function () { return U.mact("machines").filter(function (m) { return m.job_step === stage; }); }, first: "Choose a " + stage.toLowerCase() + " machine", live: 1, show: function (v) { return !v.vendor_id || !!v.machine_id; } },
         { k: "vendor_id", label: "Or Vendor", type: "select", live: 1, opts: function () { return U.mact("vendors"); }, first: "Choose a vendor", show: function (v) { return !v.machine_id; } },
         { k: "assignee", label: "Assignee", type: "select", req: 1, opts: USERS, first: "Choose a person" }, { k: "target", label: "Target Date", type: "date" }, { k: "remarks", label: "Remarks", type: "textarea" }],
       validate: function (v) { if (!(n(v.qty) > 0)) return "Enter a qty above 0."; if (n(v.qty) > av + 1e-6) return "You can assign at most " + U.num(av) + "."; if (!v.machine_id && !v.vendor_id) return "Choose a machine or a vendor."; if (v.machine_id && v.vendor_id) return "Choose either a machine or a vendor, not both."; return null; },
