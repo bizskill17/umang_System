@@ -1053,6 +1053,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     projects: { name: "Projects", add: ["add", "Add Project", "Create a project directly, or from an approved quotation, with its owner, controller and project sheet."], start: "in-progress", items: [
       ["dashboard", "Project Dashboard", "Projects by status and owner at a glance."],
       ["pending-create", "Pending Create Project", "Approved quotations that don't have a project yet."],
+      ["pending-sheet", "Pending Sheet", "Projects waiting for their project sheet to be submitted."],
       ["in-progress", "Projects In Progress", "Open projects. Raise recce or design work against a project from here."],
       ["group:job", "Job"],
       ["add-job", "Add Job", "Raise a production job against a project, with items from its quotation and the stages each item needs.", 1],
@@ -2834,6 +2835,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     return first;
   };
   U.saveFiles = async function (fs, v) {
+    fs.forEach(function (f) { if (f.k !== "sheet_documents") return; (v["__fs_" + f.k] || []).forEach(function (file) { if (file.size > 20 * 1024 * 1024) throw {code:"too_large"}; if (!/\.(pdf|jpe?g|png|webp)$/i.test(file.name)) throw {code:"unsupported_type"}; }); });
     for (var i = 0; i < fs.length; i++) {
       var f = fs[i];
       if (f.type === "file" && v["__f_" + f.k]) { v[f.k] = await U.upload(v["__f_" + f.k]); delete v["__f_" + f.k]; }
@@ -2985,6 +2987,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     if (cfg.extra) h += cfg.extra(st.v);
     if (st.err) h += '<p class="mv-form-err" role="alert">' + esc(st.err) + "</p>";
     h += '<div class="mv-actions"><button type="submit" class="mv-btn primary"' + (st.saving || U.ro() ? " disabled" : "") + ">" + (st.saving ? "Saving…" : esc(cfg.submit || "Save")) + '</button><button type="button" class="mv-btn ghost" data-a="u-cancel-form">Cancel</button></div></form>';
+    if (cfg.draft) h = h.replace('<div class="mv-actions">', '<div class="mv-actions"><button type="submit" value="draft" class="mv-btn ghost"' + (st.saving || U.ro() ? ' disabled' : '') + '>Save Draft</button>');
     P.formCfg = cfg; P.formKey = key;
     return h;
   };
@@ -2993,7 +2996,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var st = P.forms[P.formKey]; if (!st) return; st.v = U.read(fm, P.formCfg.fields(st.v), st.v);
     if (P.formCfg.readExtra) P.formCfg.readExtra(fm, st.v);
   }
-  async function submitPageForm() {
+  async function submitPageForm(draft) {
     readPageForm();
     var cfg = P.formCfg, key = P.formKey, st = P.forms[key], fs = cfg.fields(st.v);
     var errs = U.check(fs, st.v), extra = cfg.validate ? cfg.validate(st.v, errs) : null;
@@ -3002,7 +3005,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     st.saving = true; render();
     try {
       await U.saveFiles(fs, st.v);
-      var r = await cfg.save(st.v);
+      var r = await cfg.save(st.v, draft);
       delete P.forms[key];
       U.go(r.go, r.msg);
     } catch (e) { st.saving = false; st.err = U.err(e); render(); }
@@ -3036,7 +3039,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     if (a === "u-cancel-form") { delete P.forms[P.formKey]; history.length > 1 ? history.back() : (location.hash = P.slug); return; }
     if (P.acts[a]) { U.clearFlash(); P.acts[a](b.getAttribute("data-id"), b); }
   });
-  box.addEventListener("submit", function (e) { if (e.target.id === "u-pform") { e.preventDefault(); if (!P.forms[P.formKey].saving && !U.ro()) submitPageForm(); } });
+  box.addEventListener("submit", function (e) { if (e.target.id === "u-pform") { e.preventDefault(); if (!P.forms[P.formKey].saving && !U.ro()) submitPageForm(!!(e.submitter && e.submitter.value === "draft")); } });
   box.addEventListener("input", function (e) {
     var t = e.target;
     if (t.getAttribute("data-uf") === "q") { U.st().q = t.value; render(); return; }
@@ -3885,8 +3888,10 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       { k: "controller", label: "Project Controller", type: "select", req: 1, opts: USERS, first: "Select Project Controller" },
       { k: "cert_applicable", label: "Completion Certification Applicable", type: "yesno", req: 1, first: "Select" }];
     if (v.quotation_id) fs.push({ k: "qv", label: "Quotation", type: "static", value: function (v) { var q = U.get("quotations", v.quotation_id) || {}; return "<b>" + esc(q.no) + "</b> \u00b7 " + U.money(q.total); } });
-    return fs.concat([
-      { k: "h1", type: "head", label: "Project Sheet" },
+    return fs;
+  }
+  function sheetFields() {
+    return [
       { k: "billing_name", label: "Billing Name", type: "text" },
       { k: "outsource", label: "Outsource Applicable", type: "text" },
       { k: "outsource_to", label: "Outsource To", type: "text" },
@@ -3899,8 +3904,9 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       { k: "billing_type", label: "Billing Type", type: "text" },
       { k: "material", label: "Material Details (If Any Special or Specific Client Requirement)", type: "textarea" },
       { k: "vendor_id", label: "Vendor Name", type: "text" },
-      { k: "notes", label: "Additional Notes", type: "textarea" }
-    ]);
+      { k: "notes", label: "Additional Notes", type: "textarea" },
+      { k: "sheet_documents", label: "Upload Documents", type: "files", wide: 1, hint: "Optional. PDF, JPG, PNG or WebP; maximum 20 MB per file." }
+    ];
   }
   U.page("projects.add", function () {
     if (!base([U.m("vendors")])) return U.loading;
@@ -3914,12 +3920,62 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
         if (v.quotation_id) { body.quotation_id = v.quotation_id; body.lead_id = (U.get("quotations", v.quotation_id) || {}).lead_id || ""; }
         if (v._id) { await U.upd("projects", v._id, body); return { go: "projects.in-progress", msg: "Project " + proj(v._id).no + " saved." }; }
         var fy = U.fy(v.date), s = await U.seq("project-" + fy, U.maxSeq("projects", "seq", function (r) { return r.fy === fy; }));
-        body.fy = fy; body.seq = s; body.no = fy + "/" + s; body.status = "In Progress";
+        body.fy = fy; body.seq = s; body.no = fy + "/" + s; body.status = "In Progress"; body.sheet_status = "Pending";
         var ref = await U.add("projects", body);
         if (v.quotation_id) await U.upd("quotations", v.quotation_id, { project_id: ref.id });
         return { go: "projects.in-progress", msg: "Project " + body.no + " created." };
       }
     });
+  });
+  function sheetStatus(p) {
+    if (p.sheet_status) return p.sheet_status;
+    return sheetFields().some(function (f) { return f.k !== "sheet_documents" && String(p[f.k] || "").trim(); }) || (p.sheet_documents || []).length ? "Submitted" : "Pending";
+  }
+  function sheetPending(p) { return p.status !== "Canceled" && sheetStatus(p) !== "Submitted"; }
+  U.act("p-sheet", function (id) {
+    var p = U.get("projects", id); if (!p || p.status === "Canceled") return;
+    P.forms["projects.pending-sheet"] = { v: Object.assign({}, p, { _id: id, sheet_documents: (p.sheet_documents || []).slice() }), err: "", saving: false };
+    P.keepForm = true; U.go("projects.pending-sheet");
+  });
+  U.act("sheet-remove", function (idx) {
+    var st = P.forms["projects.pending-sheet"], fm = document.getElementById("u-pform");
+    if (!st || st.saving || U.ro()) return;
+    if (fm) st.v = U.read(fm, sheetFields(), st.v);
+    st.v.sheet_documents.splice(Number(idx), 1); U.go("projects.pending-sheet");
+  });
+  U.act("sheet-page", function (page) { U.st().sheetPage = Number(page); U.go("projects.pending-sheet"); });
+  U.page("projects.pending-sheet", function () {
+    if (!base([U.m("vendors")])) return U.loading;
+    var form = P.forms["projects.pending-sheet"];
+    if (form) return U.formPage("projects.pending-sheet", {
+      init: function () { return {}; }, title: function (v) { return "Update Sheet - " + v.no; }, draft: true, submit: "Submit Sheet",
+      intro: function (v) { return '<p class="mv-note">Project: <b>' + esc(v.no) + '</b> · Customer: <b>' + esc(cust(v)) + '</b></p>'; },
+      fields: sheetFields,
+      extra: function (v) { return (v.sheet_documents || []).map(function (f, i) { return '<p>' + U.fileLink(f) + ' ' + U.btn("sheet-remove", i, "Remove") + '</p>'; }).join(""); },
+      validate: function (v) { var p = U.get("projects", v._id); return !p || p.status === "Canceled" ? "This project is no longer available for sheet updates." : null; },
+      save: async function (v, draft) {
+        if (U.ro()) throw U.fail("You do not have edit access.");
+        var p = U.get("projects", v._id); if (!p || p.status === "Canceled") throw U.fail("This project is no longer available for sheet updates.");
+        var body = U.pick(v, sheetFields()), a = window.UmangAuth || {}, who = a.row ? a.row.name : a.email || "Owner";
+        body.sheet_status = draft && sheetStatus(p) !== "Submitted" ? "Draft" : "Submitted";
+        body.sheet_updated_at = U.now(); body.sheet_updated_by = who;
+        if (!draft) { body.sheet_submitted_at = body.sheet_updated_at; body.sheet_submitted_by = who; }
+        await U.upd("projects", v._id, body);
+        return { go: "projects.pending-sheet", msg: draft ? "Project sheet draft saved." : "Project sheet submitted." };
+      }
+    });
+    var st = U.st(), rows = U.rows("projects").filter(sheetPending).filter(function (p) {
+      return (!st.owner || p.owner === st.owner) && (!st.controller || p.controller === st.controller) && U.match(st, [p.no, cust(p), U.user(p.owner), U.user(p.controller), sheetStatus(p)].join(" "), p.date);
+    }).sort(function (a,b) { return String(b.date).localeCompare(String(a.date)) || (b.seq || 0) - (a.seq || 0); });
+    var pages = Math.max(1, Math.ceil(rows.length / 20)), sig = [st.q, st.owner, st.controller, st.from, st.to].join("|");
+    if (st.sheetSig !== sig) { st.sheetPage = 1; st.sheetSig = sig; }
+    var page = Math.max(1, Math.min(pages, st.sheetPage || 1)); st.sheetPage = page;
+    var cols = [PC.no, PC.date, PC.due, PC.cust, PC.owner, PC.ctrl,
+      ["Sheet Status", function (p) { return U.pill(sheetStatus(p), "warn"); }],
+      ["Documents", function (p) { var a = p.sheet_documents || []; return a.length ? a.length + " · " + U.fileLinks(a) : ""; }],
+      ["Action", function (p) { return U.btn("p-sheet", p.id, "Update Sheet", true); }]];
+    cols[0] = ["Project No.", function (p) { return '<button type="button" class="link-no" data-a="p-view" data-id="' + esc(p.id) + '">' + esc(p.no) + '</button>'; }];
+    return U.bar(st, [{k:"owner",label:"Project Owner",first:"All Owners",opts:USERS()}, {k:"controller",label:"Project Controller",first:"All Controllers",opts:USERS()}], true) + U.table(cols, rows.slice((page-1)*20,page*20), null, "No pending project sheets.") + U.count(rows.length,"project") + (pages > 1 ? '<div class="mv-actions">' + (page>1 ? '<button type="button" class="mv-btn ghost sm" data-a="sheet-page" data-id="' + (page-1) + '">Previous</button>'  : '') + '<span>Page ' + page + ' of ' + pages + '</span>' + (page<pages ? '<button type="button" class="mv-btn ghost sm" data-a="sheet-page" data-id="' + (page+1) + '">Next</button>'  : '') + '</div>' : '');
   });
   U.title("projects.add-job", function () { var st = P.forms["projects.add-job"]; return st && st.v._id ? "Edit Job" : "Add Job"; });
   U.title("projects.add", function () { var st = P.forms["projects.add"]; return st && st.v._id ? "Edit Project" : st && st.v.quotation_id ? "Create Project" : "Add Project"; });
@@ -3992,7 +4048,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var h = "", s = projState(p), open = p.status === "In Progress";
     if (open && view === "ip") { h += pIco("recce", "p-recce", p.id, "Assign Recce") + pIco("design", "p-design", p.id, "Assign Design") + pIco("job", "p-job", p.id, "Add Job"); if (s.jobs && s.pending_delivery > 0 && dlines(p.id).length) h += pIco("truck", "p-deliver", p.id, "Update Delivery"); }
     if (open && s.jobs && !s.active && s.pending_delivery <= 0) h += pIco("done", "p-complete", p.id, "Complete Project");
-    if (p.status !== "Canceled") h += pIco("edit", "p-edit", p.id, "Edit");
+    if (p.status !== "Canceled") h += pIco("edit", "p-edit", p.id, "Edit") + U.btn("p-sheet", p.id, "Update Sheet");
     if (open && view === "master") h += pIco("cancel", "p-cancel", p.id, "Cancel Project");
     return h ? '<span class="ico-acts">' + h + "</span>" : "";
   }
@@ -4076,6 +4132,9 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
         var sheet = pField("Billing Name", p.billing_name) + pField("Outsource Applicable", p.outsource) + pField("Outsource To", U.nm("vendors", p.outsource_to) || p.outsource_to) + pField("Outsourced Job Type", p.outsource_job) + pField("Recce", p.recce) + pField("Job Type", p.job_type) +
           pField("Delivery Head", U.user(p.delivery_head) || p.delivery_head) + pField("Installation", p.installation) + pField("Installation Certificate Required or Not", p.install_cert) + pField("Billing Type", p.billing_type) +
           pField("Material Details (If Any Special or Specific Client Requirement)", p.material) + pField("Vendor Name", U.nm("vendors", p.vendor_id) || p.vendor_id) + pField("Additional Notes", p.notes);
+        sheet += pField("Sheet Status", sheetStatus(p));
+        if (p.sheet_updated_at) sheet += pField("Sheet Updated By", p.sheet_updated_by) + pField("Sheet Updated At (IST)", new Date(p.sheet_updated_at).toLocaleString("en-GB", {timeZone:"Asia/Kolkata", hour12:false}));
+        if ((p.sheet_documents || []).length) sheet += '<div class="ld-field"><span>Documents (' + p.sheet_documents.length + ')</span><b>' + U.fileLinks(p.sheet_documents) + '</b></div>';
         if (sheet) h += '<section class="ld-card"><div class="ld-card-title"><span>Project Sheet</span></div><div class="ld-grid">' + sheet + "</div></section>";
         var jobsOf = liveJobs().filter(function (j) { return j.project_id === p.id; });
         h += pTable("Quotation Details" + (q.no ? " - " + q.no : ""), ["Particulars", "Description", "Width", "Height", "Quantity", "Unit", "Job Qty"], (q.items || []).map(function (it, i) {
@@ -4551,7 +4610,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   function loadThumbs() { document.querySelectorAll("img[data-thumb]:not([src])").forEach(function (im) { var id = im.getAttribute("data-thumb"); if (THUMBS[id]) { im.src = THUMBS[id]; return; } im.setAttribute("src", "data:image/gif;base64,R0lGODlhAQABAAAAACw="); fetch("/_blob/" + id).then(function (r) { if (!r.ok) throw 0; return r.blob(); }).then(function (b) { THUMBS[id] = URL.createObjectURL(b); document.querySelectorAll('img[data-thumb="' + id + '"]').forEach(function (x) { x.src = THUMBS[id]; }); }).catch(function () { im.alt = "Photo"; im.classList.add("w-thumb-x"); }); }); }
   new MutationObserver(loadThumbs).observe(document.body, { childList: true, subtree: true });
   U.dispatched = dispatched; U.liveJobs = liveJobs;
-  U.PJ = { approvedFree: approvedFree, jobItemsFlat: jobItemsFlat, avail: avail, qcDue: qcDue, onHold: onHold };
+  U.PJ = { sheetPending: sheetPending, approvedFree: approvedFree, jobItemsFlat: jobItemsFlat, avail: avail, qcDue: qcDue, onHold: onHold };
 })();
 </script>
 <script>
@@ -4898,6 +4957,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       "items-master": function () { var s = 0; U.rows("quotations").forEach(function (q) { if (q.no) s += (q.items || []).length; }); return s; }
     },
     projects: {
+      "pending-sheet": function () { return U.PJ ? cnt("projects", U.PJ.sheetPending) : 0; },
       "pending-create": function () { return U.PJ ? U.PJ.approvedFree().length : 0; }, "in-progress": function () { return cnt("projects", function (p) { return p.status === "In Progress"; }); },
       "jobs-in-progress": function () { return cnt("jobs", function (j) { return j.status === "Pending" || j.status === "In Progress"; }); },
       "quality-check-due": function () { return U.PJ ? U.PJ.jobItemsFlat(function (r) { return r.j.status !== "Completed" && (U.PJ.qcDue(r.j, r.it) > 0 || U.PJ.onHold(r.j.id, r.it.lid) > 0); }).length : 0; },
@@ -5108,3 +5168,4 @@ document.addEventListener("keydown", function (e) {
   e.preventDefault();
 }, true);
 </script>
+
