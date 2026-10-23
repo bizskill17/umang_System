@@ -1,0 +1,11 @@
+const fs = require('fs');
+const vm = require('vm');
+const html = fs.readFileSync('index.html', 'utf8');
+let count = 0;
+for (const match of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
+  if (match[1].trim()) { new vm.Script(match[1]); count++; }
+}
+new vm.Script(fs.readFileSync('assets/hostinger.js', 'utf8'));
+if (!html.startsWith('<meta charset="utf-8">')) throw Error('Missing UTF-8 declaration');
+if (!html.includes('p.status === "In Progress" && sheetStatus(p) !== "Submitted"')) throw Error('Pending sheet filter regressed');
+console.log(`${count} inline scripts and Hostinger adapter parse successfully`);

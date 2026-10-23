@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Umang System</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -982,6 +983,10 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   <div class="scrim" id="scrim" hidden></div>
 </main>
 
+<script src="assets/hostinger.js"></script>
+<script>
+window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangServer.blobURL(id) : "/_blob/" + id; };
+</script>
 <script>
 (function () {
   /* Menus taken from Umang System v1.0.482. Item: [key, label, description, depth (0|1|2), group key or null].
@@ -1296,6 +1301,11 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   function norm(s) { return String(s || "").trim().replace(/\s+/g, " ").toLowerCase(); }
   function applySession() {
     AUTH.row = null; AUTH.allowed = null; AUTH.full = false; AUTH.signed = false;
+    if (window.UmangServer) {
+      var su = window.UmangServer.user;
+      if (su) { AUTH.row = su; AUTH.full = !!su.owner; AUTH.signed = true; AUTH.allowed = Array.isArray(su.allowed_views) ? su.allowed_views : null; }
+      return;
+    }
     if (AUTH.open) { AUTH.signed = true; AUTH.full = true; return; }
     var s = readSess(); if (!s) return;
     if (s.owner && AUTH.isOwner) { AUTH.signed = true; AUTH.full = true; return; }
@@ -1318,6 +1328,13 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     if (!pw.value) { fieldError(pw, "Enter your password."); ok = false; } else fieldError(pw);
     if (!ok) { (email.getAttribute("aria-invalid") ? email : pw).focus(); return; }
     var fail = function (m) { loginErr.textContent = m; loginErr.hidden = false; };
+    if (window.UmangServer) {
+      var sb = form.querySelector(".login-btn"); sb.disabled = true;
+      try { await window.UmangServer.login(ev, pw.value, !!(remember && remember.checked)); pw.value = ""; location.reload(); }
+      catch (err) { fail(err.msg || "Could not sign in. Try again."); }
+      finally { sb.disabled = false; }
+      return;
+    }
     if (!USERS) return fail("Still loading users. Try again in a moment.");
     var q = norm(ev), r = USERS.find(function (x) { return norm(x.email) === q; }) || USERS.find(function (x) { return norm(x.name) === q; });
     if (!r) return fail("Wrong user name or password.");
@@ -1331,14 +1348,17 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     authDone(); goIn();
   });
   document.querySelectorAll('[aria-label="Log out"]').forEach(function (b) {
-    b.addEventListener("click", function () { writeSess(null); authDone(); location.hash = "login"; });
+    b.addEventListener("click", function () {
+      if (window.UmangServer) { window.UmangServer.logout().then(function () { writeSess(null); location.hash = "login"; location.reload(); }).catch(function (e) { alert(e.msg || "Could not sign out. Try again."); }); return; }
+      writeSess(null); authDone(); location.hash = "login";
+    });
   });
 
   function show() {
     var raw = (location.hash || "").replace("#", ""), parts = raw.split("."), slug = parts[0];
     if (!AUTH.ready || AUTH.denied) {
-      authMsg.innerHTML = AUTH.ready ? "" : "<p>Loading…</p>"; authMsg.hidden = AUTH.ready;
-      form.hidden = !AUTH.ready; ownerBtn.hidden = !(AUTH.ready && AUTH.isOwner);
+      authMsg.textContent = window.UmangServer && window.UmangServer.error ? window.UmangServer.error : (AUTH.ready ? "" : "Loading…"); authMsg.hidden = !authMsg.textContent;
+      form.hidden = !AUTH.ready || !!(window.UmangServer && window.UmangServer.error); ownerBtn.hidden = !(AUTH.ready && AUTH.isOwner);
       login.hidden = false; home.hidden = true; view.hidden = true; setMenu(false);
       document.body.classList.remove("in-module", "on-home"); document.body.classList.add("on-login");
       return;
@@ -1365,6 +1385,11 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   function authDone() { applySession(); AUTH.denied = !AUTH.signed; AUTH.ready = true; AUTH.ver++; setNames(); builtFor = null; show(); window.dispatchEvent(new Event("umang-auth")); }
   (async function initAuth() {
     var C = window.claude && typeof window.claude.use === "function" ? window.claude : null;
+    if (window.UmangServer) {
+      await window.UmangServer.ready;
+      AUTH.isOwner = !!(window.UmangServer.user && window.UmangServer.user.owner);
+      USERS = []; authDone(); return;
+    }
     var db = C ? await C.use("db") : null;
     if (!db) { AUTH.open = true; authDone(); return; }
     var u = await C.use("user"); AUTH.isOwner = u ? !!(await u.isOwner()) : false;
@@ -1443,6 +1468,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   function watch(coll) {
     if (!db || subs[coll]) return;
     subs[coll] = db.collection("masters/" + coll + "/rows").onSnapshot(function (snap) {
+      if (window.UmangServer) dbState = "ready";
       data[coll] = snap.docs.map(function (d) { var o = Object.assign({}, d.data()); o.id = d.id; return o; });
       if (cur && (MASTERS[cur].coll === coll || needs(cur).indexOf(coll) !== -1)) rerender();
     }, function () { subs[coll] = null; dbState = "error"; render(); });
@@ -1464,7 +1490,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     if (f[2] === "select") return esc(nameOf(f[4].of, v));
     if (f[2] === "cityselect") return esc(nameOf("city", v));
     if (f[2] === "account") { if (v) accResolve([v]); return v ? esc(accName(v)) : ""; }
-    if (f[2] === "image") return v && v.id ? '<img class="mf-thumb" src="/_blob/' + esc(v.id) + '" alt="">' : "";
+    if (f[2] === "image") return v && v.id ? '<img class="mf-thumb" src="' + esc(window.UmangBlobURL(v.id)) + '" alt="">' : "";
     return esc(v);
   }
 
@@ -1537,7 +1563,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   });
   function inputFor(f, val, vals) {
     if (f[2] === "perms") return permsHtml(val === "" ? undefined : val);
-    if (f[2] === "password") { var isNew = !(editing && editing.row && editing.row.id), has = editing && editing.row && editing.row.pw_hash; return '<div class="field"><label for="mf-password">Password' + (isNew ? ' <span class="req" aria-hidden="true">*</span>' : "") + '</label><input type="password" id="mf-password" name="password" autocomplete="new-password" placeholder="' + (isNew || !has ? "Enter a password" : "Leave blank to keep the current password") + '"><p class="mf-hint">' + (has ? "A password is set." : "No password set yet \u2014 this user can\u2019t sign in.") + '</p><p class="field-err" id="mf-password-err" hidden></p></div>'; }
+    if (f[2] === "password") { var isNew = !(editing && editing.row && editing.row.id), has = editing && editing.row && (editing.row.pw_hash || editing.row.has_password); return '<div class="field"><label for="mf-password">Password' + (isNew ? ' <span class="req" aria-hidden="true">*</span>' : "") + '</label><input type="password" id="mf-password" name="password" autocomplete="new-password" placeholder="' + (isNew || !has ? "Enter a password" : "Leave blank to keep the current password") + '"><p class="mf-hint">' + (has ? "A password is set." : "No password set yet \u2014 this user can\u2019t sign in.") + '</p><p class="field-err" id="mf-password-err" hidden></p></div>'; }
     if (f[2] === "account") return accHtml(f, val);
     var id = "mf-" + f[0], req = f[3] ? " required" : "", o = f[4] || {}, t = f[2], h = "";
     var label = '<label for="' + id + '">' + esc(f[1]) + (f[3] ? ' <span class="req" aria-hidden="true">*</span>' : "") + "</label>";
@@ -1575,7 +1601,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       return h + '</div><button type="button" class="mv-btn ghost" data-act="add-contact">+ Add contact person</button></div>';
     }
     if (t === "image") {
-      var cur = val && val.id ? '<div class="mf-logo"><img src="/_blob/' + esc(val.id) + '" alt="Current ' + esc(f[1].toLowerCase()) + '"><span class="mf-hint">Current ' + esc(f[1].toLowerCase()) + " \u00b7 choose a new file to replace it</span></div>" : "";
+      var cur = val && val.id ? '<div class="mf-logo"><img src="' + esc(window.UmangBlobURL(val.id)) + '" alt="Current ' + esc(f[1].toLowerCase()) + '"><span class="mf-hint">Current ' + esc(f[1].toLowerCase()) + " \u00b7 choose a new file to replace it</span></div>" : "";
       var picked = vals && vals["__f_" + f[0]] ? '<p class="mf-hint">Selected: ' + esc(vals["__f_" + f[0]].name) + "</p>" : "";
       return '<div class="field">' + label + cur + '<input id="' + id + '" name="' + f[0] + '" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg">' + picked + hint + err + "</div>";
     }
@@ -1623,7 +1649,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var h = "";
     var loaded = !!data[coll];
     if (dbState === "loading" || (dbState === "ready" && !loaded)) h += '<p class="mv-note">Loading saved entries…</p>';
-    if (dbState === "none") h += '<p class="mv-note warn">Saving isn’t available in this view. Open the app while signed in to claude.ai to see and add entries.</p>';
+    if (dbState === "none") h += '<p class="mv-note warn">Saving isn’t available in this view. Check the database connection and sign in to save entries.</p>';
     if (dbState === "error") h += '<p class="mv-note warn">The connection to saved data was lost. Reload the page to try again.</p>';
     if (canWrite === false) h += '<p class="mv-note">You can view these entries. Ask the owner for edit access to add or change them.</p>';
     if (def.note) h += '<p class="mv-note">' + esc(def.note) + "</p>";
@@ -1906,10 +1932,10 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     if (!db) return;
     MCOLL.forEach(function (c) {
       if (subs[c]) return;
-      subs[c] = db.collection("masters/" + c + "/rows").onSnapshot(function (s) { M[c] = s.docs.map(doc2obj); rerender(); }, lost);
+      subs[c] = db.collection("masters/" + c + "/rows").onSnapshot(function (s) { if (window.UmangServer) dbState = "ready"; M[c] = s.docs.map(doc2obj); rerender(); }, lost);
     });
-    if (!subs.leads) subs.leads = db.collection("leads").onSnapshot(function (s) { leads = s.docs.map(doc2obj); rerender(); }, lost);
-    if (!subs.quotes) subs.quotes = db.collection("quotations").onSnapshot(function (s) { quotes = s.docs.map(doc2obj); rerender(); }, lost);
+    if (!subs.leads) subs.leads = db.collection("leads").onSnapshot(function (s) { if (window.UmangServer) dbState = "ready"; leads = s.docs.map(doc2obj); rerender(); }, lost);
+    if (!subs.quotes) subs.quotes = db.collection("quotations").onSnapshot(function (s) { if (window.UmangServer) dbState = "ready"; quotes = s.docs.map(doc2obj); rerender(); }, lost);
   }
   function doc2obj(d) { var o = Object.assign({}, d.data()); o.id = d.id; return o; }
   function lost() { dbState = "error"; rerender(); }
@@ -1937,7 +1963,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   /* ---------- shared bits ---------- */
   function notes() {
     var h = "";
-    if (dbState === "none") h += '<p class="mv-note warn">Saving isn’t available in this view. Open the app while signed in to claude.ai to see and add leads.</p>';
+    if (dbState === "none") h += '<p class="mv-note warn">Saving isn’t available in this view. Check the database connection and sign in to save leads.</p>';
     if (dbState === "error") h += '<p class="mv-note warn">The connection to saved data was lost. Reload the page to try again.</p>';
     if (canWrite === false) h += '<p class="mv-note">You can view leads. Ask the owner for edit access to add or change them.</p>';
     if (ui.msg) h += '<p class="mv-note ok" role="status">' + esc(ui.msg) + "</p>";
@@ -2633,6 +2659,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   U.watch = function (path) {
     if (!U.db || subs[path]) return;
     subs[path] = U.db.collection(path).onSnapshot(function (s) {
+      if (window.UmangServer) U.state = "ready";
       U.data[path] = s.docs.map(function (d) { var o = Object.assign({}, d.data()); o.id = d.id; return o; }); emit();
     }, function () { U.state = "error"; emit(); });
   };
@@ -2696,7 +2723,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     return { id: r.id, name: file.name, type: r.contentType };
   };
   U.fileLinks = function (arr, label) { if (!arr) return ""; if (!Array.isArray(arr)) arr = [arr]; arr = arr.filter(function (x) { return x && x.id; }); var s = arr.map(function (x, i) { return U.fileLink(x, arr.length > 1 ? (label || "File") + " " + (i + 1) : (label || x.name)); }).join(" "); return arr.length > 1 ? '<span class="fgroup">' + s + "</span>" : s; };
-  U.fileLink = function (f, label) { return f && f.id ? '<a class="file-link" href="/_blob/' + U.esc(f.id) + '" data-blob="' + U.esc(f.id) + '" data-type="' + U.esc(f.type || "") + '" data-name="' + U.esc(f.name || "") + '">' + U.esc(label || f.name || "File") + "</a>" : ""; };
+  U.fileLink = function (f, label) { return f && f.id ? '<a class="file-link" href="' + U.esc(window.UmangBlobURL(f.id)) + '" data-blob="' + U.esc(f.id) + '" data-type="' + U.esc(f.type || "") + '" data-name="' + U.esc(f.name || "") + '">' + U.esc(label || f.name || "File") + "</a>" : ""; };
   /* open uploaded files inside the app (a new tab can't reach them) */
   var BV = null;
   function closeBV() { if (!BV) return; BV.urls.forEach(function (u) { if (u) URL.revokeObjectURL(u); }); BV.el.remove(); var r = BV.ret; BV = null; if (r && r.focus && document.contains(r)) r.focus(); }
@@ -2711,7 +2738,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   async function bvLoad(k) {
     var it = BV.items[k], slot = BV.el.querySelectorAll(".bv-slide")[k], tb = BV.el.querySelectorAll(".bv-thumb")[k];
     try {
-      var r = await fetch("/_blob/" + it.id); if (!r.ok) throw new Error(r.status);
+      var r = await fetch(window.UmangBlobURL(it.id)); if (!r.ok) throw new Error(r.status);
       var blob = await r.blob(); if (!BV) return;
       var ct = (blob.type || it.type || "").toLowerCase(), url = URL.createObjectURL(blob); BV.urls[k] = url; BV.blobs[k] = blob;
       if (ct.indexOf("image/") === 0) { slot.innerHTML = '<img src="' + url + '" alt="' + U.esc(it.name || "Photo") + '">'; if (tb) tb.innerHTML = '<img src="' + url + '" alt="">'; }
@@ -2724,7 +2751,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var id = a.getAttribute("data-blob"), nm = a.getAttribute("data-name") || a.textContent || "file", old = a.textContent;
     a.textContent = "Downloading\u2026";
     try {
-      var r = await fetch("/_blob/" + id); if (!r.ok) throw new Error(r.status); var bl = await r.blob();
+      var r = await fetch(window.UmangBlobURL(id)); if (!r.ok) throw new Error(r.status); var bl = await r.blob();
       if (U.downloads) await U.downloads.save({ filename: nm, data: bl });
       else { var u = URL.createObjectURL(bl), x = document.createElement("a"); x.href = u; x.download = nm; x.click(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000); }
       a.textContent = old;
@@ -2904,7 +2931,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   U.ro = function () { return U.canWrite === false || U.state !== "ready"; };
   U.notes = function () {
     var h = "";
-    if (U.state === "none") h += '<p class="mv-note warn">Saving isn’t available in this view. Open the app while signed in to claude.ai.</p>';
+    if (U.state === "none") h += '<p class="mv-note warn">Saving isn’t available in this view. Check the database connection and sign in.</p>';
     if (U.state === "error") h += '<p class="mv-note warn">The connection to saved data was lost. Reload the page to try again.</p>';
     if (U.canWrite === false) h += '<p class="mv-note">You can view this. Ask the owner for edit access to add or change entries.</p>';
     if (flashMsg) h += '<p class="mv-note ok" role="status">' + U.esc(flashMsg) + "</p>";
@@ -3606,7 +3633,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     var W = 595.28, H = 841.89, M = 40, HEAD = 20, ROW = 18, black = L.rgb(0, 0, 0);
     var logo = null;
     if (firm.logo && firm.logo.id) {
-      try { var r = await fetch("/_blob/" + firm.logo.id); var ab = await r.arrayBuffer(); var ct = (firm.logo.type || r.headers.get("content-type") || "").toLowerCase(); var u8 = new Uint8Array(ab);
+      try { var r = await fetch(window.UmangBlobURL(firm.logo.id)); var ab = await r.arrayBuffer(); var ct = (firm.logo.type || r.headers.get("content-type") || "").toLowerCase(); var u8 = new Uint8Array(ab);
         logo = (ct.indexOf("png") !== -1 || (u8[0] === 0x89 && u8[1] === 0x50)) ? await doc.embedPng(ab) : await doc.embedJpg(ab); } catch (e) { logo = null; }
     }
     function t(page, font, size, x, y, s) { s = ascii(s); if (s) page.drawText(s, { x: x, y: y, size: size, font: font, color: black }); }
@@ -4597,7 +4624,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       (U.downloads && rows.length ? '<div><button type="button" class="mv-btn ghost" data-a="w-export">Download Excel (CSV)</button></div>' : "") +
       U.table([["Sl.", function (w, i) { return i + 1; }, "numcell"], ["Date", function (w) { return '<span class="nowrap">' + U.dmy(w.date) + "</span>"; }], ["Project No.", function (w) { return '<b class="nowrap">' + esc(proj(w.project_id).no) + "</b>"; }], ["Customer Name", function (w) { return esc(cust(proj(w.project_id))); }],
         ["Department", function (w) { return esc(w.department); }], ["Person Responsible", function (w) { return esc(U.user(w.person)); }], ["Entered By", function (w) { return esc(U.user(w.entered_by)); }], ["Remarks", function (w) { return esc(w.remarks).replace(/\n/g, "<br>"); }],
-        ["Photo", function (w) { var f = w.photo; if (!f || !f.id) return ""; var img = /^image\//.test(f.type || "") || /\.(jpe?g|png|gif|webp)$/i.test(f.name || ""); return img ? '<a class="file-link w-thumb-link" href="/_blob/' + esc(f.id) + '" data-blob="' + esc(f.id) + '" data-type="' + esc(f.type || "image/jpeg") + '" data-name="' + esc(f.name || "Photo") + '" aria-label="Open wastage photo"><img class="w-thumb" data-thumb="' + esc(f.id) + '" alt="Wastage photo"></a>' : U.fileLink(f, "Open"); }],
+        ["Photo", function (w) { var f = w.photo; if (!f || !f.id) return ""; var img = /^image\//.test(f.type || "") || /\.(jpe?g|png|gif|webp)$/i.test(f.name || ""); return img ? '<a class="file-link w-thumb-link" href="' + esc(window.UmangBlobURL(f.id)) + '" data-blob="' + esc(f.id) + '" data-type="' + esc(f.type || "image/jpeg") + '" data-name="' + esc(f.name || "Photo") + '" aria-label="Open wastage photo"><img class="w-thumb" data-thumb="' + esc(f.id) + '" alt="Wastage photo"></a>' : U.fileLink(f, "Open"); }],
         ["Action", function (w) { return '<span class="row-acts">' + U.btn("w-edit", w.id, "Edit") + '<button type="button" class="mv-btn ghost sm w-del" data-a="w-del" data-id="' + esc(w.id) + '">Delete</button></span>'; }, "act"]], rows, null, "No wastage records found.") + U.count(rows.length, "entry", "entries");
   });
   U.csv = async function (name, head, rows) {
@@ -4607,7 +4634,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   };
   U.act("w-export", function () { U.csv("Wastage " + U.today() + ".csv", ["Sl.", "Date", "Project No.", "Customer Name", "Department", "Person Responsible", "Entered By", "Remarks"], wRows().map(function (w, i) { var p = proj(w.project_id); return [i + 1, U.dmy(w.date), p.no, cust(p), w.department, U.user(w.person), U.user(w.entered_by), w.remarks]; })); });
   var THUMBS = {};
-  function loadThumbs() { document.querySelectorAll("img[data-thumb]:not([src])").forEach(function (im) { var id = im.getAttribute("data-thumb"); if (THUMBS[id]) { im.src = THUMBS[id]; return; } im.setAttribute("src", "data:image/gif;base64,R0lGODlhAQABAAAAACw="); fetch("/_blob/" + id).then(function (r) { if (!r.ok) throw 0; return r.blob(); }).then(function (b) { THUMBS[id] = URL.createObjectURL(b); document.querySelectorAll('img[data-thumb="' + id + '"]').forEach(function (x) { x.src = THUMBS[id]; }); }).catch(function () { im.alt = "Photo"; im.classList.add("w-thumb-x"); }); }); }
+  function loadThumbs() { document.querySelectorAll("img[data-thumb]:not([src])").forEach(function (im) { var id = im.getAttribute("data-thumb"); if (THUMBS[id]) { im.src = THUMBS[id]; return; } im.setAttribute("src", "data:image/gif;base64,R0lGODlhAQABAAAAACw="); fetch(window.UmangBlobURL(id)).then(function (r) { if (!r.ok) throw 0; return r.blob(); }).then(function (b) { THUMBS[id] = URL.createObjectURL(b); document.querySelectorAll('img[data-thumb="' + id + '"]').forEach(function (x) { x.src = THUMBS[id]; }); }).catch(function () { im.alt = "Photo"; im.classList.add("w-thumb-x"); }); }); }
   new MutationObserver(loadThumbs).observe(document.body, { childList: true, subtree: true });
   U.dispatched = dispatched; U.liveJobs = liveJobs;
   U.PJ = { sheetPending: sheetPending, approvedFree: approvedFree, jobItemsFlat: jobItemsFlat, avail: avail, qcDue: qcDue, onHold: onHold };
@@ -5168,4 +5195,5 @@ document.addEventListener("keydown", function (e) {
   e.preventDefault();
 }, true);
 </script>
+
 
