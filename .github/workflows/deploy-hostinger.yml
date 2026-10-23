@@ -26,12 +26,11 @@ jobs:
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           FTP_PORT: ${{ secrets.FTP_PORT }}
-          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
         shell: python
         run: |
           import os, ssl, ftplib, sys, subprocess, re, socket
           from pathlib import Path
-          required = ["FTP_SERVER", "FTP_USERNAME", "FTP_PASSWORD", "FTP_PORT", "FTP_SERVER_DIR"]
+          required = ["FTP_SERVER", "FTP_USERNAME", "FTP_PASSWORD", "FTP_PORT"]
           missing = [k for k in required if not os.environ.get(k)]
           if missing:
               sys.exit("Missing repository secrets: " + ", ".join(missing))
@@ -46,11 +45,7 @@ jobs:
                   ftp.connect(host, int(os.environ["FTP_PORT"]))
                   ftp.login(os.environ["FTP_USERNAME"], os.environ["FTP_PASSWORD"])
                   ftp.prot_p()
-                  folder = os.environ["FTP_SERVER_DIR"].strip()
-                  try:
-                      ftp.cwd(folder)
-                  except ftplib.error_perm:
-                      sys.exit("FTP_SERVER_DIR cannot be opened. Verify the directory relative to the FTP account root; use ./ if already rooted in public_html.")
+                  # Use the FTP account starting directory; no directory secret needed.
                   # Upload only the application file. Never mirror/delete remote files.
                   with payload.open("rb") as source:
                       ftp.storbinary("STOR index.html", source)
