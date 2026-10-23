@@ -4226,25 +4226,62 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       fields: [{ k: "cert", label: "Installation Certificate", type: "file", req: 1 }, { k: "date", label: "Installation Date", type: "date", req: 1 }, BY],
       save: async function (v) { await U.upd("dispatches", id, { install_cert: v.cert, install_date: v.date, install_by: v.by }); return "Installation certificate saved for " + d.no + "."; } });
   });
-  function dlist(filter, actions) {
-    if (!base([U.m("delivery-modes"), U.m("transporters"), U.m("vehicles")])) return U.loading;
-    var st = U.st(), rows = U.rows("dispatches").filter(filter).filter(function (d) { return U.match(st, [d.no, proj(d.project_id).no, cust(d), d.lr_no].join(" "), d.date); }).sort(function (a, b) { return (b.fy || "").localeCompare(a.fy || "") || (b.seq || 0) - (a.seq || 0); });
-    var c = [["Dispatch No.", function (d) { return '<b class="nowrap">' + esc(d.no) + "</b>"; }], ["Date", function (d) { return '<span class="nowrap">' + U.dmy(d.date) + "</span>"; }], ["Project", function (d) { return esc(proj(d.project_id).no); }], ["Customer", function (d) { return esc(cust(d)); }, "strong"],
-      ["Items", function (d) { return (d.items || []).length; }, "numcell"], ["Qty", function (d) { return U.num((d.items || []).reduce(function (s, x) { return s + n(x.qty); }, 0)); }, "numcell"], ["Mode", function (d) { return esc(d.mode_type ? d.mode_type + (d.party ? " \u00b7 " + (d.mode_type === "Outsource" ? U.nm("vendors", d.party) : U.user(d.party)) : "") : U.nm("delivery-modes", d.mode)); }],
-      ["Transporter / Vehicle", function (d) { return esc([U.nm("transporters", d.transporter), U.nm("vehicles", d.vehicle), d.lr_no].filter(Boolean).join(" · ")); }], ["Installation", function (d) { return d.installation ? (d.install_cert ? U.fileLink(d.install_cert, "Certificate") : U.pill("Pending", "warn")) : '<span class="dim">Not needed</span>'; }],
-      ["Challan", function (d) { return U.fileLink(d.challan, "Open"); }]];
-    if (actions) c.push(['<span class="sr-only">Actions</span>', actions, "act"]);
-    return U.bar(st, [], true) + U.table(c, rows, null, "No dispatches yet.") + U.count(rows.length, "dispatch", "dispatches");
+  function dMode(d) { return d.mode_type ? d.mode_type + (d.party ? " · " + (d.mode_type === "Outsource" ? U.nm("vendors", d.party) : U.user(d.party)) : "") : U.nm("delivery-modes", d.mode); }
+  function dLine(x) { var j = U.get("jobs", x.job_id) || {}, it = (j.items || []).find(function (i) { return i.lid === x.lid; }) || {}, rate = 0; if (it.src) { var sp = it.src.split(":"), q = U.get("quotations", sp[0]); var ql = q && (q.items || [])[+sp[1]]; if (ql) rate = n(ql.rate); } return { j: j, it: it, rate: rate }; }
+  function dAmt(d) { return U.round2((d.items || []).reduce(function (s, x) { return s + n(x.qty) * dLine(x).rate; }, 0)); }
+  function dQno(d) { var s = {}; (d.items || []).forEach(function (x) { var l = dLine(x); var no = l.j.quotation_id ? (U.get("quotations", l.j.quotation_id) || {}).no : (l.it.src ? (U.get("quotations", l.it.src.split(":")[0]) || {}).no : ""); if (no) s[no] = 1; }); var p = proj(d.project_id), pq = p.quotation_id && (U.get("quotations", p.quotation_id) || {}).no; if (!Object.keys(s).length && pq) s[pq] = 1; return Object.keys(s).join(", "); }
+  async function dPdf(id, btn) {
+    var d = U.get("dispatches", id); if (!d) return; var p = proj(d.project_id), firm = (p.firm_id && U.mrows("firm").find(function (f) { return f.id === p.firm_id; })) || U.mrows("firm")[0] || {};
+    if (btn) { btn.disabled = true; btn.dataset.lbl = btn.textContent; btn.textContent = "…"; }
+    try {
+      var bytes = await U.makePdf(function (c) {
+        c.text(firm.name || "", c.M, { bold: 1, size: 14 }); c.text("DISPATCH", c.W - c.M, { bold: 1, size: 14, right: 1 }); c.y -= 16;
+        if (firm.address) { c.para(firm.address, c.M, 300, { size: 8.5 }); }
+        c.y -= 6; c.rule(); c.y -= 16;
+        var info = [["Dispatch No.", d.no], ["Delivery Date", U.dmy(d.date)], ["Project No.", p.no], ["Qtn No.", dQno(d)], ["Customer", cust(d)], ["Delivered By", U.user(d.delivered_by)], ["Mode", dMode(d)], ["Transporter/Courier", U.nm("transporters", d.transporter)], ["Vehicle", U.nm("vehicles", d.vehicle)]].filter(function (r) { return r[1]; });
+        info.forEach(function (r, i) { var x = i % 2 ? c.W / 2 + 10 : c.M; c.text(r[0] + ":", x, { size: 8.5, bold: 1 }); c.text(String(r[1]), x + 95, { size: 8.5 }); if (i % 2) c.y -= 14; }); if (info.length % 2) c.y -= 14;
+        c.y -= 8;
+        var rows = (d.items || []).map(function (x, i) { var l = dLine(x); return [String(i + 1), U.nm("items", l.it.item_id) || "Item", l.it.description || "", U.num(x.qty), l.it.uom || "", l.rate ? U.num(l.rate) : ""]; });
+        c.table([["Sl.", 30], ["Item", 140], ["Description", 165], ["Dispatch Qty", 70, 1], ["UOM", 50], ["Rate", 60, 1]], rows);
+        if (d.remarks) { c.y -= 6; c.text("Delivery Remarks:", c.M, { bold: 1, size: 8.5 }); c.y -= 12; c.para(d.remarks, c.M, c.W - 2 * c.M, { size: 8.5 }); }
+      });
+      await U.savePdf(bytes, "Dispatch " + String(d.no).replace(/[\/\\]/g, "-") + ".pdf");
+    } catch (e) { alert((e && e.msg) || "Couldn’t make the PDF."); }
+    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.lbl; }
   }
-  U.page("projects.delivered", function () { return dlist(function () { return true; }); });
-  U.page("projects.installation-pending", function () { return dlist(function (d) { return d.installation && !d.install_cert; }, function (d) { return U.btn("d-cert", d.id, "Upload certificate", true); }); });
+  document.addEventListener("click", function (e) { var b = e.target.closest("[data-dpdf]"); if (b) { e.preventDefault(); dPdf(b.getAttribute("data-dpdf"), b); } });
+  function dlist(cols, filter, actions, empty) {
+    if (!base([U.m("delivery-modes"), U.m("transporters"), U.m("vehicles"), U.m("vendors"), U.m("firm")])) return U.loading;
+    var st = U.st(), rows = U.rows("dispatches").filter(filter).filter(function (d) { return U.match(st, [d.no, proj(d.project_id).no, cust(d), dQno(d)].join(" "), d.date); }).sort(function (a, b) { return (b.fy || "").localeCompare(a.fy || "") || (b.seq || 0) - (a.seq || 0); });
+    var c = cols.slice(); if (actions) c.push(["Action", actions, "act"]);
+    return U.bar(st, [], true) + U.table(c, rows, null, empty || "No dispatches yet.") + U.count(rows.length, "dispatch", "dispatches");
+  }
+  var DC = {
+    sl: ["Sl.", function (d, i) { return i + 1; }, "numcell"],
+    no: ["Dispatch No.", function (d) { return '<b class="nowrap">' + esc(d.no) + "</b>"; }],
+    pno: ["Project No.", function (d) { return '<span class="nowrap">' + esc(proj(d.project_id).no) + "</span>"; }],
+    ono: ["Order No.", function (d) { return '<span class="nowrap">' + esc(proj(d.project_id).no) + "</span>"; }],
+    qno: ["Qtn No.", function (d) { return '<span class="nowrap">' + esc(dQno(d)) + "</span>"; }],
+    cust: ["Customer Name", function (d) { return esc(cust(d)); }, "strong"],
+    date: ["Delivery Date", function (d) { return '<span class="nowrap">' + U.dmy(d.date) + "</span>"; }],
+    idoc: ["Installation Document", function (d) { return d.install_cert ? U.fileLink(d.install_cert, "View") : d.installation ? U.pill("Pending", "warn") : ""; }],
+    idate: ["Installation Date", function (d) { return d.install_date ? '<span class="nowrap">' + U.dmy(d.install_date) + "</span>" : ""; }],
+    by: ["Delivered By", function (d) { return esc(U.user(d.delivered_by)); }],
+    mode: ["Mode", function (d) { return esc(dMode(d)); }],
+    qty: ["Dispatch Qty", function (d) { return U.num((d.items || []).reduce(function (s, x) { return s + n(x.qty); }, 0)); }, "numcell"],
+    amt: ["Amount", function (d) { var a = dAmt(d); return a ? U.money(a) : ""; }, "numcell"]
+  };
+  U.page("projects.delivered", function () { return dlist(["sl", "no", "pno", "qno", "cust", "date", "idoc", "idate", "by", "mode", "qty", "amt"].map(function (k) { return DC[k]; }), function () { return true; }, function (d) { return U.downloads ? '<button type="button" class="mv-btn ghost sm" data-dpdf="' + esc(d.id) + '" title="Download Dispatch PDF">PDF</button>' : ""; }); });
+  U.page("projects.installation-pending", function () { return dlist(["sl", "no", "ono", "cust", "date", "by"].map(function (k) { return DC[k]; }), function (d) { return d.installation && !d.install_cert; }, function (d) { return U.btn("d-cert", d.id, "Upload certificate", true); }, "No installation certificates pending."); });
   U.page("projects.delivery-items", function () {
-    if (!base()) return U.loading;
+    if (!base([U.m("vendors")])) return U.loading;
     var st = U.st(), rows = [];
-    U.rows("dispatches").forEach(function (d) { (d.items || []).forEach(function (x) { var j = U.get("jobs", x.job_id) || {}; rows.push({ d: d, x: x, j: j, it: (j.items || []).find(function (i) { return i.lid === x.lid; }) || {} }); }); });
-    rows = rows.filter(function (r) { return U.match(st, [r.d.no, r.j.no, proj(r.d.project_id).no, cust(r.d), itemName(r.it)].join(" "), r.d.date); }).sort(function (a, b) { return String(b.d.date).localeCompare(String(a.d.date)); });
-    return U.bar(st, [], true) + U.table([["Dispatch No.", function (r) { return '<b class="nowrap">' + esc(r.d.no) + "</b>"; }], ["Date", function (r) { return '<span class="nowrap">' + U.dmy(r.d.date) + "</span>"; }], ["Job No.", function (r) { return esc(r.j.no); }], ["Project", function (r) { return esc(proj(r.d.project_id).no); }],
-      ["Customer", function (r) { return esc(cust(r.d)); }], ["Item", function (r) { return esc(itemName(r.it)); }, "strong"], ["Qty", function (r) { return U.num(r.x.qty) + " " + esc(r.it.uom || ""); }, "numcell"]], rows, null, "No items dispatched yet.") + U.count(rows.length, "item line");
+    U.rows("dispatches").forEach(function (d) { (d.items || []).forEach(function (x) { var l = dLine(x); rows.push({ d: d, x: x, j: l.j, it: l.it }); }); });
+    rows = rows.filter(function (r) { return U.match(st, [r.d.no, r.j.no, proj(r.d.project_id).no, cust(r.d), itemName(r.it), r.d.remarks].join(" "), r.d.date); }).sort(function (a, b) { return String(b.d.date).localeCompare(String(a.d.date)) || (b.d.seq || 0) - (a.d.seq || 0); });
+    return U.bar(st, [], true) + U.table([["Sl.", function (r, i) { return i + 1; }, "numcell"], ["Dispatch No.", function (r) { return '<b class="nowrap">' + esc(r.d.no) + "</b>"; }], ["Project No.", function (r) { return '<span class="nowrap">' + esc(proj(r.d.project_id).no) + "</span>"; }], ["Job No.", function (r) { return '<span class="nowrap">' + esc(r.j.no) + "</span>"; }],
+      ["Customer Name", function (r) { return esc(cust(r.d)); }], ["Job Item", function (r) { return esc(U.nm("items", r.it.item_id)); }, "strong"], ["Description", function (r) { return esc(r.it.description); }], ["Fabrication Assignee", function (r) { return esc(fabAssignee(r.j.id, r.x.lid)); }],
+      ["Dispatch Qty", function (r) { return U.num(r.x.qty); }, "numcell"], ["UOM", function (r) { return esc(r.it.uom); }], ["Delivery Date", function (r) { return '<span class="nowrap">' + U.dmy(r.d.date) + "</span>"; }], ["Delivered By", function (r) { return esc(U.user(r.d.delivered_by)); }],
+      ["Mode", function (r) { return esc(dMode(r.d)); }], ["Delivery Remarks", function (r) { return esc(r.d.remarks); }]], rows, null, "No items dispatched yet.") + U.count(rows.length, "item line");
   });
 
   /* ================= Wastage ================= */
