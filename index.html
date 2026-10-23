@@ -458,6 +458,11 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .ji-table .erp-ro { width: 76px; min-width: 0 !important; background: color-mix(in srgb, var(--c, #888) 6%, transparent); }
 .ji-table td input[type=text][name^=ji_loc] { min-width: 140px; }
 .ji-table .ji-uom-ro { width: 96px; }
+.ji-table td { vertical-align: top; }
+.ji-table .qc-item_id .ss-btn { min-height: 38px; height: auto; padding-top: 7px; padding-bottom: 7px; align-items: flex-start; }
+.ji-table .qc-item_id .ss-val { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.35; }
+.ji-table .qc-item_id .ss-btn svg { margin-top: 2px; flex: none; }
+.ji-table textarea.ji-loc { display: block; width: 100%; min-width: 170px; min-height: 38px; resize: none; overflow: hidden; padding: 8px; font-size: 13px; line-height: 1.35; border-radius: 8px; box-sizing: border-box; overflow-wrap: anywhere; }
 .ji-stg { display: flex; flex-wrap: wrap; gap: 8px; }
 .mv-form .mf-check input[type=checkbox], .row-chk { width: 18px; height: 18px; min-height: 0; padding: 0; accent-color: var(--c); }
 .mini-bar { display: inline-block; width: 70px; height: 8px; border-radius: 999px; background: var(--page); border: 1px solid var(--border); vertical-align: middle; overflow: hidden; }
@@ -3861,7 +3866,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       var dim = function (k) { return manual ? '<input type="number" name="ji_' + k + "_" + i + '" min="0" step="any" inputmode="decimal" value="' + esc(it[k]) + '"' + lab(k === "width" ? "Width" : "Height") + ' data-oninput="ji-calc">' : '<input type="text" class="erp-ro" value="' + esc(it[k]) + '" readonly tabindex="-1"' + lab(k === "width" ? "Width" : "Height") + ">"; };
       h += '<tr class="ji-tr" data-i="' + i + '"><td class="qc-item_id"><select name="ji_src_' + i + '"' + lab("Particular") + ' data-onchange="ji-pick">' + o + "</select></td>" +
         '<td class="qc-width">' + dim("width") + '</td><td class="qc-height">' + dim("height") + "</td>" +
-        '<td class="qc-description"><input type="text" name="ji_loc_' + i + '" placeholder="Enter Location" value="' + esc(it.location) + '"' + lab("Location") + "></td>" +
+        '<td class="qc-description"><textarea class="ji-loc" name="ji_loc_' + i + '" rows="1" placeholder="Enter Location"' + lab("Location") + ' data-oninput="ji-grow">' + esc(it.location) + "</textarea></td>" +
         '<td class="qc-out">' + (manual ? "—" : U.num(it.qq)) + '</td><td class="qc-out">' + (manual ? "—" : U.num(it.done)) + "</td>" +
         '<td class="qc-qty"><input type="number" name="ji_qty_' + i + '" min="0" step="any" inputmode="decimal" value="' + esc(it.qty) + '"' + (manual ? "" : ' max="' + esc(it.max) + '" title="Up to ' + esc(U.num(it.max)) + '"') + lab("Quantity") + ' data-oninput="ji-calc"></td>' +
         '<td class="qc-uom">' + (!manual ? '<input type="text" class="erp-ro ji-uom-ro" value="' + esc(it.uom) + '" readonly tabindex="-1"' + lab("Unit") + ">" : '<select name="ji_uom_' + i + '"' + lab("Unit") + ' data-onchange="ji-calc"><option value="">Select Unit</option>' + uoms.map(function (x) { return "<option" + (x.name === it.uom ? " selected" : "") + ">" + esc(x.name) + "</option>"; }).join("") + (it.uom && !uoms.some(function (x) { return x.name === it.uom; }) ? "<option selected>" + esc(it.uom) + "</option>" : "") + "</select>") + "</td>" +
@@ -3887,6 +3892,9 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     });
   }
   U.act("ji-pick", function () { U.render(); });
+  function jiGrow(t) { if (!t) return; t.style.height = "auto"; t.style.height = (t.scrollHeight + 2) + "px"; }
+  U.act("ji-grow", function (t) { jiGrow(t); });
+  new MutationObserver(function () { document.querySelectorAll(".ji-table textarea.ji-loc").forEach(function (t) { if (!t._g) { t._g = 1; jiGrow(t); } }); }).observe(document.body, { childList: true, subtree: true });
   U.act("ji-calc", function () {
     var fm = document.getElementById("u-pform"), st = P.forms["projects.add-job"]; if (!fm || !st) return; jiRead(fm, st.v);
     st.v.jitems.forEach(function (it, i) { var a = U.qCalc({ width: it.width, height: it.height, qty: it.qty, uom: it.uom }).area, e = document.getElementById("ji_area_" + i); if (e) e.textContent = a === "" ? "—" : U.num(a); });
@@ -3900,7 +3908,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     return [
     { k: "date", label: "Date", type: "date", req: 1 },
     { k: "project_id", label: "Project", type: "select", req: 1, live: 1, opts: function () { return U.rows("projects").filter(function (p) { return p.status === "In Progress"; }).sort(function (a, b) { return (b.seq || 0) - (a.seq || 0); }).map(function (p) { return { id: p.id, name: p.no + " · " + cust(p) }; }); }, first: "Choose a project" },
-    { k: "quotation_id", label: "Quotation No.", type: "select", req: 1, live: 1, opts: function () { return qs.map(function (q) { return { id: q.id, name: (q.no || "Quotation") + " \u00b7 " + U.dmy(q.date) + " \u00b7 " + U.money(q.total) }; }); }, first: "Choose a quotation", show: function () { return qs.length > 0; } },
+    { k: "quotation_id", label: "Quotation No.", type: "select", req: 1, live: 1, opts: function () { return qs.map(function (q) { return { id: q.id, name: [q.no || "Quotation", q.date ? U.dmy(q.date) : "", q.total ? U.money(q.total) : ""].filter(Boolean).join(" \u00b7 ") }; }); }, first: "Choose a quotation", show: function () { return qs.length > 0; } },
     { k: "target", label: "Target Date", type: "date", req: 1 }]; };
   U.page("projects.add-job", function () {
     if (!base()) return U.loading;
