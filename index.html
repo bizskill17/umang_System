@@ -3931,7 +3931,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     if (p.sheet_status) return p.sheet_status;
     return sheetFields().some(function (f) { return f.k !== "sheet_documents" && String(p[f.k] || "").trim(); }) || (p.sheet_documents || []).length ? "Submitted" : "Pending";
   }
-  function sheetPending(p) { return p.status !== "Canceled" && sheetStatus(p) !== "Submitted"; }
+  function sheetPending(p) { return p.status === "In Progress" && sheetStatus(p) !== "Submitted"; }
   U.act("p-sheet", function (id) {
     var p = U.get("projects", id); if (!p || p.status === "Canceled") return;
     P.forms["projects.pending-sheet"] = { v: Object.assign({}, p, { _id: id, sheet_documents: (p.sheet_documents || []).slice() }), err: "", saving: false };
