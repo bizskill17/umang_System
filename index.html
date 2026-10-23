@@ -1669,7 +1669,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
   function today() { var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
-  function dmy(iso) { return iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(8, 10) + "-" + iso.slice(5, 7) + "-" + iso.slice(0, 4) : ""; }
+  function dmy(iso) { return iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4) : ""; }
   function inr(n) { n = Number(n); return n > 0 ? "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : ""; }
   function fyOf(iso) { var y = +iso.slice(0, 4), m = +iso.slice(5, 7), s = m >= 4 ? y : y - 1; return String(s).slice(-2) + "-" + String(s + 1).slice(-2); }
   function rowsOf(c) { return M[c] || []; }
@@ -2446,7 +2446,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   U.esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
   function pad(n) { return (n < 10 ? "0" : "") + n; }
   U.today = function () { var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
-  U.dmy = function (iso) { return iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(8, 10) + "-" + iso.slice(5, 7) + "-" + iso.slice(0, 4) : ""; };
+  U.dmy = function (iso) { return iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4) : ""; };
   U.num = function (n, d) { n = Number(n) || 0; return n.toLocaleString("en-IN", { maximumFractionDigits: d == null ? 2 : d }); };
   U.inr = function (n) { n = Number(n); return n ? "₹" + n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""; };
   U.fyStart = function (iso) { iso = iso || U.today(); var y = +iso.slice(0, 4), m = +iso.slice(5, 7); return m >= 4 ? y : y - 1; };
