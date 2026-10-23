@@ -11,7 +11,7 @@ Copy the following into that file, replacing both passwords **on Hostinger only*
 ```php
 <?php
 return [
-    'host' => 'srv735.hstgr.io',
+    'host' => 'localhost',
     'port' => 3306,
     'database' => 'u299994438_system_umang',
     'username' => 'u299994438_system_umang',
@@ -23,7 +23,7 @@ return [
 
 `password` is the password assigned to the MySQL user. `admin_password` is a **different**, unique password of at least 12 characters for signing into Umang. Neither password should be sent in chat or committed to GitHub.
 
-If Hostinger provides a different connection hostname for this database, use that hostname. The shown hostname is taken from your Remote MySQL screenshot. For same-server PHP hosting, `localhost` may be the host specified by your provider; confirm in the database connection details if the hostname above fails.
+Use `localhost` for PHP running on the same Hostinger account. The `srv735.hstgr.io` hostname shown in Remote MySQL is for external connections, not the local website. Hostinger reference: https://www.hostinger.com/support/1583552-how-to-find-your-mysql-database-details-in-hostinger/
 
 The final paths must be:
 

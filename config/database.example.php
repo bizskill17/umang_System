@@ -1,7 +1,7 @@
 <?php
 // Copy to config/database.php OUTSIDE public_html on Hostinger. Never commit the filled file.
 return [
-    'host' => 'srv735.hstgr.io',
+    'host' => 'localhost',
     'port' => 3306,
     'database' => 'u299994438_system_umang',
     'username' => 'u299994438_system_umang',
