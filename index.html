@@ -3908,7 +3908,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     return [
     { k: "date", label: "Date", type: "date", req: 1 },
     { k: "project_id", label: "Project", type: "select", req: 1, live: 1, opts: function () { return U.rows("projects").filter(function (p) { return p.status === "In Progress"; }).sort(function (a, b) { return (b.seq || 0) - (a.seq || 0); }).map(function (p) { return { id: p.id, name: p.no + " · " + cust(p) }; }); }, first: "Choose a project" },
-    { k: "quotation_id", label: "Quotation No.", type: "select", req: 1, live: 1, opts: function () { return qs.map(function (q) { return { id: q.id, name: [q.no || "Quotation", q.date ? U.dmy(q.date) : "", q.total ? U.money(q.total) : ""].filter(Boolean).join(" \u00b7 ") }; }); }, first: "Choose a quotation", show: function () { return qs.length > 0; } },
+    { k: "quotation_id", label: "Quotation No.", type: "select", req: 1, live: 1, opts: function () { return qs.map(function (q) { return { id: q.id, name: [q.no || "Quotation", q.date ? U.dmy(q.date) : ""].filter(Boolean).join(" \u00b7 ") }; }); }, first: "Choose a quotation", show: function () { return qs.length > 0; } },
     { k: "target", label: "Target Date", type: "date", req: 1 }]; };
   U.page("projects.add-job", function () {
     if (!base()) return U.loading;
