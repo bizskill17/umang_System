@@ -3817,6 +3817,10 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
       } });
   });
   document.addEventListener("click", function (e) {
+    var tr = e.target.closest("tr.j-row"); if (!tr || e.target.closest("button, a, input, select, .ss-btn")) return;
+    var b = tr.querySelector('[data-a="j-view"]'); if (b) b.click();
+  });
+  document.addEventListener("click", function (e) {
     var tr = e.target.closest("tr.p-row"); if (!tr || e.target.closest("button, a, input, select, .ss-btn")) return;
     var b = tr.querySelector('[data-a="p-view"]'); if (b) b.click();
   });
@@ -3963,18 +3967,29 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
     target: ["Target", function (j) { return '<span class="nowrap' + (U.isOpen(j) && j.target < U.today() ? " late" : "") + '">' + U.dmy(j.target) + "</span>"; }],
     proj: ["Project No.", function (j) { return esc(proj(j.project_id).no); }], qno: ["Qtn No.", function (j) { return '<span class="nowrap">' + esc(jQno(j)) + "</span>"; }], cust: ["Customer", function (j) { return esc(cust(j)); }, "strong"],
     items: ["Items", function (j) { return (j.items || []).length; }, "numcell"], prog: ["QC passed", progress], status: ["Status", function (j) { return U.pill(j.status, j.status === "Completed" ? "on" : j.status === "Canceled" ? "off" : "warn"); }],
-    reason: ["Reason", function (j) { return esc((j.cancel || {}).reason); }]
+    reason: ["Reason", function (j) { return esc((j.cancel || {}).reason); }],
+    sl: ["Sl.", function (j, i) { return i + 1; }, "numcell"],
+    pno: ["Project", function (j) { return "<b>" + esc(proj(j.project_id).no) + "</b>"; }],
+    asg: ["Assigned To", function (j) { var s = {}; U.rows("job_assign").forEach(function (a) { if (a.job_id === j.id) { var nm = a.assignee ? U.user(a.assignee) : a.vendor_id ? U.nm("vendors", a.vendor_id) : ""; if (nm) s[nm] = 1; } }); return esc(Object.keys(s).join(", ")) || "\u2014"; }],
+    dsg: ["Designer", function (j) { if (j.designer) return esc(U.user(j.designer)); var s = {}; U.rows("designs").forEach(function (d) { if (d.project_id === j.project_id && d.status !== "Canceled") { var nm = d.designer ? U.user(d.designer) : U.nm("vendors", d.vendor_id); if (nm) s[nm] = 1; } }); return esc(Object.keys(s).join(", ")) || "\u2014"; }],
+    dod: ["Date of Delivery", function (j) { var d = j.delivery_date || j.target; return d ? '<span class="nowrap">' + U.dmy(d) + "</span>" : "\u2014"; }],
+    tod: ["Time of Delivery", function (j) { if (!j.delivery_time) return "\u2014"; var t = j.delivery_time.split(":"), hh = +t[0]; return '<span class="nowrap">' + ((hh % 12) || 12) + ":" + t[1] + (hh < 12 ? " AM" : " PM") + "</span>"; }],
+    own: ["Project Owner", function (j) { return esc(U.user(proj(j.project_id).owner)) || "\u2014"; }],
+    nos: ["Nos", function (j) { return U.num((j.items || []).reduce(function (s, it) { return s + n(it.qty); }, 0)); }, "numcell"],
+    cnos: ["Completed Nos", function (j) { return U.num((j.items || []).reduce(function (s, it) { return s + Math.min(n(it.qty), passed(j.id, it.lid)); }, 0)); }, "numcell"],
+    cnl: ["Cancel", function (j) { return U.num(j.status === "Canceled" ? (j.items || []).reduce(function (s, it) { return s + n(it.qty); }, 0) : 0); }, "numcell"]
   };
+  var JPLUG = ["sl", "no", "date", "pno", "cust", "asg", "dsg", "dod", "tod", "own", "nos", "cnos", "cnl"];
   function jlist(filter, cols, actions) {
-    if (!base()) return U.loading;
+    if (!base(["designs"])) return U.loading;
     var st = U.st(), rows = U.rows("jobs").filter(filter).filter(function (j) { return U.match(st, [j.no, proj(j.project_id).no, cust(j)].join(" "), j.date); }).sort(function (a, b) { return (b.fy || "").localeCompare(a.fy || "") || (b.seq || 0) - (a.seq || 0); });
-    var c = cols.map(function (k) { return JC[k]; }); c.push(['<span class="sr-only">Actions</span>', function (j) { return '<span class="row-acts"><button type="button" class="mv-btn ghost sm" data-a="j-view" data-id="' + esc(j.id) + '">View</button>' + (actions ? actions(j) : "") + "</span>"; }, "act"]);
-    return U.bar(st, [], true) + U.table(c, rows, null, U.rows("jobs").length ? "No jobs match." : "No jobs yet.") + U.count(rows.length, "job");
+    var c = cols.map(function (k) { return JC[k]; }); c.push(["Action", function (j) { return '<span class="row-acts"><button type="button" class="mv-btn ghost sm" data-a="j-view" data-id="' + esc(j.id) + '">View</button>' + (actions ? actions(j) : "") + "</span>"; }, "act"]);
+    return U.bar(st, [], true) + U.table(c, rows, function () { return "click-row j-row"; }, U.rows("jobs").length ? "No jobs match." : "No jobs yet.") + U.count(rows.length, "job");
   }
-  U.page("projects.jobs-in-progress", function () { return jlist(function (j) { return j.status === "Pending" || j.status === "In Progress"; }, ["no", "date", "target", "proj", "qno", "cust", "items", "prog", "status"], function (j) { return U.btn("j-cancel", j.id, "Cancel"); }); });
-  U.page("projects.jobs-master", function () { return jlist(function () { return true; }, ["no", "date", "target", "proj", "qno", "cust", "items", "prog", "status"]); });
-  U.page("projects.completed-jobs", function () { return jlist(function (j) { return j.status === "Completed"; }, ["no", "date", "proj", "qno", "cust", "items", "prog"]); });
-  U.page("projects.canceled-jobs", function () { return jlist(function (j) { return j.status === "Canceled"; }, ["no", "date", "proj", "qno", "cust", "items", "reason"]); });
+  U.page("projects.jobs-in-progress", function () { return jlist(function (j) { return j.status === "Pending" || j.status === "In Progress"; }, JPLUG, function (j) { return U.btn("j-cancel", j.id, "Cancel"); }); });
+  U.page("projects.jobs-master", function () { return jlist(function () { return true; }, JPLUG); });
+  U.page("projects.completed-jobs", function () { return jlist(function (j) { return j.status === "Completed"; }, JPLUG); });
+  U.page("projects.canceled-jobs", function () { return jlist(function (j) { return j.status === "Canceled"; }, JPLUG.concat(["reason"])); });
   U.page("projects.job-items-master", function () {
     if (!base()) return U.loading;
     var st = U.st(), rows = []; U.rows("jobs").forEach(function (j) { (j.items || []).forEach(function (it, i) { rows.push({ j: j, it: it, n: i + 1, p: proj(j.project_id) }); }); });
