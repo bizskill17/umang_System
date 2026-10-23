@@ -5,7 +5,15 @@ on:
     branches: [main]
     paths:
       - index.html
+      - assets/**
+      - api/**
+      - .user.ini
+      - tests/backend_test.py
+      - tests/check-js.cjs
+      - tests/adapter_test.cjs
       - .github/workflows/deploy-hostinger.yml
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -16,7 +24,47 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-test-only-password
+          MYSQL_DATABASE: umang_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pci-test-only-password"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, fileinfo
+          coverage: none
+      - name: Check PHP and JavaScript
+        run: |
+          php -l api/index.php
+          php -l config/database.example.php
+          node tests/check-js.cjs
+          node tests/adapter_test.cjs
+      - name: Test database backend with disposable MySQL
+        env:
+          UMANG_TEST_DB_HOST: 127.0.0.1
+          UMANG_TEST_DB_NAME: umang_test
+          UMANG_TEST_DB_USER: root
+          UMANG_TEST_DB_PASSWORD: ci-test-only-password
+        run: python3 tests/backend_test.py
+
   deploy:
+    needs: verify
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,7 +76,8 @@ jobs:
       - name: Prepare website files
         run: |
           mkdir -p deploy
-          cp index.html deploy/index.html
+          cp index.html .user.ini deploy/
+          cp -R api assets deploy/
 
       - name: Upload to Hostinger by FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -42,3 +91,4 @@ jobs:
           server-dir: ./
           state-name: .umang-deploy-state.json
           dangerous-clean-slate: false
+
