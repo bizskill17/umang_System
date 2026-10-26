@@ -98,6 +98,11 @@ def main():
                 owner.call('login',{'username':'admin','password':'wrong'},expected=401)
                 assert owner.login()['user']['owner']
                 owner.call('set',{'path':'leads','id':'lead1','data':{'name':'उमंग ₹','status':'In Progress'}})
+                # One combined read returns several collections and ignores unknown ones.
+                owner.call('batch&paths=leads,projects',expected=200)
+                both=owner.call('batch&paths=leads,projects,not_a_collection')['lists']
+                assert set(both)=={'leads','projects'} and both['leads'][0]['id']=='lead1' and both['projects']==[]
+                Client(base).call('batch&paths=leads',expected=401)
                 docs=owner.call('list&path=leads')['docs']
                 assert docs[0]['data']['name']=='उमंग ₹'
                 owner.call('update',{'path':'leads','id':'lead1','data':{'estimate':500}})

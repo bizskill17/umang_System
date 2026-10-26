@@ -94,7 +94,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
 $action = (string)($_GET['action'] ?? 'session');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-$readActions = ['session', 'list', 'get', 'blob'];
+$readActions = ['session', 'list', 'get', 'blob', 'batch'];
 if (($method === 'GET' && !in_array($action, $readActions, true)) || !in_array($method, ['GET', 'POST'], true)) reject('Method not allowed.', 405);
 $input = [];
 if ($method === 'POST') {
@@ -110,7 +110,9 @@ if ($method === 'POST') {
 }
 $port = filter_var($config['port'] ?? 3306, FILTER_VALIDATE_INT);
 if (!$port || !preg_match('/^[a-zA-Z0-9_.-]+$/', (string)$config['host']) || !preg_match('/^[a-zA-Z0-9_]+$/', (string)$config['database'])) reject('Invalid database host, port or name.', 503, 'not_configured');
-$db = new PDO('mysql:host=' . $config['host'] . ';port=' . $port . ';dbname=' . $config['database'] . ';charset=utf8mb4', $config['username'], $config['password'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]);
+$db = new PDO('mysql:host=' . $config['host'] . ';port=' . $port . ';dbname=' . $config['database'] . ';charset=utf8mb4', $config['username'], $config['password'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_PERSISTENT => true]);
+// A reused connection may carry an unfinished transaction from an aborted request.
+if ($db->inTransaction()) $db->rollBack();
 $schemaKey = hash('sha256', $config['host'] . ':' . $config['database']);
 if (($_SESSION['schema'] ?? '') !== $schemaKey) {
 $db->exec('CREATE TABLE IF NOT EXISTS umang_documents (collection_path VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, id VARCHAR(96) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, body LONGTEXT NOT NULL, PRIMARY KEY(collection_path,id)) ENGINE=InnoDB');
@@ -231,11 +233,30 @@ if ($action === 'blob') {
     header('Content-Disposition: inline; filename="' . addcslashes($file['name'], '"\\') . '"');
     header("Content-Security-Policy: sandbox"); session_write_close(); readfile($privateStorage . '/' . $id); exit;
 }
-$path = (string)($input['path'] ?? $_GET['path'] ?? '');
 $masters = ['firm','customers','vendors','customer-category','customer-subcategory','state','city','lead-category','lead-subcategory','lead-sources','send-mode','users','user-roles','designation','user-document-types','items','uom','gst','machines','delivery-modes','transporters','vehicles'];
 $collections = ['leads','quotations','quote_followups','projects','recce','recce_updates','designs','design_updates','jobs','job_assign','qc','dispatches','wastage','invoices','payments','complaints','complaint_updates','counters','access_requests'];
-$validPath = in_array($path, $collections, true) || (preg_match('#^masters/([a-z-]+)/rows$#', $path, $m) && in_array($m[1], $masters, true)) || preg_match('#^leads/[a-zA-Z0-9_-]{1,96}/followups$#', $path);
-if (!$validPath) reject('Unknown collection.');
+function validPath(string $p): bool {
+    global $collections, $masters;
+    return in_array($p, $collections, true) || (preg_match('#^masters/([a-z-]+)/rows$#', $p, $m) && in_array($m[1], $masters, true)) || (bool)preg_match('#^leads/[a-zA-Z0-9_-]{1,96}/followups$#', $p);
+}
+function shapeDoc(string $p, array $body): array {
+    global $user;
+    if ($p === 'masters/users/rows') { $body = safeUser($body); if (empty($user['owner'])) $body = array_intersect_key($body, array_flip(['name','status','designation_id','signature'])); }
+    return $body;
+}
+// One request (one connection, one query) returns several collections; keeps hosting connection limits low.
+if ($action === 'batch') {
+    $paths = array_values(array_unique(array_filter(explode(',', (string)($_GET['paths'] ?? '')), 'validPath')));
+    if (count($paths) > 80) reject('Too many collections.');
+    $out = []; foreach ($paths as $p) $out[$p] = [];
+    if ($paths) {
+        $rows = query('SELECT collection_path,id,body FROM umang_documents WHERE collection_path IN (' . implode(',', array_fill(0, count($paths), '?')) . ') ORDER BY collection_path,id', $paths)->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $row) $out[$row['collection_path']][] = ['id' => $row['id'], 'data' => shapeDoc($row['collection_path'], json_decode($row['body'], true, 64, JSON_THROW_ON_ERROR))];
+    }
+    reply(['lists' => $out]);
+}
+$path = (string)($input['path'] ?? $_GET['path'] ?? '');
+if (!validPath($path)) reject('Unknown collection.');
 $id = (string)($input['id'] ?? $_GET['id'] ?? '');
 if ($action !== 'list' && !preg_match('/^[a-zA-Z0-9_-]{1,96}$/', $id)) reject('Invalid record ID.');
 if ($action === 'list') {

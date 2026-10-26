@@ -59,5 +59,6 @@ The endpoint `api/index.php?action=session` reports whether the backend is ready
 - Upload limits: 20 MB per PDF, JPG, PNG or WebP; PHP `post_max_size` must exceed 20 MB. The deployed `.user.ini` requests 22 MB; Hostinger may take several minutes to apply it.
 - Signed-in employees can read shared application records and attachments for linked forms. View permissions restrict navigation; server-side write access is enforced by module and master. This is not row-level or per-screen data isolation.
 - Data and uploaded files from the original Claude runtime are **not migrated automatically**. A new database starts empty. Existing unrelated database tables are left alone.
-- Polling refreshes open views every 5 seconds and refreshes saved collections immediately.
+- Open screens refresh in one combined request about once a minute while the tab is visible (never while hidden), and immediately after a save, when the tab regains focus, or when the screen changes. This keeps MySQL connections well under Hostinger's per-hour limits.
+- If the site shows **MySQL error 1226**, the database user hit Hostinger's hourly connection/query limit. It clears by itself within an hour.
 - Back up the database and private uploads together. Automatic FTP deployment does not back them up or overwrite the private config.
