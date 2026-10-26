@@ -113,5 +113,5 @@ jobs:
                   raise SystemExit(message)
               print('Private configuration file is present. Enter the database and administrator passwords in Hostinger.')
           else:
-              raise SystemExit('API setup check failed. Review the website setup message and hosting error log.')
+              raise SystemExit('API setup check failed (HTTP %s): %s' % (response.status, result.get('error', {}).get('msg', 'no message')))
           PY
