@@ -15,7 +15,7 @@ Web app for running a signage business, built from the Umang System WordPress pl
 
 Follow [the database setup guide](docs/DATABASE_SETUP.md). Create `config/database.php` **outside `public_html`** using [the example](config/database.example.php). Enter the database password and a separate administrator password privately on Hostinger. The website uses `localhost` for its local MySQL connection. Database credentials are not stored in GitHub or the browser.
 
-The PHP API creates its `umang_` tables without deleting existing tables. Original Claude data is not migrated automatically. Uploaded documents remain private and require a signed-in session. Employees share application reads; module/master write permissions are checked on the server. Only the configured administrator manages accounts and roles.
+By default the PHP API stores data in a private SQLite file (`config/umang-data.sqlite`) to avoid hosting MySQL connection limits, copying any existing MySQL data across once; set `'driver' => 'mysql'` in the config to use MySQL. The API creates its `umang_` tables without deleting existing tables. Original Claude data is not migrated automatically. Uploaded documents remain private and require a signed-in session. Employees share application reads; module/master write permissions are checked on the server. Only the configured administrator manages accounts and roles.
 
 ## Files
 - `index.html` — application screens and workflows.

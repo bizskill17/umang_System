@@ -1,5 +1,7 @@
 # Hostinger database setup
 
+> **Storage engine:** by default the app now keeps its data in a private SQLite file, `config/umang-data.sqlite`, beside `config/database.php` (outside `public_html`). This avoids Hostinger's MySQL limits (for example 500 connections per hour, error 1226). Existing MySQL data is copied into the file automatically once MySQL is reachable; the MySQL tables are left untouched. To use MySQL instead, add `'driver' => 'mysql',` to `config/database.php`. Back up `config/umang-data.sqlite` together with `config/umang-uploads`.
+
 The website now uses a PHP API and MySQL on Hostinger. The private configuration is maintained on the server and is never deployed from GitHub.
 
 ## 1. Create the private configuration

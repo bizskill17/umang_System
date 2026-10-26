@@ -43,6 +43,7 @@ set_exception_handler(function (Throwable $e): void {
             $names = ['max_questions' => 'queries per hour', 'max_updates' => 'updates per hour', 'max_connections_per_hour' => 'connections per hour', 'max_user_connections' => 'open connections'];
             $hint = 'The hosting limit of ' . $r[2] . ' MySQL ' . ($names[$r[1]] ?? $r[1]) . ' was reached. It resets within the hour, or Hostinger support can reset it now.';
         }
+        if (function_exists('lite') && lite() && stripos((string)$e->getMessage(), 'unable to open') !== false) $hint = 'The data file in the private config folder could not be opened. Make sure the config folder (beside public_html) is writable by the website.';
         if (isset($hints[$code])) $hint = $hints[$code] . ' (MySQL error ' . $code . ')';
         elseif ($code === 1226 && !empty($r)) $hint .= ' (MySQL error 1226, ' . $r[1] . ')';
         elseif ($code && $code !== 1226) $hint .= ' (MySQL error ' . $code . ')';
@@ -84,7 +85,7 @@ CONFIG;
 }
 $config = require $configFile;
 if (!is_array($config)) reject('The private database configuration must return an array.', 503, 'not_configured');
-foreach (['host', 'database', 'username', 'password', 'admin_username'] as $key) {
+foreach ((lite() ? ['admin_username'] : ['host', 'database', 'username', 'password', 'admin_username']) as $key) {
     if (empty($config[$key]) || str_contains((string)$config[$key], 'REPLACE_')) reject('Complete the private database configuration before signing in.', 503, 'not_configured');
 }
 $adminHash = (string)($config['admin_password_hash'] ?? '');
@@ -116,13 +117,38 @@ if ($method === 'POST') {
 }
 $port = filter_var($config['port'] ?? 3306, FILTER_VALIDATE_INT);
 if (!$port || !preg_match('/^[a-zA-Z0-9_.-]+$/', (string)$config['host']) || !preg_match('/^[a-zA-Z0-9_]+$/', (string)$config['database'])) reject('Invalid database host, port or name.', 503, 'not_configured');
-/* Connect only when a request actually reads or writes data (lazy), and reuse connections:
-   shared hosting caps MySQL connections and queries per hour. */
+/* Storage engine. Default: a private SQLite file beside config/database.php (no hosting connection
+   limits). Set 'driver' => 'mysql' in config/database.php to use MySQL instead. Connections are lazy:
+   a request connects only when it reads or writes data. */
+function lite(): bool {
+    global $config;
+    $d = strtolower((string)($config['driver'] ?? ''));
+    if ($d === 'mysql') return false;
+    return extension_loaded('pdo_sqlite');
+}
+function dataFile(): string { global $configFile; return dirname($configFile) . '/umang-data.sqlite'; }
+function mysqlPdo(bool $persistent): PDO {
+    global $config, $port;
+    return new PDO('mysql:host=' . $config['host'] . ';port=' . $port . ';dbname=' . $config['database'] . ';charset=utf8mb4', $config['username'], $config['password'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_PERSISTENT => $persistent]);
+}
 function db(): PDO {
     static $pdo = null;
-    global $config, $port;
+    global $config;
     if ($pdo) return $pdo;
-    $pdo = new PDO('mysql:host=' . $config['host'] . ';port=' . $port . ';dbname=' . $config['database'] . ';charset=utf8mb4', $config['username'], $config['password'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_PERSISTENT => true]);
+    if (lite()) {
+        $file = dataFile(); $new = !is_file($file);
+        $pdo = new PDO('sqlite:' . $file, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 10]);
+        if ($new) @chmod($file, 0600);
+        $pdo->exec('PRAGMA busy_timeout = 10000');
+        $pdo->exec('PRAGMA journal_mode = WAL');
+        $pdo->exec('PRAGMA synchronous = NORMAL');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS umang_documents (collection_path TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(collection_path,id))');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS umang_leases (lease_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at REAL NOT NULL)');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS umang_files (id TEXT PRIMARY KEY, name TEXT NOT NULL, mime TEXT NOT NULL, size INTEGER NOT NULL, owner_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+        migrateFromMysql($pdo);
+        return $pdo;
+    }
+    $pdo = mysqlPdo(true);
     // A reused connection may carry an unfinished transaction from an aborted request.
     if ($pdo->inTransaction()) $pdo->rollBack();
     $schemaKey = hash('sha256', $config['host'] . ':' . $config['database']);
@@ -130,12 +156,45 @@ function db(): PDO {
         $pdo->exec('CREATE TABLE IF NOT EXISTS umang_documents (collection_path VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, id VARCHAR(96) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, body LONGTEXT NOT NULL, PRIMARY KEY(collection_path,id)) ENGINE=InnoDB');
         $pdo->exec('CREATE TABLE IF NOT EXISTS umang_leases (lease_key VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY, holder VARCHAR(191) NOT NULL, expires_at DOUBLE NOT NULL) ENGINE=InnoDB');
         $pdo->exec('CREATE TABLE IF NOT EXISTS umang_files (id CHAR(32) PRIMARY KEY, name VARCHAR(255) NOT NULL, mime VARCHAR(100) NOT NULL, size INT NOT NULL, owner_id VARCHAR(96) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS umang_login_limits (bucket CHAR(64) PRIMARY KEY, attempts INT NOT NULL, started_at BIGINT NOT NULL) ENGINE=InnoDB');
         $_SESSION['schema'] = $schemaKey;
     }
     return $pdo;
 }
+/* One-time copy of existing MySQL data into the SQLite file. Never overwrites rows already in the file.
+   If MySQL is unreachable (for example its hourly limit), it retries at most every 10 minutes. */
+function migrateFromMysql(PDO $lite): void {
+    global $config;
+    $dir = dirname(dataFile()); $done = $dir . '/umang-migrated'; $tried = $dir . '/umang-migrate-tried';
+    if (is_file($done) || empty($config['host']) || empty($config['database']) || empty($config['username']) || str_contains((string)($config['password'] ?? 'REPLACE_'), 'REPLACE_')) return;
+    if (is_file($tried) && filemtime($tried) > time() - 600) return;
+    @touch($tried);
+    try {
+        $my = mysqlPdo(false);
+        $copy = function (string $table, string $cols) use ($my, $lite): void {
+            $exists = $my->query("SHOW TABLES LIKE '" . $table . "'")->fetchColumn();
+            if (!$exists) return;
+            $rows = $my->query('SELECT ' . $cols . ' FROM ' . $table)->fetchAll(PDO::FETCH_NUM);
+            if (!$rows) return;
+            $n = count(explode(',', $cols));
+            $ins = $lite->prepare('INSERT OR IGNORE INTO ' . $table . '(' . $cols . ') VALUES(' . implode(',', array_fill(0, $n, '?')) . ')');
+            $lite->exec('BEGIN IMMEDIATE');
+            try { foreach ($rows as $r) $ins->execute($r); $lite->exec('COMMIT'); } catch (Throwable $e) { $lite->exec('ROLLBACK'); throw $e; }
+        };
+        $copy('umang_documents', 'collection_path,id,body');
+        $copy('umang_files', 'id,name,mime,size,owner_id,created_at');
+        $copy('umang_leases', 'lease_key,holder,expires_at');
+        $my = null;
+        @file_put_contents($done, date('c') . "\n"); @chmod($done, 0600);
+    } catch (Throwable $e) {
+        $code = $e instanceof PDOException ? (int)($e->errorInfo[1] ?? 0) : 0;
+        error_log('Umang MySQL to SQLite copy postponed: ' . get_class($e) . ($code ? ' driver_code=' . $code : ''));
+    }
+}
+function txBegin(): void { if (lite()) db()->exec('BEGIN IMMEDIATE'); else txBegin(); }
+function txCommit(): void { if (lite()) db()->exec('COMMIT'); else txCommit(); }
+function txRollback(): void { if (lite()) db()->exec('ROLLBACK'); else txRollback(); }
 function query(string $sql, array $args = []): PDOStatement {
+    if (lite()) $sql = str_replace([' FOR UPDATE', 'INSERT IGNORE INTO', ' ON DUPLICATE KEY UPDATE body=VALUES(body)'], ['', 'INSERT OR IGNORE INTO', ' ON CONFLICT(collection_path,id) DO UPDATE SET body=excluded.body'], $sql);
     $stmt = db()->prepare($sql); $stmt->execute($args); return $stmt;
 }
 function document(string $path, string $id, bool $lock = false): ?array {
@@ -279,37 +338,37 @@ if ($action === 'acquire') {
     $holder = hash('sha256', session_id() . ':' . (string)($input['holder'] ?? ''));
     $key = $path . '/' . $id; $now = microtime(true);
     query('INSERT IGNORE INTO umang_leases(lease_key,holder,expires_at) VALUES(?,?,0)', [$key, '']);
-    db()->beginTransaction();
+    txBegin();
     $lease = query('SELECT holder,expires_at FROM umang_leases WHERE lease_key=? FOR UPDATE', [$key])->fetch(PDO::FETCH_ASSOC);
     $acquired = (float)$lease['expires_at'] < $now || hash_equals($lease['holder'], $holder);
     if ($acquired) query('UPDATE umang_leases SET holder=?,expires_at=? WHERE lease_key=?', [$holder, $now+8, $key]);
-    db()->commit(); reply(['acquired' => $acquired]);
+    txCommit(); reply(['acquired' => $acquired]);
 }
-db()->beginTransaction();
+txBegin();
 if ($path === 'counters') {
     $lease = query('SELECT holder,expires_at FROM umang_leases WHERE lease_key=? FOR UPDATE', [$path . '/' . $id])->fetch(PDO::FETCH_ASSOC);
     $holder = hash('sha256', session_id() . ':' . (string)($input['holder'] ?? ''));
-    if (!$lease || (float)$lease['expires_at'] < microtime(true) || !hash_equals($lease['holder'], $holder)) { db()->rollBack(); reject('Number reservation expired. Try again.', 409, 'unavailable'); }
+    if (!$lease || (float)$lease['expires_at'] < microtime(true) || !hash_equals($lease['holder'], $holder)) { txRollback(); reject('Number reservation expired. Try again.', 409, 'unavailable'); }
 }
 $old = document($path, $id, true);
 if ($action === 'delete') {
-    if ($path === 'counters') { db()->rollBack(); reject('Counters cannot be deleted.'); }
+    if ($path === 'counters') { txRollback(); reject('Counters cannot be deleted.'); }
     query('DELETE FROM umang_documents WHERE collection_path=? AND id=?', [$path, $id]);
 } else {
     $body = $input['data'] ?? null;
-    if (!is_array($body)) { db()->rollBack(); reject('Invalid record.'); }
-    if ($action === 'update' && !$old) { db()->rollBack(); reject('Record no longer exists.', 404); }
+    if (!is_array($body)) { txRollback(); reject('Invalid record.'); }
+    if ($action === 'update' && !$old) { txRollback(); reject('Record no longer exists.', 404); }
     if ($action === 'update') $body = array_merge($old, $body);
     if ($path === 'masters/users/rows') {
         unset($body['has_password'], $body['owner'], $body['id']);
         if (empty($body['pw_hash']) && $old) { $body['pw_hash'] = $old['pw_hash'] ?? ''; $body['pw_salt'] = $old['pw_salt'] ?? ''; }
-        if (!preg_match('/^[a-f0-9]{64}$/', (string)($body['pw_hash'] ?? '')) || !preg_match('/^[a-f0-9]{32}$/', (string)($body['pw_salt'] ?? ''))) { db()->rollBack(); reject('Set a password for this user.'); }
-        if (isset($body['allowed_views']) && (!is_array($body['allowed_views']) || count(array_filter($body['allowed_views'], 'is_string')) !== count($body['allowed_views']))) { db()->rollBack(); reject('Invalid view permissions.'); }
-        if (empty($body['name']) || empty($body['email'])) { db()->rollBack(); reject('User name and email are required.'); }
-        if (strcasecmp((string)$body['name'], (string)$config['admin_username']) === 0 || strcasecmp((string)$body['email'], (string)$config['admin_username']) === 0) { db()->rollBack(); reject('This administrator login is reserved.'); }
+        if (!preg_match('/^[a-f0-9]{64}$/', (string)($body['pw_hash'] ?? '')) || !preg_match('/^[a-f0-9]{32}$/', (string)($body['pw_salt'] ?? ''))) { txRollback(); reject('Set a password for this user.'); }
+        if (isset($body['allowed_views']) && (!is_array($body['allowed_views']) || count(array_filter($body['allowed_views'], 'is_string')) !== count($body['allowed_views']))) { txRollback(); reject('Invalid view permissions.'); }
+        if (empty($body['name']) || empty($body['email'])) { txRollback(); reject('User name and email are required.'); }
+        if (strcasecmp((string)$body['name'], (string)$config['admin_username']) === 0 || strcasecmp((string)$body['email'], (string)$config['admin_username']) === 0) { txRollback(); reject('This administrator login is reserved.'); }
     }
-    if ($path === 'counters' && (!isset($body['next']) || !is_int($body['next']) || $body['next'] < (int)($old['next'] ?? 1))) { db()->rollBack(); reject('Invalid counter value.'); }
+    if ($path === 'counters' && (!isset($body['next']) || !is_int($body['next']) || $body['next'] < (int)($old['next'] ?? 1))) { txRollback(); reject('Invalid counter value.'); }
     query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?) ON DUPLICATE KEY UPDATE body=VALUES(body)', [$path, $id, json_encode($body, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]);
     if ($path === 'counters') query('UPDATE umang_leases SET expires_at=0 WHERE lease_key=?', [$path . '/' . $id]);
 }
-db()->commit(); reply(['ok' => true, 'id' => $id]);
+txCommit(); reply(['ok' => true, 'id' => $id]);

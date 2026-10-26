@@ -52,17 +52,21 @@ class Client:
         return self.call('upload', raw=body, content_type='multipart/form-data; boundary='+boundary, expected=expected)
 
 
-def main():
+def main(driver='mysql'):
     assert os.environ.get('UMANG_TEST_DB_NAME') == 'umang_test', 'Use only the disposable umang_test database.'
     with tempfile.TemporaryDirectory(prefix='umang-api-test-') as tmp:
         root = Path(tmp); web = root/'public_html'; web.mkdir(); (root/'config').mkdir()
         shutil.copytree(ROOT/'api', web/'api')
-        config = {'host': os.environ.get('UMANG_TEST_DB_HOST','127.0.0.1'), 'port': int(os.environ.get('UMANG_TEST_DB_PORT','3306')), 'database': 'umang_test', 'username': os.environ.get('UMANG_TEST_DB_USER','root'), 'password': os.environ['UMANG_TEST_DB_PASSWORD'], 'admin_username':'admin', 'admin_password': ADMIN_PASSWORD}
+        config = {'host': os.environ.get('UMANG_TEST_DB_HOST','127.0.0.1'), 'port': int(os.environ.get('UMANG_TEST_DB_PORT','3306')), 'database': 'umang_test', 'username': os.environ.get('UMANG_TEST_DB_USER','root'), 'password': os.environ['UMANG_TEST_DB_PASSWORD'], 'admin_username':'admin', 'admin_password': ADMIN_PASSWORD, 'driver': driver}
         config_path = root/'config/database.php'
         config_path.write_text('<?php return json_decode('+repr(json.dumps(config))+', true);')
         # Clean only fixed application tables in the explicitly named test database.
         cleanup = '$c=require $argv[1]; $d=new PDO("mysql:host=".$c["host"].";port=".$c["port"].";dbname=umang_test",$c["username"],$c["password"]); foreach(["umang_documents","umang_leases","umang_files","umang_login_limits"] as $t) $d->exec("DROP TABLE IF EXISTS ".$t);'
         subprocess.run(['php','-r',cleanup,str(config_path)],check=True)
+        if driver=='sqlite':
+            # Existing MySQL data is copied into the SQLite file on first use.
+            seed = '$c=require $argv[1]; $d=new PDO("mysql:host=".$c["host"].";port=".$c["port"].";dbname=umang_test",$c["username"],$c["password"]); $d->exec("CREATE TABLE umang_documents (collection_path VARCHAR(191) NOT NULL, id VARCHAR(96) NOT NULL, body LONGTEXT NOT NULL, PRIMARY KEY(collection_path,id))"); $d->prepare("INSERT INTO umang_documents VALUES (?,?,?)")->execute(["leads","migrated",json_encode(["name"=>"From MySQL"])]);'
+            subprocess.run(['php','-r',seed,str(config_path)],check=True)
         with socket.socket() as sock:
             sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]
         with open(root/'php.log','wb') as log:
@@ -97,6 +101,11 @@ def main():
                 owner.call('set', {'path':'leads','id':'x','data':{}},expected=403,token=False)
                 owner.call('login',{'username':'admin','password':'wrong'},expected=401)
                 assert owner.login()['user']['owner']
+                if driver=='sqlite':
+                    moved=owner.call('get&path=leads&id=migrated')
+                    assert moved['exists'] and moved['data']['name']=='From MySQL', moved
+                    assert (root/'config/umang-data.sqlite').is_file() and (root/'config/umang-migrated').is_file()
+                    owner.call('delete',{'path':'leads','id':'migrated'})
                 owner.call('set',{'path':'leads','id':'lead1','data':{'name':'उमंग ₹','status':'In Progress'}})
                 # One combined read returns several collections and ignores unknown ones.
                 owner.call('batch&paths=leads,projects',expected=200)
@@ -150,8 +159,10 @@ def main():
                 assert config_path.read_bytes() == original_config, 'Existing config was overwritten'
                 owner.call('logout',{})
                 owner.call('list&path=leads',expected=401)
-                print('Backend integration passed: configuration, login, CSRF, UTF-8 CRUD, permissions, leases, password preservation, upload validation, private downloads and logout.')
+                print('[' + driver + '] Backend integration passed: configuration, login, CSRF, UTF-8 CRUD, permissions, leases, password preservation, upload validation, private downloads and logout.')
             finally:
                 server.terminate(); server.wait(timeout=10)
 
-if __name__=='__main__': main()
+if __name__=='__main__':
+    main('mysql')
+    main('sqlite')
