@@ -190,9 +190,9 @@ function migrateFromMysql(PDO $lite): void {
         error_log('Umang MySQL to SQLite copy postponed: ' . get_class($e) . ($code ? ' driver_code=' . $code : ''));
     }
 }
-function txBegin(): void { if (lite()) db()->exec('BEGIN IMMEDIATE'); else txBegin(); }
-function txCommit(): void { if (lite()) db()->exec('COMMIT'); else txCommit(); }
-function txRollback(): void { if (lite()) db()->exec('ROLLBACK'); else txRollback(); }
+function txBegin(): void { if (lite()) db()->exec('BEGIN IMMEDIATE'); else db()->beginTransaction(); }
+function txCommit(): void { if (lite()) db()->exec('COMMIT'); else db()->commit(); }
+function txRollback(): void { if (lite()) db()->exec('ROLLBACK'); else db()->rollBack(); }
 function query(string $sql, array $args = []): PDOStatement {
     if (lite()) $sql = str_replace([' FOR UPDATE', 'INSERT IGNORE INTO', ' ON DUPLICATE KEY UPDATE body=VALUES(body)'], ['', 'INSERT OR IGNORE INTO', ' ON CONFLICT(collection_path,id) DO UPDATE SET body=excluded.body'], $sql);
     $stmt = db()->prepare($sql); $stmt->execute($args); return $stmt;
