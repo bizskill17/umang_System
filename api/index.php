@@ -25,7 +25,24 @@ set_exception_handler(function (Throwable $e): void {
             . ' driver_code=' . (is_numeric($driverCode) ? (string)(int)$driverCode : 'unknown');
     }
     error_log('Umang API failure: ' . $detail);
-    reject('Database service unavailable. Check the private configuration and hosting error log.', 503, 'unavailable');
+    // Safe, credential-free hints for the most common setup mistakes.
+    $hint = 'Check the private configuration and hosting error log.';
+    if ($e instanceof PDOException) {
+        $code = (int)($e->errorInfo[1] ?? 0);
+        if (!$code && preg_match('/\[(\d{4})\]/', (string)$e->getMessage(), $m)) $code = (int)$m[1];
+        $hints = [
+            1045 => 'MySQL refused the user name or password in config/database.php. In Hostinger > Databases, confirm the MySQL user name and reset its password, then put the same password in config/database.php.',
+            1044 => 'The MySQL user is not allowed to use this database. In Hostinger > Databases, make sure the user belongs to the database named in config/database.php.',
+            1049 => 'The database name in config/database.php does not exist. Copy the exact name from Hostinger > Databases.',
+            1142 => 'The MySQL user lacks permission to create or change tables. Give it full privileges on this database in Hostinger.',
+            1227 => 'The MySQL user lacks a required privilege. Give it full privileges on this database in Hostinger.',
+            2002 => 'The database server could not be reached. Use host "localhost" in config/database.php.',
+            2005 => 'The database host name is wrong. Use host "localhost" in config/database.php.',
+        ];
+        if (isset($hints[$code])) $hint = $hints[$code] . ' (MySQL error ' . $code . ')';
+        elseif ($code) $hint .= ' (MySQL error ' . $code . ')';
+    }
+    reject('Database service unavailable. ' . $hint, 503, 'unavailable');
 });
 $configFile = dirname(__DIR__, 2) . '/config/database.php';
 if (!is_file($configFile)) {
