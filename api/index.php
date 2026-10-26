@@ -160,13 +160,6 @@ if ($action === 'session') reply(['user' => $user, 'csrf' => $_SESSION['csrf']])
 if ($action === 'login') {
     $name = trim((string)($input['username'] ?? '')); $password = (string)($input['password'] ?? '');
     if (strlen($name) > 255 || strlen($password) > 1024) reject('Invalid credentials.', 401, 'unauthenticated');
-    // Both IP and account limits are shared across sessions, so cookies cannot reset them.
-    $buckets = [hash('sha256', 'ip:' . ($_SERVER['REMOTE_ADDR'] ?? '')), hash('sha256', 'account:' . strtolower($name))];
-    foreach ($buckets as $bucket) {
-        query('INSERT INTO umang_login_limits(bucket,attempts,started_at) VALUES(?,0,?) ON DUPLICATE KEY UPDATE attempts=IF(started_at < ?,0,attempts), started_at=IF(started_at < ?,VALUES(started_at),started_at)', [$bucket, time(), time()-900, time()-900]);
-        query('UPDATE umang_login_limits SET attempts=attempts+1 WHERE bucket=?', [$bucket]);
-        if ((int)query('SELECT attempts FROM umang_login_limits WHERE bucket=?', [$bucket])->fetchColumn() > 20) reject('Too many sign-in attempts. Try again in 15 minutes.', 429, 'rate_limited');
-    }
     $found = null;
     if (strcasecmp($name, (string)$config['admin_username']) === 0) {
         $valid = $adminHash ? password_verify($password, $adminHash) : hash_equals($adminPassword, $password);
@@ -182,8 +175,6 @@ if ($action === 'login') {
         }
     }
     if (!$found) { usleep(200000); reject('Wrong user name or password.', 401, 'unauthenticated'); }
-    foreach ($buckets as $bucket) query('DELETE FROM umang_login_limits WHERE bucket=?', [$bucket]);
-    query('DELETE FROM umang_login_limits WHERE started_at < ?', [time()-86400]);
     session_regenerate_id(true); $_SESSION['user'] = $found;
     $life = !empty($input['remember']) ? 259200 : 43200; $_SESSION['expires'] = time()+$life;
     $_SESSION['csrf'] = bin2hex(random_bytes(32));
