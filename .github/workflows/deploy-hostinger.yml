@@ -60,7 +60,14 @@ jobs:
           UMANG_TEST_DB_NAME: umang_test
           UMANG_TEST_DB_USER: root
           UMANG_TEST_DB_PASSWORD: ci-test-only-password
-        run: python3 tests/backend_test.py
+        run: |
+          set -o pipefail
+          if ! python3 tests/backend_test.py > backend-test.log 2>&1; then
+            cat backend-test.log
+            echo "::error title=Backend test failed::$(tail -c 2500 backend-test.log | tr '\n' ' ' | sed 's/%/%25/g')"
+            exit 1
+          fi
+          cat backend-test.log
 
   deploy:
     needs: verify
