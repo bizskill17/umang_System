@@ -110,20 +110,27 @@ if ($method === 'POST') {
 }
 $port = filter_var($config['port'] ?? 3306, FILTER_VALIDATE_INT);
 if (!$port || !preg_match('/^[a-zA-Z0-9_.-]+$/', (string)$config['host']) || !preg_match('/^[a-zA-Z0-9_]+$/', (string)$config['database'])) reject('Invalid database host, port or name.', 503, 'not_configured');
-$db = new PDO('mysql:host=' . $config['host'] . ';port=' . $port . ';dbname=' . $config['database'] . ';charset=utf8mb4', $config['username'], $config['password'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_PERSISTENT => true]);
-// A reused connection may carry an unfinished transaction from an aborted request.
-if ($db->inTransaction()) $db->rollBack();
-$schemaKey = hash('sha256', $config['host'] . ':' . $config['database']);
-if (($_SESSION['schema'] ?? '') !== $schemaKey) {
-$db->exec('CREATE TABLE IF NOT EXISTS umang_documents (collection_path VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, id VARCHAR(96) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, body LONGTEXT NOT NULL, PRIMARY KEY(collection_path,id)) ENGINE=InnoDB');
-$db->exec('CREATE TABLE IF NOT EXISTS umang_leases (lease_key VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY, holder VARCHAR(191) NOT NULL, expires_at DOUBLE NOT NULL) ENGINE=InnoDB');
-$db->exec('CREATE TABLE IF NOT EXISTS umang_files (id CHAR(32) PRIMARY KEY, name VARCHAR(255) NOT NULL, mime VARCHAR(100) NOT NULL, size INT NOT NULL, owner_id VARCHAR(96) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB');
-$db->exec('CREATE TABLE IF NOT EXISTS umang_login_limits (bucket CHAR(64) PRIMARY KEY, attempts INT NOT NULL, started_at BIGINT NOT NULL) ENGINE=InnoDB');
-    $_SESSION['schema'] = $schemaKey;
+/* Connect only when a request actually reads or writes data (lazy), and reuse connections:
+   shared hosting caps MySQL connections and queries per hour. */
+function db(): PDO {
+    static $pdo = null;
+    global $config, $port;
+    if ($pdo) return $pdo;
+    $pdo = new PDO('mysql:host=' . $config['host'] . ';port=' . $port . ';dbname=' . $config['database'] . ';charset=utf8mb4', $config['username'], $config['password'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_PERSISTENT => true]);
+    // A reused connection may carry an unfinished transaction from an aborted request.
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    $schemaKey = hash('sha256', $config['host'] . ':' . $config['database']);
+    if (($_SESSION['schema'] ?? '') !== $schemaKey) {
+        $pdo->exec('CREATE TABLE IF NOT EXISTS umang_documents (collection_path VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, id VARCHAR(96) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, body LONGTEXT NOT NULL, PRIMARY KEY(collection_path,id)) ENGINE=InnoDB');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS umang_leases (lease_key VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY, holder VARCHAR(191) NOT NULL, expires_at DOUBLE NOT NULL) ENGINE=InnoDB');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS umang_files (id CHAR(32) PRIMARY KEY, name VARCHAR(255) NOT NULL, mime VARCHAR(100) NOT NULL, size INT NOT NULL, owner_id VARCHAR(96) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS umang_login_limits (bucket CHAR(64) PRIMARY KEY, attempts INT NOT NULL, started_at BIGINT NOT NULL) ENGINE=InnoDB');
+        $_SESSION['schema'] = $schemaKey;
+    }
+    return $pdo;
 }
 function query(string $sql, array $args = []): PDOStatement {
-    global $db;
-    $stmt = $db->prepare($sql); $stmt->execute($args); return $stmt;
+    $stmt = db()->prepare($sql); $stmt->execute($args); return $stmt;
 }
 function document(string $path, string $id, bool $lock = false): ?array {
     $raw = query('SELECT body FROM umang_documents WHERE collection_path=? AND id=?' . ($lock ? ' FOR UPDATE' : ''), [$path, $id])->fetchColumn();
@@ -275,37 +282,37 @@ if ($action === 'acquire') {
     $holder = hash('sha256', session_id() . ':' . (string)($input['holder'] ?? ''));
     $key = $path . '/' . $id; $now = microtime(true);
     query('INSERT IGNORE INTO umang_leases(lease_key,holder,expires_at) VALUES(?,?,0)', [$key, '']);
-    $db->beginTransaction();
+    db()->beginTransaction();
     $lease = query('SELECT holder,expires_at FROM umang_leases WHERE lease_key=? FOR UPDATE', [$key])->fetch(PDO::FETCH_ASSOC);
     $acquired = (float)$lease['expires_at'] < $now || hash_equals($lease['holder'], $holder);
     if ($acquired) query('UPDATE umang_leases SET holder=?,expires_at=? WHERE lease_key=?', [$holder, $now+8, $key]);
-    $db->commit(); reply(['acquired' => $acquired]);
+    db()->commit(); reply(['acquired' => $acquired]);
 }
-$db->beginTransaction();
+db()->beginTransaction();
 if ($path === 'counters') {
     $lease = query('SELECT holder,expires_at FROM umang_leases WHERE lease_key=? FOR UPDATE', [$path . '/' . $id])->fetch(PDO::FETCH_ASSOC);
     $holder = hash('sha256', session_id() . ':' . (string)($input['holder'] ?? ''));
-    if (!$lease || (float)$lease['expires_at'] < microtime(true) || !hash_equals($lease['holder'], $holder)) { $db->rollBack(); reject('Number reservation expired. Try again.', 409, 'unavailable'); }
+    if (!$lease || (float)$lease['expires_at'] < microtime(true) || !hash_equals($lease['holder'], $holder)) { db()->rollBack(); reject('Number reservation expired. Try again.', 409, 'unavailable'); }
 }
 $old = document($path, $id, true);
 if ($action === 'delete') {
-    if ($path === 'counters') { $db->rollBack(); reject('Counters cannot be deleted.'); }
+    if ($path === 'counters') { db()->rollBack(); reject('Counters cannot be deleted.'); }
     query('DELETE FROM umang_documents WHERE collection_path=? AND id=?', [$path, $id]);
 } else {
     $body = $input['data'] ?? null;
-    if (!is_array($body)) { $db->rollBack(); reject('Invalid record.'); }
-    if ($action === 'update' && !$old) { $db->rollBack(); reject('Record no longer exists.', 404); }
+    if (!is_array($body)) { db()->rollBack(); reject('Invalid record.'); }
+    if ($action === 'update' && !$old) { db()->rollBack(); reject('Record no longer exists.', 404); }
     if ($action === 'update') $body = array_merge($old, $body);
     if ($path === 'masters/users/rows') {
         unset($body['has_password'], $body['owner'], $body['id']);
         if (empty($body['pw_hash']) && $old) { $body['pw_hash'] = $old['pw_hash'] ?? ''; $body['pw_salt'] = $old['pw_salt'] ?? ''; }
-        if (!preg_match('/^[a-f0-9]{64}$/', (string)($body['pw_hash'] ?? '')) || !preg_match('/^[a-f0-9]{32}$/', (string)($body['pw_salt'] ?? ''))) { $db->rollBack(); reject('Set a password for this user.'); }
-        if (isset($body['allowed_views']) && (!is_array($body['allowed_views']) || count(array_filter($body['allowed_views'], 'is_string')) !== count($body['allowed_views']))) { $db->rollBack(); reject('Invalid view permissions.'); }
-        if (empty($body['name']) || empty($body['email'])) { $db->rollBack(); reject('User name and email are required.'); }
-        if (strcasecmp((string)$body['name'], (string)$config['admin_username']) === 0 || strcasecmp((string)$body['email'], (string)$config['admin_username']) === 0) { $db->rollBack(); reject('This administrator login is reserved.'); }
+        if (!preg_match('/^[a-f0-9]{64}$/', (string)($body['pw_hash'] ?? '')) || !preg_match('/^[a-f0-9]{32}$/', (string)($body['pw_salt'] ?? ''))) { db()->rollBack(); reject('Set a password for this user.'); }
+        if (isset($body['allowed_views']) && (!is_array($body['allowed_views']) || count(array_filter($body['allowed_views'], 'is_string')) !== count($body['allowed_views']))) { db()->rollBack(); reject('Invalid view permissions.'); }
+        if (empty($body['name']) || empty($body['email'])) { db()->rollBack(); reject('User name and email are required.'); }
+        if (strcasecmp((string)$body['name'], (string)$config['admin_username']) === 0 || strcasecmp((string)$body['email'], (string)$config['admin_username']) === 0) { db()->rollBack(); reject('This administrator login is reserved.'); }
     }
-    if ($path === 'counters' && (!isset($body['next']) || !is_int($body['next']) || $body['next'] < (int)($old['next'] ?? 1))) { $db->rollBack(); reject('Invalid counter value.'); }
+    if ($path === 'counters' && (!isset($body['next']) || !is_int($body['next']) || $body['next'] < (int)($old['next'] ?? 1))) { db()->rollBack(); reject('Invalid counter value.'); }
     query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?) ON DUPLICATE KEY UPDATE body=VALUES(body)', [$path, $id, json_encode($body, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]);
     if ($path === 'counters') query('UPDATE umang_leases SET expires_at=0 WHERE lease_key=?', [$path . '/' . $id]);
 }
-$db->commit(); reply(['ok' => true, 'id' => $id]);
+db()->commit(); reply(['ok' => true, 'id' => $id]);
