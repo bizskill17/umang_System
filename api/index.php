@@ -39,8 +39,14 @@ set_exception_handler(function (Throwable $e): void {
             2002 => 'The database server could not be reached. Use host "localhost" in config/database.php.',
             2005 => 'The database host name is wrong. Use host "localhost" in config/database.php.',
         ];
+        if ($code === 1226 && preg_match("/'(max_[a-z_]+)' resource \\(current value: (\\d+)\\)/", (string)$e->getMessage(), $r)) {
+            $names = ['max_questions' => 'queries per hour', 'max_updates' => 'updates per hour', 'max_connections_per_hour' => 'connections per hour', 'max_user_connections' => 'open connections'];
+            $hint = 'The hosting limit of ' . $r[2] . ' MySQL ' . ($names[$r[1]] ?? $r[1]) . ' was reached. It resets within the hour, or Hostinger support can reset it now.';
+        }
         if (isset($hints[$code])) $hint = $hints[$code] . ' (MySQL error ' . $code . ')';
-        elseif ($code) $hint .= ' (MySQL error ' . $code . ')';
+        elseif ($code === 1226 && !empty($r)) $hint .= ' (MySQL error 1226, ' . $r[1] . ')';
+        elseif ($code && $code !== 1226) $hint .= ' (MySQL error ' . $code . ')';
+        elseif ($code === 1226 && empty($r)) $hint .= ' (MySQL error 1226)';
     }
     reject('Database service unavailable. ' . $hint, 503, 'unavailable');
 });
