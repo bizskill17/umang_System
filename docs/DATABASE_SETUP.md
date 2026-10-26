@@ -23,7 +23,7 @@ return [
 ];
 ```
 
-`password` is the password assigned to the MySQL user. `admin_password` is a **different**, unique password of at least 12 characters for signing into Umang. Neither password should be sent in chat or committed to GitHub.
+`password` is the password assigned to the MySQL user. `admin_password` is a **different** password for signing into Umang. Neither password should be sent in chat or committed to GitHub.
 
 Use `localhost` for PHP running on the same Hostinger account. The `srv735.hstgr.io` hostname shown in Remote MySQL is for external connections, not the local website. Hostinger reference: https://www.hostinger.com/support/1583552-how-to-find-your-mysql-database-details-in-hostinger/
 

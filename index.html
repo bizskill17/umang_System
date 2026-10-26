@@ -1762,7 +1762,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   async function save(def) {
     var vals = readForm(def); editing.vals = vals;
     var errs = validate(def, vals);
-    if (def.coll === "users") { if (!editing.row.id && !vals.password) errs.password = "Enter a password."; else if (vals.password && vals.password.length < 4) errs.password = "Use at least 4 characters."; }
+    if (def.coll === "users") { if (!editing.row.id && !vals.password) errs.password = "Enter a password."; }
     if (Object.keys(errs).length) { formErr = errs.contacts || ""; render(); showErrors(errs); return; }
     if (!db) return;
     saving = true; formErr = ""; render();

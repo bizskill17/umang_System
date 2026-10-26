@@ -89,7 +89,7 @@ foreach (['host', 'database', 'username', 'password', 'admin_username'] as $key)
 }
 $adminHash = (string)($config['admin_password_hash'] ?? '');
 $adminPassword = (string)($config['admin_password'] ?? '');
-if (!$adminHash && (strlen($adminPassword) < 12 || str_contains($adminPassword, 'REPLACE_'))) reject('Set a private administrator password of at least 12 characters.', 503, 'not_configured');
+if (!$adminHash && ($adminPassword === '' || str_contains($adminPassword, 'REPLACE_'))) reject('Set a private administrator password in config/database.php.', 503, 'not_configured');
 if (session_status() !== PHP_SESSION_ACTIVE) {
     ini_set('session.use_strict_mode', '1');
     ini_set('session.gc_maxlifetime', '259200');
