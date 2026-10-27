@@ -333,11 +333,11 @@ $id = (string)($input['id'] ?? $_GET['id'] ?? '');
 if ($action !== 'list' && !preg_match('/^[a-zA-Z0-9_-]{1,96}$/', $id)) reject('Invalid record ID.');
 if ($action === 'list') {
     $rows = query('SELECT id,body FROM umang_documents WHERE collection_path=? ORDER BY id', [$path])->fetchAll(PDO::FETCH_ASSOC);
-    $out = []; foreach ($rows as $row) { $body = json_decode($row['body'], true, 64, JSON_THROW_ON_ERROR); if ($path === 'masters/users/rows') { $body = safeUser($body); if (empty($user['owner'])) $body = array_intersect_key($body, array_flip(['name','status','designation_id','signature'])); } $out[] = ['id' => $row['id'], 'data' => $body]; }
+    $out = []; foreach ($rows as $row) { $body = json_decode($row['body'], true, 64, JSON_THROW_ON_ERROR); if ($path === 'masters/users/rows') { $body = safeUser($body); if (!canManageUsers()) $body = array_intersect_key($body, array_flip(['name','status','designation_id','signature'])); } $out[] = ['id' => $row['id'], 'data' => $body]; }
     reply(['docs' => $out]);
 }
 if ($action === 'get') {
-    $body = document($path, $id); if ($path === 'masters/users/rows' && $body) { $body = safeUser($body); if (empty($user['owner'])) $body = array_intersect_key($body, array_flip(['name','status','designation_id','signature'])); }
+    $body = document($path, $id); if ($path === 'masters/users/rows' && $body) { $body = safeUser($body); if (!canManageUsers()) $body = array_intersect_key($body, array_flip(['name','status','designation_id','signature'])); }
     reply(['id' => $id, 'exists' => $body !== null, 'data' => $body]);
 }
 if (!permittedWrite($path)) reject('You do not have permission to save here. Contact the administrator.', 403);
