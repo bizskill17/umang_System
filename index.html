@@ -1675,7 +1675,6 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (dbState === "loading" || (dbState === "ready" && !loaded)) h += '<p class="mv-note">Loading saved entries…</p>';
     if (dbState === "none") h += '<p class="mv-note warn">Saving isn’t available in this view. Check the database connection and sign in to save entries.</p>';
     if (dbState === "error") h += '<p class="mv-note warn">The connection to saved data was lost. Reload the page to try again.</p>';
-    if (canWrite === false) h += '<p class="mv-note">You can view these entries. Ask the owner for edit access to add or change them.</p>';
     if (def.note) h += '<p class="mv-note">' + esc(def.note) + "</p>";
     if (editing) h += formHtml(def);
     if (!editing) {
@@ -1819,7 +1818,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     } catch (e) {
       saving = false;
       formErr = e && e.code === "quota_exceeded" ? "The data store is full. Make some entries inactive or contact the administrator." :
-        e && e.code === "invalid_argument" ? "You don’t have permission to save here. Ask the owner for edit access." :
+        e && e.code === "invalid_argument" ? "" :
         "Couldn’t save. Check your connection and try again.";
       if (e && e.code === "invalid_argument") canWrite = false;
       render();
