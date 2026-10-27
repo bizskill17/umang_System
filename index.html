@@ -475,6 +475,21 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .w-thumb-link { display: inline-block; }
 .w-del { color: #b42318 !important; border-color: color-mix(in srgb, #b42318 45%, transparent) !important; }
 .auth-msg { text-align: center; padding: 8px 4px; }
+.sel-add { display: flex; gap: 8px; align-items: stretch; }
+.sel-add > select, .sel-add > .ss-wrap, .sel-add > .ss-btn { flex: 1; min-width: 0; }
+.sel-add .ss-btn { flex: 1; min-width: 0; }
+.sel-plus { all: unset; box-sizing: border-box; cursor: pointer; flex: none; width: 44px; min-height: 42px; border-radius: 10px; display: grid; place-items: center; background: var(--c, #0f766e); color: #fff; }
+.sel-plus:hover { filter: brightness(1.08); }
+.sel-plus:focus-visible { outline: 3px solid color-mix(in srgb, var(--c, #0f766e) 45%, transparent); outline-offset: 2px; }
+.qa-ov { position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, .45); display: grid; place-items: center; padding: 16px; }
+.qa-card { width: min(440px, 100%); background: #fff; color: #14213d; border-radius: 14px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,.3); display: flex; flex-direction: column; gap: 10px; }
+.qa-card h2 { margin: 0 0 4px; font-size: 18px; }
+.qa-card label { font-weight: 600; font-size: 14px; }
+.qa-card input { min-height: 42px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; font: inherit; }
+.qa-card input:focus { outline: 3px solid color-mix(in srgb, #0f766e 30%, transparent); border-color: #0f766e; }
+.qa-sub { margin: 0; color: #475569; font-size: 14px; }
+.qa-err { margin: 0; color: #b42318; font-size: 13px; }
+.qa-acts { display: flex; gap: 8px; margin-top: 6px; }
 .kpi-only { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 12px; margin-bottom: 10px; border-radius: 10px; background: rgba(255,255,255,.92); color: #14213d; font-size: 14px; }
 .login-err { color: #b42318; font-size: 13px; margin: 0 0 10px; }
 .owner-continue { all: unset; cursor: pointer; display: block; margin: 14px auto 0; font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: underline; }
@@ -2332,8 +2347,9 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var l = ui.editId ? (leads || []).find(function (x) { return x.id === ui.editId; }) : null;
     if (ui.editId && !l) { ui.editId = null; }
     if (!ui.form) ui.form = l ? Object.assign({}, l) : { date: today(), priority: "" };
-    if (window.UmangPick && window.UmangPick.coll === "customers") { ui.form.customer_id = window.UmangPick.id; ui.pickCustomer = window.UmangPick.id; window.UmangPick = null; }
-    if (ui.pickCustomer && act("customers").some(function (x) { return x.id === ui.pickCustomer; })) ui.pickCustomer = null;
+    if (window.UmangPick && window.UmangPick.coll === "customers") { ui.form.customer_id = window.UmangPick.id; ui.pick = ui.pick || {}; ui.pick.customer_id = window.UmangPick.id; window.UmangPick = null; }
+    var PICKC = { customer_id: "customers", lead_category_id: "lead-category", lead_subcategory_id: "lead-subcategory" };
+    Object.keys(ui.pick || {}).forEach(function (k) { if (act(PICKC[k]).some(function (x) { return x.id === ui.pick[k]; })) delete ui.pick[k]; });
     var v = ui.form, h = '<form class="mv-form" id="lead-form" novalidate><h2>' + (l ? "Edit Lead " + esc(l.lead_no) : "Add Lead") + "</h2>";
     h += '<div class="mv-grid">';
     var f = function (id, label, req, inner, wide) { return '<div class="field' + (wide ? " wide" : "") + '"><label for="lf_' + id + '">' + label + (req ? ' <span class="req" aria-hidden="true">*</span>' : "") + "</label>" + inner + '<p class="field-err" id="lf_' + id + '-err" hidden></p></div>'; };
@@ -2341,9 +2357,10 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     h += f("date", "Lead Date", 1, '<input type="date" id="lf_date" name="date" value="' + esc(v.date) + '">');
     h += f("firm_id", "Firm", 1, s("firm_id", act("firm"), "Select firm"));
     h += f("customer_id", "Customer", 1, s("customer_id", act("customers"), "Select customer") + '<a class="mf-link" href="#leads.m-customers" data-act="new-customer">New customer? Add it here</a>');
-    h += f("lead_category_id", "Lead Category", 1, s("lead_category_id", act("lead-category"), "Select category"));
+    var plus = function (field, label) { return '<button type="button" class="sel-plus" data-act="quick-add" data-id="' + field + '" title="Add new ' + label + '" aria-label="Add new ' + label + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>'; };
+    h += f("lead_category_id", "Lead Category", 1, '<div class="sel-add">' + s("lead_category_id", act("lead-category"), "Select category") + plus("lead_category_id", "lead category") + "</div>");
     var subs2 = act("lead-subcategory").filter(function (x) { return v.lead_category_id && x.lead_category_id === v.lead_category_id; });
-    h += f("lead_subcategory_id", "Lead Sub-Category", 1, '<select id="lf_lead_subcategory_id" name="lead_subcategory_id">' + opts(subs2, v.lead_subcategory_id, v.lead_category_id ? "Select sub-category" : "Select a category first") + "</select>");
+    h += f("lead_subcategory_id", "Lead Sub-Category", 1, '<div class="sel-add"><select id="lf_lead_subcategory_id" name="lead_subcategory_id">' + opts(subs2, v.lead_subcategory_id, v.lead_category_id ? "Select sub-category" : "Select a category first") + "</select>" + plus("lead_subcategory_id", "lead sub-category") + "</div>");
     h += f("lead_source_id", "Lead Source", 1, s("lead_source_id", act("lead-sources"), "Select source"));
     h += f("owner_id", "Lead Owner", 1, s("owner_id", act("users"), "Select owner"));
     h += f("priority", "Priority", 0, '<select id="lf_priority" name="priority">' + opts(PRIORITIES.map(function (p) { return { id: p, name: p }; }), v.priority, "Select priority") + "</select>");
@@ -2357,9 +2374,44 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     h += '<div class="mv-actions"><button type="submit" class="mv-btn primary"' + (ui.saving || ro() ? " disabled" : "") + ">" + (ui.saving ? "Saving…" : l ? "Save changes" : "Save lead") + '</button><button type="button" class="mv-btn ghost" data-act="cancel-form">Cancel</button></div></form>';
     return h;
   }
+  /* Quick add from the lead form: a small dialog that saves a new master entry and selects it. */
+  function openQuickAdd(field, opener) {
+    var isSub = field === "lead_subcategory_id", coll = isSub ? "lead-subcategory" : "lead-category", label = isSub ? "Lead Sub-Category" : "Lead Category";
+    var catId = ui.form && ui.form.lead_category_id, catName = nm("lead-category", catId);
+    var ov = document.createElement("div"); ov.className = "qa-ov";
+    ov.innerHTML = '<div class="qa-card" role="dialog" aria-modal="true" aria-labelledby="qa-t"><h2 id="qa-t">Add ' + label + "</h2>" +
+      (isSub ? (catId ? '<p class="qa-sub">Under Lead Category: <b></b></p>' : '<p class="qa-err" role="alert">Choose a Lead Category first, then add its sub-category.</p>') : "") +
+      (isSub && !catId ? "" : '<label for="qa-name">' + label + ' Name <span class="req" aria-hidden="true">*</span></label><input id="qa-name" type="text" autocomplete="off" maxlength="120"><p class="qa-err" id="qa-err" role="alert" hidden></p>') +
+      '<div class="qa-acts">' + (isSub && !catId ? "" : '<button type="button" class="mv-btn primary" id="qa-save">Save</button>') + '<button type="button" class="mv-btn ghost" id="qa-cancel">' + (isSub && !catId ? "OK" : "Cancel") + "</button></div></div>";
+    document.body.appendChild(ov);
+    var sb = ov.querySelector(".qa-sub b"); if (sb) sb.textContent = catName;
+    var input = ov.querySelector("#qa-name"), err = ov.querySelector("#qa-err"), saveB = ov.querySelector("#qa-save");
+    function close() { ov.remove(); document.removeEventListener("keydown", onKey, true); if (opener && document.contains(opener)) opener.focus(); else { var x = document.getElementById("lf_" + field); if (x) x.focus(); } }
+    function onKey(e) { if (e.key === "Escape") { e.preventDefault(); close(); } if (e.key === "Enter" && e.target === input) { e.preventDefault(); save(); } }
+    async function save() {
+      var name = String(input.value || "").trim().replace(/\s+/g, " ");
+      var fail = function (m) { err.textContent = m; err.hidden = false; input.focus(); };
+      if (!name) return fail("Enter a name.");
+      var clash = rowsOf(coll).find(function (r) { return String(r.name || "").trim().toLowerCase() === name.toLowerCase() && (!isSub || r.lead_category_id === catId); });
+      if (clash) { if (!isSub && ui.form[field] !== clash.id) ui.form.lead_subcategory_id = ""; ui.form[field] = clash.id; close(); render(); return; }
+      if (!db) return fail("Saving isn\u2019t available right now.");
+      saveB.disabled = true; saveB.textContent = "Saving\u2026";
+      try {
+        var now = new Date().toISOString(), body = { name: name, status: "Active", createdAt: now, updatedAt: now };
+        if (isSub) body.lead_category_id = catId;
+        var ref = await db.collection("masters/" + coll + "/rows").add(body);
+        ui.form[field] = ref.id; ui.pick = ui.pick || {}; ui.pick[field] = ref.id;
+        if (!isSub) ui.form.lead_subcategory_id = "";
+        close(); render();
+      } catch (e2) { saveB.disabled = false; saveB.textContent = "Save"; fail(e2 && e2.msg ? e2.msg : "Couldn\u2019t save. You may not have permission to add this; ask the administrator."); }
+    }
+    ov.addEventListener("click", function (e) { if (e.target === ov || e.target.id === "qa-cancel") close(); if (e.target.id === "qa-save") save(); });
+    document.addEventListener("keydown", onKey, true);
+    (input || ov.querySelector("#qa-cancel")).focus();
+  }
   function readLeadForm() {
     var fm = document.getElementById("lead-form"); if (!fm) return ui.form;
-    var r0 = readLeadForm0(fm); if (ui.pickCustomer && !r0.customer_id) r0.customer_id = ui.pickCustomer; return r0;
+    var r0 = readLeadForm0(fm); Object.keys(ui.pick || {}).forEach(function (k) { if (!r0[k]) r0[k] = ui.pick[k]; }); return r0;
   }
   function readLeadForm0(fm) {
     var v = Object.assign({}, ui.form);
@@ -2613,6 +2665,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var a = b.getAttribute("data-act");
     if (a === "clear") { ui.f = {}; render(); }
     if (a === "edit") { ui.editId = b.getAttribute("data-id"); ui.form = null; ui.err = ""; ui.msg = ""; location.hash = "leads.add"; }
+    if (a === "quick-add") { ui.form = readLeadForm(); openQuickAdd(b.getAttribute("data-id"), b); return; }
     if (a === "new-customer") { e.preventDefault(); ui.form = readLeadForm(); window.UmangReturn = { to: "leads.add", coll: "customers" }; location.hash = "leads.m-customers"; return; }
     if (a === "cancel-form") { ui.form = null; ui.editId = null; ui.err = ""; history.length > 1 ? history.back() : (location.hash = "leads.in-progress"); }
     if (a === "save-assign") saveAssign();
