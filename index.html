@@ -482,7 +482,7 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .sel-plus:hover { filter: brightness(1.08); }
 .sel-plus:focus-visible { outline: 3px solid color-mix(in srgb, var(--c, #0f766e) 45%, transparent); outline-offset: 2px; }
 .qa-ov { position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, .45); display: grid; place-items: center; padding: 16px; }
-.qa-card { width: min(440px, 100%); background: #fff; color: #14213d; border-radius: 14px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,.3); display: flex; flex-direction: column; gap: 10px; }
+.qa-card { --c: #0f766e; --on-mod: #fff; width: min(440px, 100%); background: #fff; color: #14213d; border-radius: 14px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,.3); display: flex; flex-direction: column; gap: 10px; }
 .qa-card h2 { margin: 0 0 4px; font-size: 18px; }
 .qa-card label { font-weight: 600; font-size: 14px; }
 .qa-card input { min-height: 42px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; font: inherit; }
@@ -490,6 +490,13 @@ body.in-module .topbar .user, body.on-login .topbar .user { display: none; }
 .qa-sub { margin: 0; color: #475569; font-size: 14px; }
 .qa-err { margin: 0; color: #b42318; font-size: 13px; }
 .qa-acts { display: flex; gap: 8px; margin-top: 6px; }
+body .qa-ov .qa-card .mv-btn { all: unset; box-sizing: border-box; cursor: pointer; min-height: 42px; padding: 0 18px; border-radius: 10px; font: 600 14px/1 inherit; display: inline-flex; align-items: center; justify-content: center; }
+body .qa-ov .qa-card .mv-btn.primary { background: #0f766e; color: #fff; border: 1px solid #0f766e; }
+body .qa-ov .qa-card .mv-btn.primary:hover { background: #115e59; }
+body .qa-ov .qa-card .mv-btn.primary:disabled { opacity: .6; cursor: default; }
+body .qa-ov .qa-card .mv-btn.ghost { background: #fff; color: #14213d; border: 1px solid #cbd5e1; }
+body .qa-ov .qa-card .mv-btn.ghost:hover { background: #f1f5f9; }
+body .qa-ov .qa-card .mv-btn:focus-visible { outline: 3px solid color-mix(in srgb, #0f766e 40%, transparent); outline-offset: 2px; }
 .kpi-only { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 12px; margin-bottom: 10px; border-radius: 10px; background: rgba(255,255,255,.92); color: #14213d; font-size: 14px; }
 .login-err { color: #b42318; font-size: 13px; margin: 0 0 10px; }
 .owner-continue { all: unset; cursor: pointer; display: block; margin: 14px auto 0; font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: underline; }
