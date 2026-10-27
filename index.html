@@ -1786,8 +1786,10 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         body.createdAt = editing.row.createdAt || body.updatedAt;
         if (editing.row.protected) body.protected = true;
         await coll.doc(editing.row.id).set(body);
-      } else { body.createdAt = body.updatedAt; await coll.add(body); }
-      saving = false; editing = null; render();
+      } else { body.createdAt = body.updatedAt; var added = await coll.add(body); }
+      var back = editing.ret; saving = false; editing = null;
+      if (back && added) { window.UmangPick = { coll: def.coll, id: added.id }; location.hash = back.to; return; }
+      render();
     } catch (e) {
       saving = false;
       formErr = e && e.code === "quota_exceeded" ? "The data store is full. Make some entries inactive or contact the administrator." :
@@ -1804,7 +1806,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (act === "clear-f") { statusF = ""; colF = {}; q = ""; rerender(); return; }
     if (act === "add") { msOpen = null; editing = { row: {}, vals: { status: "Active" } }; formErr = ""; render(); focusFirst(); }
     if (act === "edit") { var r = rows(def.coll).find(function (x) { return x.id === b.getAttribute("data-id"); }); if (r && !r.protected) { editing = { row: r, vals: Object.assign({}, r) }; formErr = ""; render(); focusFirst(); box.scrollIntoView({ block: "start" }); } }
-    if (act === "cancel") { editing = null; formErr = ""; render(); }
+    if (act === "cancel") { var back = editing && editing.ret; editing = null; formErr = ""; if (back) { location.hash = back.to; return; } render(); }
     if (act === "add-contact") { editing.vals = readForm(def); editing.vals.contacts = (editing.vals.contacts || []).concat([{}]); render(); var rowsC = box.querySelectorAll(".mf-contact"); if (rowsC.length) rowsC[rowsC.length - 1].querySelector("input").focus(); }
     if (act === "rm-contact") { var i = +b.closest(".mf-contact").getAttribute("data-i"); var v = readForm(def); var all = Array.prototype.map.call(box.querySelectorAll(".mf-contact"), function (rw) { var c = {}; rw.querySelectorAll("[data-c]").forEach(function (x) { c[x.getAttribute("data-c")] = x.value.trim(); }); return c; }); all.splice(i, 1); v.contacts = all; editing.vals = v; render(); }
   });
@@ -1856,6 +1858,8 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     open: function (key) {
       if (cur !== key) { editing = null; q = ""; statusF = ""; colF = {}; formErr = ""; }
       cur = key; ph.hidden = true; box.hidden = false;
+      var ret = window.UmangReturn;
+      if (ret && ret.coll === MASTERS[key].coll && !editing) { editing = { row: {}, vals: { status: "Active" }, ret: ret }; window.UmangReturn = null; formErr = ""; setTimeout(focusFirst, 50); }
       watch(MASTERS[key].coll); needs(key).forEach(watch);
       if (dbState === "ready" && !data[MASTERS[key].coll]) dbState = "ready";
       render();
@@ -2328,13 +2332,15 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var l = ui.editId ? (leads || []).find(function (x) { return x.id === ui.editId; }) : null;
     if (ui.editId && !l) { ui.editId = null; }
     if (!ui.form) ui.form = l ? Object.assign({}, l) : { date: today(), priority: "" };
+    if (window.UmangPick && window.UmangPick.coll === "customers") { ui.form.customer_id = window.UmangPick.id; ui.pickCustomer = window.UmangPick.id; window.UmangPick = null; }
+    if (ui.pickCustomer && act("customers").some(function (x) { return x.id === ui.pickCustomer; })) ui.pickCustomer = null;
     var v = ui.form, h = '<form class="mv-form" id="lead-form" novalidate><h2>' + (l ? "Edit Lead " + esc(l.lead_no) : "Add Lead") + "</h2>";
     h += '<div class="mv-grid">';
     var f = function (id, label, req, inner, wide) { return '<div class="field' + (wide ? " wide" : "") + '"><label for="lf_' + id + '">' + label + (req ? ' <span class="req" aria-hidden="true">*</span>' : "") + "</label>" + inner + '<p class="field-err" id="lf_' + id + '-err" hidden></p></div>'; };
     var s = function (id, list, first) { return '<select id="lf_' + id + '" name="' + id + '">' + opts(list, v[id], first) + "</select>"; };
     h += f("date", "Lead Date", 1, '<input type="date" id="lf_date" name="date" value="' + esc(v.date) + '">');
     h += f("firm_id", "Firm", 1, s("firm_id", act("firm"), "Select firm"));
-    h += f("customer_id", "Customer", 1, s("customer_id", act("customers"), "Select customer") + '<a class="mf-link" href="#leads.m-customers">New customer? Add it in Master Data</a>');
+    h += f("customer_id", "Customer", 1, s("customer_id", act("customers"), "Select customer") + '<a class="mf-link" href="#leads.m-customers" data-act="new-customer">New customer? Add it here</a>');
     h += f("lead_category_id", "Lead Category", 1, s("lead_category_id", act("lead-category"), "Select category"));
     var subs2 = act("lead-subcategory").filter(function (x) { return v.lead_category_id && x.lead_category_id === v.lead_category_id; });
     h += f("lead_subcategory_id", "Lead Sub-Category", 1, '<select id="lf_lead_subcategory_id" name="lead_subcategory_id">' + opts(subs2, v.lead_subcategory_id, v.lead_category_id ? "Select sub-category" : "Select a category first") + "</select>");
@@ -2353,6 +2359,9 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   }
   function readLeadForm() {
     var fm = document.getElementById("lead-form"); if (!fm) return ui.form;
+    var r0 = readLeadForm0(fm); if (ui.pickCustomer && !r0.customer_id) r0.customer_id = ui.pickCustomer; return r0;
+  }
+  function readLeadForm0(fm) {
     var v = Object.assign({}, ui.form);
     ["date", "firm_id", "customer_id", "lead_category_id", "lead_subcategory_id", "lead_source_id", "owner_id", "priority", "assigned_to", "estimate", "remarks"].forEach(function (k) { var e = fm.elements[k]; if (e) v[k] = String(e.value).trim(); });
     return v;
@@ -2604,6 +2613,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var a = b.getAttribute("data-act");
     if (a === "clear") { ui.f = {}; render(); }
     if (a === "edit") { ui.editId = b.getAttribute("data-id"); ui.form = null; ui.err = ""; ui.msg = ""; location.hash = "leads.add"; }
+    if (a === "new-customer") { e.preventDefault(); ui.form = readLeadForm(); window.UmangReturn = { to: "leads.add", coll: "customers" }; location.hash = "leads.m-customers"; return; }
     if (a === "cancel-form") { ui.form = null; ui.editId = null; ui.err = ""; history.length > 1 ? history.back() : (location.hash = "leads.in-progress"); }
     if (a === "save-assign") saveAssign();
     if (a === "save-est") saveEst();
