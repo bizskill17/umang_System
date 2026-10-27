@@ -1436,10 +1436,10 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["contact", "Contact", "textarea"], ["bank_details", "Bank Details", "textarea"], ["logo", "Logo", "image", 0, { hint: "PNG or JPG. Printed at the top left of quotation PDFs." }]
     ], cols: ["logo", "name", "short_name", "gst"], noStatus: 1 },
     "m-customers": { coll: "customers", one: "Customer", many: "Customers", fields: [
-      ["name", "Customer Name", "text", 1], ["category_id", "Category Name", "select", 0, { of: "customer-category" }],
-      ["subcategory_ids", "Sub-Category Name", "multi", 0, { of: "customer-subcategory" }], ["address", "Address", "textarea"],
-      ["state_id", "State Name", "select", 0, { of: "state" }], ["city_id", "City Name", "cityselect"],
-      ["gstin_uin", "GSTIN/UIN", "gstin"], ["pan_no", "PAN No.", "pan"], ["mobile", "Mobile", "mobile"], ["email_id", "Email ID", "email"],
+      ["name", "Customer Name", "text", 1], ["category_id", "Category Name", "select", 1, { of: "customer-category", quickAdd: true }],
+      ["subcategory_ids", "Sub-Category Name", "multi", 1, { of: "customer-subcategory" }], ["address", "Address", "textarea"],
+      ["state_id", "State Name", "select", 0, { of: "state" }], ["city_id", "City Name", "cityselect", 1],
+      ["gstin_uin", "GSTIN/UIN", "gstin"], ["pan_no", "PAN No.", "pan"], ["mobile", "Mobile", "mobile", 1], ["email_id", "Email ID", "email"],
       ["contacts", "Contact Persons", "contacts"]
     ], cols: ["name", "category_id", "city_id", "mobile", "email_id"], noStatus: 1 },
     "m-state": { coll: "state", one: "State", many: "States", fields: [["name", "State Name", "text", 1]], cols: ["name"] },
@@ -1603,18 +1603,20 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       var first = t === "cityselect" && !vals.state_id ? "Select a state first" : "Select " + f[1];
       h = '<select id="' + id + '" name="' + f[0] + '"' + req + '><option value="">' + esc(first) + "</option>";
       opts.forEach(function (x) { h += '<option value="' + esc(x.id) + '"' + (x.id === val ? " selected" : "") + ">" + esc(x.name) + "</option>"; });
-      return '<div class="field">' + label + h + "</select>" + err + "</div>";
+      h += "</select>";
+      if (o.quickAdd) h = '<div class="sel-add">' + h + '<button type="button" class="sel-plus" data-act="add-customer-category" title="Add new category" aria-label="Add new category"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>';
+      return '<div class="field">' + label + h + err + "</div>";
     }
     if (t === "multi") {
       var sel = Array.isArray(val) ? val : [], list = active(o.of);
       var names = list.filter(function (x) { return sel.indexOf(x.id) !== -1; }).map(function (x) { return x.name; });
-      h = '<div class="field wide"><span class="mf-legend" id="' + id + '-l">' + esc(f[1]) + '</span><div class="ms' + (msOpen === f[0] ? " open" : "") + '" data-ms="' + f[0] + '">';
+      h = '<div class="field wide"><span class="mf-legend" id="' + id + '-l">' + esc(f[1]) + (f[3] ? ' <span class="req" aria-hidden="true">*</span>' : '') + '</span><div class="ms' + (msOpen === f[0] ? " open" : "") + '" data-ms="' + f[0] + '">';
       h += '<button type="button" class="ms-btn" id="' + id + '" aria-haspopup="true" aria-expanded="' + (msOpen === f[0]) + '" aria-labelledby="' + id + '-l ' + id + '-v"><span class="ms-val' + (names.length ? "" : " ph") + '" id="' + id + '-v">' + esc(names.length ? names.join(", ") : "Select " + f[1].toLowerCase()) + '</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>';
       h += '<div class="ms-panel" role="group" aria-labelledby="' + id + '-l"' + (msOpen === f[0] ? "" : " hidden") + ">";
       if (list.length > 0) h += '<input type="search" class="ms-search" placeholder="Search\u2026" aria-label="Search ' + esc(f[1].toLowerCase()) + '" autocomplete="off">';
       if (!list.length) h += '<span class="mf-empty">No ' + esc(MASTERS[COLL_TO_KEY[o.of]].many.toLowerCase()) + " yet. Add them in Master Data first.</span>";
       list.forEach(function (x) { h += '<label class="ms-opt"><input type="checkbox" name="' + f[0] + '" value="' + esc(x.id) + '"' + (sel.indexOf(x.id) !== -1 ? " checked" : "") + "><span>" + esc(x.name) + "</span></label>"; });
-      return h + "</div></div></div>";
+      return h + "</div></div>" + err + "</div>";
     }
     if (t === "contacts") {
       var cs = Array.isArray(val) && val.length ? val : [];
@@ -1751,10 +1753,12 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var errs = {}, others = rows(def.coll).filter(function (r) { return r.id !== editing.row.id; });
     def.fields.forEach(function (f) {
       var v = vals[f[0]], t = f[2], o = f[4] || {};
-      if (t === "multi" || t === "contacts") return;
+      if (t === "multi") { if (f[3] && (!Array.isArray(v) || !v.length)) errs[f[0]] = "Select " + f[1] + "."; return; }
+      if (t === "contacts") return;
       if (t === "image") { var fl = vals["__f_" + f[0]]; if (fl && !/\.(png|jpe?g)$/i.test(fl.name)) errs[f[0]] = "Choose a PNG or JPG image."; return; }
       if (f[3] && !v) { errs[f[0]] = "Enter " + f[1] + "."; return; }
       if (!v) return;
+      if (t === "cityselect") { var city = rows("city").find(function (c) { return c.id === v; }); if (!city || city.state_id !== vals.state_id) errs[f[0]] = "Choose a city for the selected state."; }
       if (t === "mobile" && !/^\d{10}$/.test(v)) errs[f[0]] = "Enter a 10-digit mobile number.";
       if (t === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) errs[f[0]] = "Enter an email like name@company.com.";
       if (t === "pan" && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v)) errs[f[0]] = "Enter a PAN like ABCDE1234F.";
@@ -1822,9 +1826,38 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     }
   }
 
+  function addCustomerCategory() {
+    if (!editing || cur !== "m-customers" || saving || !db || canWrite === false) return;
+    editing.vals = readForm(MASTERS[cur]);
+    var currentEdit = editing, busy = false, ov = document.createElement("div"); ov.className = "qa-ov";
+    ov.innerHTML = '<div class="qa-card" role="dialog" aria-modal="true" aria-labelledby="cc-title"><h2 id="cc-title">Add Customer Category</h2><label for="cc-name">Category Name <span class="req">*</span></label><input id="cc-name" autocomplete="off" maxlength="120"><p class="qa-err" role="alert" hidden></p><div class="qa-acts"><button type="button" class="mv-btn primary" data-save>Save</button><button type="button" class="mv-btn ghost" data-cancel>Cancel</button></div></div>';
+    document.body.appendChild(ov);
+    var input = ov.querySelector("input"), error = ov.querySelector(".qa-err"), saveButton = ov.querySelector("[data-save]");
+    function close() { if (busy) return; ov.remove(); document.removeEventListener("keydown", key, true); var el = document.getElementById("mf-category_id"); if (el) el.focus(); }
+    function key(e) { if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); close(); } if (e.key === "Enter" && e.target === input) { e.preventDefault(); saveCategory(); } if (e.key === "Tab") { var els = [input, saveButton, ov.querySelector("[data-cancel]")].filter(function (el) { return !el.disabled; }); var next = (els.indexOf(document.activeElement) + (e.shiftKey ? -1 : 1) + els.length) % els.length; e.preventDefault(); els[next].focus(); } }
+    async function saveCategory() {
+      if (busy) return;
+      var name = input.value.trim().replace(/\s+/g, " ");
+      function fail(message) { error.textContent = message; error.hidden = false; input.focus(); }
+      if (!name) return fail("Enter a category name.");
+      if (rows("customer-category").some(function (r) { return String(r.name || "").trim().replace(/\s+/g, " ").toLowerCase() === name.toLowerCase(); })) return fail("This category already exists. Select it from Category Name.");
+      busy = true; saveButton.disabled = true; saveButton.textContent = "Saving…";
+      try {
+        var now = new Date().toISOString(), body = { name: name, status: "Active", createdAt: now, updatedAt: now };
+        var ref = await db.collection("masters/customer-category/rows").add(body);
+        if (!rows("customer-category").some(function (r) { return r.id === ref.id; })) data["customer-category"] = rows("customer-category").concat([Object.assign({ id: ref.id }, body)]);
+        if (editing === currentEdit) { editing.vals.category_id = ref.id; render(); }
+        busy = false; close();
+      } catch (e) { busy = false; saveButton.disabled = false; saveButton.textContent = "Save"; fail("Couldn’t save the category. Check your connection and permissions, then try again."); }
+    }
+    ov.addEventListener("click", function (e) { if (e.target.closest("[data-save]")) saveCategory(); else if (e.target === ov || e.target.closest("[data-cancel]")) close(); });
+    document.addEventListener("keydown", key, true); input.focus();
+  }
+
   box.addEventListener("click", function (e) {
     var b = e.target.closest("[data-act]"); if (!b || !cur) return;
     var def = MASTERS[cur], act = b.getAttribute("data-act");
+    if (act === "add-customer-category") { addCustomerCategory(); return; }
     if (act === "clear-f") { statusF = ""; colF = {}; q = ""; rerender(); return; }
     if (act === "add") { msOpen = null; editing = { row: {}, vals: { status: "Active" } }; formErr = ""; render(); focusFirst(); }
     if (act === "edit") { var r = rows(def.coll).find(function (x) { return x.id === b.getAttribute("data-id"); }); if (r && !r.protected) { editing = { row: r, vals: Object.assign({}, r) }; formErr = ""; render(); focusFirst(); box.scrollIntoView({ block: "start" }); } }
@@ -5265,5 +5298,6 @@ document.addEventListener("keydown", function (e) {
   e.preventDefault();
 }, true);
 </script>
+
 
 
