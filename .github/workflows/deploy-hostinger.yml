@@ -21,7 +21,7 @@ permissions:
 
 concurrency:
   group: hostinger-production
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   verify:
@@ -56,11 +56,16 @@ jobs:
           node tests/adapter_test.cjs
           python3 tests/operations_backend_test.py
       - name: Test application workflows in Chromium
+        timeout-minutes: 3
         env:
           UMANG_NODE_MODULES: ${{ runner.temp }}/umang-ui/node_modules
         run: |
           npm install --prefix "$RUNNER_TEMP/umang-ui" --no-audit --no-fund playwright pdf-lib
-          node "$UMANG_NODE_MODULES/playwright/cli.js" install --with-deps chromium
+          if command -v google-chrome >/dev/null 2>&1; then
+            export UMANG_CHROMIUM="$(command -v google-chrome)"
+          else
+            node "$UMANG_NODE_MODULES/playwright/cli.js" install chromium --only-shell
+          fi
           node tests/operations_test.cjs
       - name: Test database backend with disposable MySQL
         env:
