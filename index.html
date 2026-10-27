@@ -1456,7 +1456,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["role_id", "User Role", "select", 0, { of: "user-roles" }], ["designation_id", "Designation", "select", 0, { of: "designation" }],
       ["signature", "Signature", "image", 0, { hint: "PNG or JPG of the signature." }],
       ["allowed_views", "View Permissions", "perms"]
-    ], cols: ["name", "email", "mobile", "role_id", "designation_id"], note: "People sign in with their User Name or Email and the Password set here. Use View Permissions to choose which screens each person sees." },
+    ], cols: ["name", "email", "mobile", "role_id", "designation_id"] },
     "m-user-roles": { coll: "user-roles", one: "User Role", many: "User Roles", fields: [["name", "User Role", "text", 1]], cols: ["name"] },
     "m-designation": { coll: "designation", one: "Designation", many: "Designations", fields: [["name", "Designation", "text", 1]], cols: ["name"] },
     "m-user-document-types": { coll: "user-document-types", one: "User Document Type", many: "User Document Types", fields: [["name", "User Document Type", "text", 1]], cols: ["name"] },
