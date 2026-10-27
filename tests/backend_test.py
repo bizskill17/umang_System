@@ -143,6 +143,26 @@ def main(driver='mysql'):
                 employee.call('set',{'path':'masters/users/rows','id':'tester','data':user},expected=403)
                 employee.call('set',{'path':'masters/user-roles/rows','id':'admin','data':{'name':'Admin'}},expected=403)
                 assert 'email' not in employee.call('list&path=masters/users/rows')['docs'][0]['data']
+                # Admin role accounts can read full user details and manage accounts.
+                owner.call('set',{'path':'masters/user-roles/rows','id':'admin-role','data':{'name':'Admin','status':'Active'}})
+                admin_user=dict(user, name='Role Admin', email='admin@example.invalid', role_id='admin-role')
+                owner.call('set',{'path':'masters/users/rows','id':'role-admin','data':admin_user})
+                admin=Client(base); admin.login('Role Admin','EmployeePassword123')
+                full=admin.call('get&path=masters/users/rows&id=tester')['data']
+                assert full['email']=='tester@example.invalid' and full['mobile']=='1234567890'
+                for doc in admin.call('list&path=masters/users/rows')['docs']:
+                    assert 'email' in doc['data'] and 'pw_hash' not in doc['data'] and 'pw_salt' not in doc['data']
+                batch=admin.call('batch&paths=masters/users/rows')['lists']['masters/users/rows']
+                assert all('email' in doc['data'] for doc in batch)
+                created=dict(user, name='Admin Created', email='created@example.invalid')
+                admin.call('set',{'path':'masters/users/rows','id':'admin-created','data':created})
+                admin.call('update',{'path':'masters/users/rows','id':'admin-created','data':{'mobile':'9876543210'}})
+                assert admin.call('get&path=masters/users/rows&id=admin-created')['data']['mobile']=='9876543210'
+                # Role changes revoke management access for an existing session.
+                owner.call('update',{'path':'masters/user-roles/rows','id':'admin-role','data':{'name':'Staff'}})
+                admin.call('update',{'path':'masters/users/rows','id':'admin-created','data':{'mobile':'1111111111'}},expected=403)
+                assert 'email' not in admin.call('get&path=masters/users/rows&id=tester')['data']
+                assert 'email' not in employee.call('get&path=masters/users/rows&id=tester')['data']
                 # Content inspection rejects scripts even when the browser claims PDF.
                 owner.upload(b'<?php echo "bad"; ?>',expected=400)
                 pdf=b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n'
