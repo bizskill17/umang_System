@@ -242,6 +242,15 @@ if ($action === 'login') {
 }
 if ($action === 'logout') { $_SESSION = []; session_destroy(); setcookie(session_name(), '', ['expires' => time()-3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict']); reply(['ok' => true]); }
 if (!$user) reject('Please sign in again.', 401, 'unauthenticated');
+function canManageUsers(): bool {
+    global $user;
+    if (!empty($user['owner'])) return true;
+    $roleId = $user['role_id'] ?? '';
+    if (!is_string($roleId) || $roleId === '') return false;
+    $role = document('masters/user-roles/rows', $roleId);
+    return $role && ($role['status'] ?? 'Active') !== 'Inactive'
+        && strcasecmp(trim((string)($role['name'] ?? '')), 'Admin') === 0;
+}
 function permittedWrite(string $path): bool {
     global $user;
     if (!empty($user['owner'])) return true;
@@ -250,7 +259,7 @@ function permittedWrite(string $path): bool {
     $allowed = $user['allowed_views'] ?? null;
     if (str_starts_with($path, 'masters/')) {
         $master = explode('/', $path)[1];
-        if (in_array($master, ['users', 'user-roles'], true)) return false; // owner manages accounts
+        if (in_array($master, ['users', 'user-roles'], true)) return canManageUsers(); // owner and active Admin roles manage accounts
         return $allowed === null || in_array('master:m-' . $master, $allowed, true);
     }
     if ($path === 'access_requests') return false;
@@ -304,7 +313,7 @@ function validPath(string $p): bool {
 }
 function shapeDoc(string $p, array $body): array {
     global $user;
-    if ($p === 'masters/users/rows') { $body = safeUser($body); if (empty($user['owner'])) $body = array_intersect_key($body, array_flip(['name','status','designation_id','signature'])); }
+    if ($p === 'masters/users/rows') { $body = safeUser($body); if (!canManageUsers()) $body = array_intersect_key($body, array_flip(['name','status','designation_id','signature'])); }
     return $body;
 }
 // One request (one connection, one query) returns several collections; keeps hosting connection limits low.
