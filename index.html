@@ -1066,6 +1066,9 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["master", "Design Master", "Every design job with its full worked and approval history."]
     ]},
     quotations: { name: "Quotations", add: ["add", "Add Quotation", "Create a quotation against a lead or project, with items, rates, GST and terms."], start: "prepare", items: [
+      ["dashboard", "Quotation Dashboard", "Quotation pipeline, ageing, value and team workload."],
+      ["pending-create", "Pending Create Project", "Successful quotations waiting for project creation."],
+      ["create-project", "Create Project", "Create a project from a successful quotation."],
       ["label:Quotation stages"],
       ["prepare", "Pending Prepare Quotation", "Quotations assigned to someone and waiting to be prepared."],
       ["checking", "Pending Checking", "Prepared quotations waiting to be checked."],
@@ -1080,6 +1083,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     projects: { name: "Projects", add: ["add", "Add Project", "Create a project directly, or from an approved quotation, with its owner, controller and project sheet."], start: "in-progress", items: [
       ["dashboard", "Project Dashboard", "Projects by status and owner at a glance."],
       ["pending-create", "Pending Create Project", "Approved quotations that don't have a project yet."],
+      ["pending-jobs", "Pending Job Creation", "Active projects without any jobs."],
       ["pending-sheet", "Pending Sheet", "Projects waiting for their project sheet to be submitted."],
       ["in-progress", "Projects In Progress", "Open projects. Raise recce or design work against a project from here."],
       ["group:job", "Job"],
@@ -1108,6 +1112,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["completed-jobs", "Completed Jobs", "Jobs where every item has passed QC.", 1],
       ["canceled-jobs", "Canceled Jobs", "Jobs that were canceled.", 1],
       ["group:delivery", "Delivery"],
+      ["pending-delivery", "Pending Delivery", "QC-passed items still awaiting delivery.", 1],
       ["add-delivery", "Add Delivery", "Dispatch QC-passed items for a project. Each dispatch gets its own number.", 1],
       ["installation-pending", "Installation Certificate Pending", "Dispatches that need installation and have no installation certificate yet.", 1],
       ["delivered", "Delivered Projects", "Every dispatch made, one row per dispatch number.", 1],
@@ -1150,12 +1155,13 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 
   MENUS.masters = { name: "Master Data", start: "m-firm", items: [["label:Leads"]].concat(MENUS.leads.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; }),
     [["label:Projects"]], MENUS.projects.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; })) };
+  MENUS.outsource = { name: "Outsource", start: "all", items: [["all", "All Outsource Tasks", "Outsourced work across all departments."], ["pending", "Pending Outsource Tasks", "Open outsourced work."], ["completed", "Completed Outsource Tasks", "Completed outsourced work."]] };
   window.UmangMenus = MENUS;
   /* ---------- View permissions (same rules as the plugin) ---------- */
   function pkey(slug, key) { return key.indexOf("m-") === 0 ? "master:" + key : slug + "." + key; }
   var AUTH = { ready: false, full: false, denied: false, allowed: null, row: null, me: null, email: "", ver: 0, why: "" };
   window.UmangAuth = AUTH;
-  function allow(slug, key) { if (!AUTH.ready || AUTH.denied) return false; if (AUTH.full || !AUTH.allowed) return true; return AUTH.allowed.indexOf(pkey(slug, key)) !== -1; }
+  function allow(slug, key) { if (slug === "quotations" && key === "create-project") key = "pending-create"; if (!AUTH.ready || AUTH.denied) return false; if (AUTH.full || !AUTH.allowed) return true; return AUTH.allowed.indexOf(pkey(slug, key)) !== -1; }
   AUTH.allow = allow; AUTH.pkey = pkey;
   function realItems(slug) { return MENUS[slug].items.filter(function (it) { return it[0].indexOf("label:") !== 0 && it[0].indexOf("group:") !== 0; }); }
   function modAllowed(slug) { var m = MENUS[slug]; if (m.add && allow(slug, m.add[0])) return true; return realItems(slug).some(function (it) { return allow(slug, it[0]); }); }
@@ -1460,7 +1466,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     "m-user-roles": { coll: "user-roles", one: "User Role", many: "User Roles", fields: [["name", "User Role", "text", 1]], cols: ["name"] },
     "m-designation": { coll: "designation", one: "Designation", many: "Designations", fields: [["name", "Designation", "text", 1]], cols: ["name"] },
     "m-user-document-types": { coll: "user-document-types", one: "User Document Type", many: "User Document Types", fields: [["name", "User Document Type", "text", 1]], cols: ["name"] },
-    "m-items": { coll: "items", one: "Item", many: "Items", fields: [["name", "Item Name", "text", 1], ["category", "Category", "stage", 0, { choices: ["Charge"] }]], cols: ["name", "category"] },
+    "m-items": { coll: "items", one: "Item", many: "Items", fields: [["name", "Item Name", "text", 1], ["photo", "Photo", "image"], ["category", "Category", "stage", 0, { choices: ["Charge"] }]], cols: ["name", "photo", "category"] },
     "m-uom": { coll: "uom", one: "UOM", many: "UOM", fields: [["name", "UOM", "text", 1]], cols: ["name"], note: "Foot, Inch, cm and Metre are fixed units used to work out area. They are locked and can't be edited." },
     "m-gst": { coll: "gst", one: "GST %", many: "GST rates", fields: [["name", "GST %", "number", 1]], cols: ["name"] },
     "m-machines": { coll: "machines", one: "Machine", many: "Machines", fields: [["name", "Machine Name", "text", 1], ["job_step", "Machine Category", "stage", 1]], cols: ["name", "job_step"] },
@@ -1538,7 +1544,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   document.addEventListener("focusin", function (e) { if (e.target.id === "mf-acc-q" && ACC.u && !ACC.q && !ACC.hits.length) ACC.u.search("").then(function (hits) { ACC.hits = hits || []; if (ACC.hits.length) rerender(); }); });
   var PMOPEN = { 0: true };
   function permGroups() {
-    var M = window.UmangMenus || {}, out = [], order = ["leads", "recce", "design", "quotations", "projects", "invoices", "complaints"];
+    var M = window.UmangMenus || {}, out = [], order = ["leads", "recce", "design", "quotations", "projects", "invoices", "complaints", "outsource"];
     order.forEach(function (slug) {
       var m = M[slug]; if (!m) return; var items = [], gt = {};
       if (m.add) items.push([slug + "." + m.add[0], m.add[1]]);
@@ -1700,7 +1706,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         h += "<tr><td class='num'>" + (i + 1) + "</td>";
         def.cols.forEach(function (c, ci) { h += "<td" + (ci === 0 ? " class='strong'" : "") + ">" + (display(def, c, r) || '<span class="dim">—</span>') + "</td>"; });
         if (!def.noStatus) h += '<td><span class="pill ' + (st === "Active" ? "on" : "off") + '">' + st + "</span></td>";
-        if (!ro) h += '<td class="act">' + (r.protected ? '<span class="lock-tag" title="Fixed unit used to work out area"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Locked</span>' : '<button type="button" class="mv-btn ghost sm" data-act="edit" data-id="' + esc(r.id) + '">Edit</button>') + '</td>';
+        if (!ro) h += '<td class="act">' + (r.protected ? '<span class="lock-tag" title="Fixed unit used to work out area"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Locked</span>' : '<button type="button" class="mv-btn ghost sm" data-act="edit" data-id="' + esc(r.id) + '">Edit</button>') + (r.protected || !def.noStatus ? '' : '<button type="button" class="mv-btn ghost sm" data-act="toggle-master" data-id="' + esc(r.id) + '">' + (r.status === 'Inactive' ? 'Activate' : 'Deactivate') + '</button>') + (r.protected ? '' : '<button type="button" class="mv-btn danger sm" data-act="delete-master" data-id="' + esc(r.id) + '" aria-label="Delete ' + esc(r.name) + '">Delete</button>') + '</td>';
         h += "</tr>";
       });
       h += "</tbody></table></div>";
@@ -1818,9 +1824,9 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     } catch (e) {
       saving = false;
       formErr = e && e.code === "quota_exceeded" ? "The data store is full. Make some entries inactive or contact the administrator." :
-        e && e.code === "invalid_argument" ? "" :
+        e && e.msg ? e.msg :
         "Couldn’t save. Check your connection and try again.";
-      if (e && e.code === "invalid_argument") canWrite = false;
+
       render();
     }
   }
@@ -1859,6 +1865,13 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (act === "add-customer-category") { addCustomerCategory(); return; }
     if (act === "clear-f") { statusF = ""; colF = {}; q = ""; rerender(); return; }
     if (act === "add") { msOpen = null; editing = { row: {}, vals: { status: "Active" } }; formErr = ""; render(); focusFirst(); }
+    if (act === "toggle-master") { var target = rows(def.coll).find(function(r) { return r.id === b.getAttribute("data-id"); }); if (!target || target.protected) return; b.disabled = true; db.collection("masters/" + def.coll + "/rows").doc(target.id).update({status:target.status === "Inactive" ? "Active" : "Inactive"}).catch(function(e) { U.flash(U.err(e)); b.disabled=false; }); return; }
+    if (act === "delete-master") {
+      var doomed = rows(def.coll).find(function (x) { return x.id === b.getAttribute("data-id"); });
+      if (!doomed || doomed.protected || saving) return;
+      U.modal({title: "Delete " + def.one, fields: [], intro: function () { return '<p>Delete <b>' + esc(doomed.name) + '</b>? Linked records prevent deletion. You can make referenced masters inactive instead.</p>'; }, submit: "Delete",
+        save: async function () { await db.collection("masters/" + def.coll + "/rows").doc(doomed.id).delete(); return def.one + " deleted."; }}); return;
+    }
     if (act === "edit") { var r = rows(def.coll).find(function (x) { return x.id === b.getAttribute("data-id"); }); if (r && !r.protected) { editing = { row: r, vals: Object.assign({}, r) }; formErr = ""; render(); focusFirst(); box.scrollIntoView({ block: "start" }); } }
     if (act === "cancel") { var back = editing && editing.ret; editing = null; formErr = ""; if (back) { location.hash = back.to; return; } render(); }
     if (act === "add-contact") { editing.vals = readForm(def); editing.vals.contacts = (editing.vals.contacts || []).concat([{}]); render(); var rowsC = box.querySelectorAll(".mf-contact"); if (rowsC.length) rowsC[rowsC.length - 1].querySelector("input").focus(); }
@@ -2612,7 +2625,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     h += '<div class="field wide"><label for="fu_status">Status <span class="req">*</span></label><select id="fu_status" name="status">' + opts(fuOptions(l).map(function (s) { return { id: s, name: s }; }), v.status, "Choose a status") + '</select><p class="field-err" id="fu_status-err" hidden></p></div>';
     if (v.status === "Follow Up Again") h += '<div class="field"><label for="fu_next">Next Follow Up Date <span class="req">*</span></label><input type="date" id="fu_next" name="next" min="' + today() + '" value="' + esc(v.next) + '"><p class="field-err" id="fu_next-err" hidden></p></div>';
     if (v.status === "Assign Quotation") h += '<div class="field"><label for="fu_assign">Prepare quotation by <span class="req">*</span></label><select id="fu_assign" name="assign">' + opts(users, v.assign, "Choose a person") + '</select><p class="field-err" id="fu_assign-err" hidden></p></div>';
-    h += '<div class="field wide"><label for="fu_remarks">Remarks' + (v.status === "Lead Cancel" ? ' <span class="req">*</span>' : "") + '</label><textarea id="fu_remarks" name="remarks" rows="3">' + esc(v.remarks) + '</textarea><p class="field-err" id="fu_remarks-err" hidden></p></div>';
+    h += '<div class="field wide"><label for="fu_remarks">Remarks' + (v.status !== "Success" && v.status !== "Quotation Approved" ? ' <span class="req">*</span>' : "") + '</label><textarea id="fu_remarks" name="remarks" rows="3">' + esc(v.remarks) + '</textarea><p class="field-err" id="fu_remarks-err" hidden></p></div>';
     h += "</div>";
     if (modal.err) h += '<p class="mv-form-err" role="alert">' + esc(modal.err) + "</p>";
     h += '<div class="mv-actions"><button type="submit" class="mv-btn primary"' + (modal.saving ? " disabled" : "") + ">" + (modal.saving ? "Saving…" : "Save follow-up") + '</button><button type="button" class="mv-btn ghost" data-fu="close">Cancel</button></div></form>';
@@ -2635,7 +2648,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (v.status === "Follow Up Again" && !v.next) errs.next = "Choose the next follow-up date.";
     if (v.status === "Follow Up Again" && v.next && v.next < today()) errs.next = "The next follow-up date can’t be in the past.";
     if (v.status === "Assign Quotation" && !v.assign) errs.assign = "Choose who prepares the quotation.";
-    if (v.status === "Lead Cancel" && !v.remarks) errs.remarks = "Say why the lead is canceled.";
+    if (v.status !== "Success" && v.status !== "Quotation Approved" && !v.remarks) errs.remarks = "Enter remarks for this follow-up.";
     if (v.status === "Quotation Rejected" && !v.remarks) errs.remarks = "Say why the quotation was rejected.";
     if (v.status && fuOptions(l).indexOf(v.status) === -1) errs.status = "This status isn\u2019t available at the current quotation stage.";
     modal.err = v.status === "Assign Quotation" && !l.assigned_to ? "Assign this lead to someone before assigning a quotation." : "";
@@ -3260,7 +3273,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       },
       save: async function (v) {
         var body = Object.assign(U.pick(v, R_FIELDS(v)), U.srcFields(v)); delete body.src; if (v.assigned_to) body.vendor_id = "";
-        body.units = Number(v.units);
+        body.source_locked = !!v.source_locked; body.units = Number(v.units);
         if (v._id) { var r = U.get("recce", v._id); body.status = rPending(Object.assign({}, r, body)) > 0 ? "In Progress" : "Completed"; await U.upd("recce", v._id, body); return { go: "recce.in-progress", msg: "Recce " + r.no + " saved." }; }
         var fy = U.fy(v.date), n = await U.seq("recce-" + fy, U.maxSeq("recce", "seq", function (r) { return r.fy === fy; }));
         body.fy = fy; body.seq = n; body.no = "REC-" + fy + "/" + n; body.status = "In Progress"; body.done = { completed: 0, denied: 0, cancel: 0 };
@@ -3404,7 +3417,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         return null;
       },
       save: async function (v) {
-        var body = Object.assign(U.pick(v, D_FIELDS()), U.srcFields(v)); delete body.src; if (v.designer) body.vendor_id = ""; body.count = Number(v.count); body.approval_required = !!v.approval_required;
+        var body = Object.assign(U.pick(v, D_FIELDS()), U.srcFields(v)); delete body.src; if (v.designer) body.vendor_id = ""; body.source_locked = !!v.source_locked; body.count = Number(v.count); body.approval_required = !!v.approval_required;
         if (v._id) { var d = U.get("designs", v._id); body.status = dStatus(Object.assign({}, d, body)); await U.upd("designs", v._id, body); return { go: "design.in-progress", msg: "Design " + d.no + " saved." }; }
         var fy = U.fy(v.date), n = await U.seq("design-" + fy, U.maxSeq("designs", "seq", function (r) { return r.fy === fy; }));
         body.fy = fy; body.seq = n; body.no = "DSN-" + fy + "/" + n; body.status = "In Progress"; body.done = { completed: 0, cancel: 0, approved: 0 };
@@ -3450,7 +3463,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var h = '<div class="mv-table-wrap"><table class="mv-table"><thead><tr><th>Date</th><th>Type</th><th>Completed</th><th>Cancel</th><th>Approved</th><th>By</th><th>Remarks</th></tr></thead><tbody>';
     if (!ups.length) h += '<tr><td colspan="7" class="mv-nomatch">No updates yet.</td></tr>';
     ups.forEach(function (u) { h += "<tr><td class='nowrap'>" + U.dmy(u.createdAt.slice(0, 10)) + "</td><td>" + (u.kind === "approval" ? "Client approval" : "Work") + "</td><td>" + (u.completed || "") + "</td><td>" + (u.cancel || "") + "</td><td>" + (u.approved || "") + "</td><td>" + esc(U.user(u.by)) + "</td><td>" + esc(u.remarks) + "</td></tr>"; });
-    U.info("History of " + d.no, esc(U.nm("customers", d.customer_id)) + " · No. of Designs: " + d.count, h + "</tbody></table></div>", "design");
+    U.info("Design " + d.no, esc(U.nm("customers", d.customer_id)) + " · No. of Designs: " + d.count, '<section class="ld-card"><div class="ld-grid">' + [["Status", d.status], ["Due Date", U.dmy(d.due)], ["Designer", U.user(d.designer) || U.nm("vendors",d.vendor_id)], ["Lead", U.leadNo(d.lead_id)], ["Project", U.projNo(d.project_id)], ["Remarks", d.remarks]].map(function(x) { return '<div class="ld-field"><span>' + esc(x[0]) + "</span><b>" + esc(x[1]) + "</b></div>"; }).join("") + "</div>" + U.fileLinks([d.doc].filter(Boolean), "Design Document") + "</section>" + h + "</tbody></table></div>", "design");
   });
   var D_COLS = {
     no: ["Design No.", function (d) { return '<b class="nowrap">' + esc(d.no) + "</b>"; }],
@@ -3483,7 +3496,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   }
   U.page("design.in-progress", function () {
     return designList(function (d) { return d.status === "In Progress"; }, ["no", "who", "count", "comp", "can", "pend", "appr", "lead", "proj", "cust", "due", "ppt", "doc"],
-      function (d) { return '<span class="row-acts">' + U.btn("design-update", d.id, "Update", true) + U.btn("design-edit", d.id, "Edit") + "</span>"; });
+      function (d) { return '<span class="row-acts">' + '<button type="button" class="ico-act" data-a="design-history" data-id="' + esc(d.id) + '" title="View design" aria-label="View design">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>' + U.btn("design-update", d.id, "Update", true) + U.btn("design-edit", d.id, "Edit") + "</span>"; });
   });
   U.page("design.client-approval", function () {
     return designList(function (d) { return d.status !== "Canceled" && dAppPending(d) > 0; }, ["no", "who", "count", "comp", "appr", "papp", "lead", "proj", "cust", "ppt"],
@@ -3515,7 +3528,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   });
 
   /* quick links from Leads */
-  U.newFor = function (kind, leadId) { var key = kind === "recce" ? "recce.add" : "design.add"; P.forms[key] = { v: { date: U.today(), src: "L:" + leadId }, err: "", saving: false }; P.keepForm = true; location.hash = key; };
+  U.newFor = function (kind, leadId) { var key = kind === "recce" ? "recce.add" : "design.add"; P.forms[key] = { v: { date: U.today(), src: "L:" + leadId, source_locked: true }, err: "", saving: false }; P.keepForm = true; location.hash = key; };
 })();
 </script>
 <script>
@@ -3560,7 +3573,9 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (f[2] === "sel") {
       var h = '<select id="' + id + '" name="' + id + '"' + lab + ' data-onchange="q-calc"><option value="">' + (f[0] === "item_id" ? "Select Particulars" : f[0] === "uom" ? "Select Unit" : "Select GST %") + "</option>";
       opts.forEach(function (o) { h += '<option value="' + esc(o[0]) + '"' + (String(o[0]) === String(val) ? " selected" : "") + ">" + esc(o[1]) + "</option>"; });
-      return h + "</select>";
+      h += "</select>";
+      if (f[0] === "item_id") h = '<div class="sel-add">' + h + '<button type="button" class="sel-plus" data-a="q-new-item" data-id="' + i + '" title="Create quotation item" aria-label="Create quotation item">+</button></div>';
+      return h;
     }
     return '<input id="' + id + '" name="' + id + '"' + lab + ' type="' + (f[2] === "num" ? "number" : "text") + '"' + (f[2] === "num" ? ' inputmode="decimal" step="any" min="0"' : ' placeholder="Enter item description"') + ' value="' + esc(val) + '" data-oninput="q-calc">';
   }
@@ -3569,10 +3584,10 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var opts = {}; ["item_id", "uom", "gst_pct"].forEach(function (k) { opts[k] = selOpts(k); });
     var F = {}; IF.forEach(function (f) { F[f[0]] = f; });
     var h = '<div class="qi-wrap" id="qi-wrap"><div class="qi-head"><span class="mf-legend">Quotation Items <span class="req" aria-hidden="true">*</span></span><button type="button" class="mv-btn ghost sm" data-a="q-add-row">＋ Add Item</button></div>';
-    h += '<div class="mv-table-wrap qi-table-wrap"><table class="mv-table qi-table"><thead><tr><th>Particulars</th><th>Description</th><th>Width</th><th>Height</th><th>Quantity</th><th>Unit <span class="req">*</span></th><th>Area (Sq. Ft)</th><th>Rate</th><th>Before GST</th><th>GST %</th><th>GST</th><th>After GST</th><th>Action</th></tr></thead><tbody>';
+    h += '<div class="mv-table-wrap qi-table-wrap"><table class="mv-table qi-table"><thead><tr><th>Particulars</th><th>Photo</th><th>Description</th><th>Width</th><th>Height</th><th>Quantity</th><th>Unit <span class="req">*</span></th><th>Area (Sq. Ft)</th><th>Rate</th><th>Before GST</th><th>GST %</th><th>GST</th><th>After GST</th><th>Action</th></tr></thead><tbody>';
     items.forEach(function (it, i) {
       var c = calc(it), cell = function (k) { return '<td class="qc-' + k + '">' + cellIn(F[k], i, it[k] == null ? "" : it[k], opts[k] || []) + "</td>"; };
-      h += '<tr class="qi-tr" data-i="' + i + '">' + cell("item_id") + cell("description") + cell("width") + cell("height") + cell("qty") + cell("uom") +
+      h += '<tr class="qi-tr" data-i="' + i + '">' + cell("item_id") + '<td>' + U.fileLink(it.photo || (U.get(U.m("items"), it.item_id) || {}).photo, "Photo") + '<input type="file" name="qi_photo_' + i + '" aria-label="Item photo" accept=".jpg,.jpeg,.png,.webp">' + (it.__photo ? '<span class="mf-hint">' + esc(it.__photo.name) + '</span>' : '') + '</td>' + cell("description") + cell("width") + cell("height") + cell("qty") + cell("uom") +
         '<td class="qc-out"><output id="qo_area_' + i + '">' + (c.area === "" ? "—" : U.num(c.area)) + "</output></td>" + cell("rate") +
         '<td class="qc-out"><output id="qo_base_' + i + '">' + U.num(c.base) + "</output></td>" + cell("gst_pct") +
         '<td class="qc-out"><output id="qo_gst_' + i + '">' + U.num(c.gst) + '</output></td><td class="qc-out"><output id="qo_amt_' + i + '"><b>' + U.num(c.amount) + "</b></output></td>" +
@@ -3586,7 +3601,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   }
   function readItems(fm, v) {
     var rows = fm.querySelectorAll(".qi-tr"), items = [];
-    rows.forEach(function (r) { var i = r.getAttribute("data-i"), old = (v.items || [])[+i] || {}, it = Object.assign({}, old); IF.forEach(function (f) { var e = fm.elements["qi_" + f[0] + "_" + i]; it[f[0]] = e ? String(e.value).trim() : ""; }); items.push(it); });
+    rows.forEach(function (r) { var i = r.getAttribute("data-i"), old = (v.items || [])[+i] || {}, it = Object.assign({}, old); IF.forEach(function (f) { var e = fm.elements["qi_" + f[0] + "_" + i]; it[f[0]] = e ? String(e.value).trim() : ""; }); var ph = fm.elements["qi_photo_" + i]; if (ph && ph.files && ph.files[0]) it.__photo = ph.files[0]; items.push(it); });
     v.items = items; var ro = fm.elements.qt_round_off; v.round_off = ro ? String(ro.value).trim() : "";
     var tm = fm.elements.qt_terms; if (tm) v.terms = String(tm.value);
   }
@@ -3597,6 +3612,13 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     v.items.forEach(function (it, i) { var c = calc(it); put("qo_area_" + i, c.area === "" ? "—" : U.num(c.area)); put("qo_base_" + i, U.num(c.base)); put("qo_gst_" + i, U.num(c.gst)); put("qo_amt_" + i, "<b>" + U.num(c.amount) + "</b>"); });
     var t = totals(v.items, v.round_off);
     [["qt_sub", t.subtotal], ["qt_gst", t.gst], ["qt_total", t.total]].forEach(function (x) { put(x[0], money(x[1])); });
+  });
+  U.act("q-new-item", function (i) {
+    U.render();
+    U.modal({title: "New Quotation Item", fields: [{k:"name",label:"Item Name",type:"text",req:1},{k:"photo",label:"Photo",type:"file",accept:".jpg,.jpeg,.png,.webp"}], save: async function (v) {
+      var added = await U.add(U.m("items"), {name:v.name,photo:v.photo || null,status:"Active"});
+      var st = P.forms["quotations.add"]; if (st && st.v.items[+i]) { st.v.items[+i].item_id = added.id; st.v.items[+i].photo = v.photo || null; var select = document.getElementById("qi_item_id_" + i); if (select) { select.add(new Option(v.name,added.id,true,true)); select.value=added.id; } } return "Item created.";
+    }});
   });
   U.act("q-add-row", function () { var st = P.forms["quotations.add"]; U.render(); st = P.forms["quotations.add"]; st.v.items = (st.v.items || []).concat([{}]); U.paint(); var n = st.v.items.length - 1, e = document.getElementById("qi_item_id_" + n + "-ss"); if (e) e.focus(); });
   U.act("q-del-row", function (i) { U.render(); var st = P.forms["quotations.add"]; if (st.v.items.length > 1) st.v.items.splice(+i, 1); U.paint(); });
@@ -3636,9 +3658,10 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         return null;
       },
       save: async function (v) {
+        for (var pi = 0; pi < v.items.length; pi++) { var line = v.items[pi]; if (line.__photo) { line.photo = await U.upload(line.__photo); delete line.__photo; } if (!line.photo) line.photo = (U.get(U.m("items"), line.item_id) || {}).photo || null; }
         var items = v.items.filter(function (it) { return it.item_id || it.description || it.qty || it.rate; }).map(function (it) { return Object.assign({}, it, calc(it)); });
         var body = Object.assign(U.pick(v, qFields(v)), U.srcFields(v), totals(items, v.round_off), { items: items, terms: v.terms || "" });
-        delete body.src; delete body.srcv; delete body.cust;
+        body.source_locked = !!(v.source_locked || v._fixedSrc); delete body.src; delete body.srcv; delete body.cust;
         var lead = U.get("leads", body.lead_id); if (lead) body.lead_no = lead.lead_no;
         var q = v._id ? U.get("quotations", v._id) : null;
         if (q && q.no && q.firm_id === body.firm_id) { body.status = q.status === "Rejected" ? "Pending Checking" : q.status; if (q.status === "Rejected") body.revision = (q.revision || 0) + 1; }
@@ -3686,6 +3709,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (!libP) libP = new Promise(function (res, rej) { var s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"; s.onload = function () { res(window.PDFLib); }; s.onerror = function () { libP = null; rej({ msg: "Couldn’t load the PDF maker. Check your connection and try again." }); }; document.head.appendChild(s); });
     return libP;
   }
+  U.loadPdfLib = loadLib;
   function ascii(s) { return String(s == null ? "" : s).replace(/₹/g, "Rs.").replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-").replace(/×/g, "x").replace(/[^\x09\x0a\x0d\x20-\x7e\xa0-\xff]/g, "?"); }
   function rs(n) { return (Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   U.makePdf = async function (draw) {
@@ -3735,8 +3759,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var W = 595.28, H = 841.89, M = 40, HEAD = 20, ROW = 18, black = L.rgb(0, 0, 0);
     var logo = null;
     if (firm.logo && firm.logo.id) {
-      try { var r = await fetch(window.UmangBlobURL(firm.logo.id)); var ab = await r.arrayBuffer(); var ct = (firm.logo.type || r.headers.get("content-type") || "").toLowerCase(); var u8 = new Uint8Array(ab);
-        logo = (ct.indexOf("png") !== -1 || (u8[0] === 0x89 && u8[1] === 0x50)) ? await doc.embedPng(ab) : await doc.embedJpg(ab); } catch (e) { logo = null; }
+      try { logo = await doc.embedPng(await U.imageForPdf(firm.logo)); } catch (e) { logo = null; }
     }
     function t(page, font, size, x, y, s) { s = ascii(s); if (s) page.drawText(s, { x: x, y: y, size: size, font: font, color: black }); }
     function tw(font, size, s) { return font.widthOfTextAtSize(ascii(s), size); }
@@ -3810,6 +3833,14 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       cy2 -= 8;
     });
     t(page, B, 9, 405, 38, "Authorized Signatory");
+    var photos = items.map(function (it, i) { return {it:it, index:i+1, photo:it.photo || (U.get(U.m("items"),it.item_id)||{}).photo}; }).filter(function (r) { return r.photo && r.photo.id; });
+    for (var ph = 0; ph < photos.length; ph++) {
+      var record = photos[ph], image;
+      try { image = await doc.embedPng(await U.imageForPdf(record.photo)); } catch (error) { throw U.fail("Could not load the photo for quotation item " + record.index + ". Retry the PDF download."); }
+      page = doc.addPage([W,H]); t(page,B,15,M,800,"Quotation Item Photograph");t(page,F,10,M,778,q.no+" - Item "+record.index);
+      wrap(U.nm("items",record.it.item_id)+" "+(record.it.description||""),85).slice(0,3).forEach(function(line,i){t(page,F,10,M,758-i*14,line);});
+      var scale = Math.min((W-2*M)/image.width,620/image.height);page.drawImage(image,{x:M,y:80,width:image.width*scale,height:image.height*scale});
+    }
     return await doc.save();
   }
 
@@ -3825,7 +3856,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var q = U.get("quotations", id); if (!q) return;
     U.modal({ mod: "quotations", title: "Send Quotation " + q.no, sub: esc(qCust(q)) + " · " + money(q.total), v: { date: U.today(), by: q.sales_person || "" }, submit: "Mark as sent",
       fields: [{ k: "date", label: "Sent Date", type: "date", req: 1 }, { k: "mode", label: "Send Mode", type: "select", req: 1, opts: function () { return U.mact("send-mode"); }, first: "Choose a send mode" }, BY,
-        { k: "proof", label: "Proof (screenshot or PDF)", type: "file" }, { k: "remarks", label: "Remarks", type: "textarea" }],
+        { k: "proof", label: "Sending screenshot", type: "file", req: 1, accept: ".jpg,.jpeg,.png,.webp" }, { k: "remarks", label: "Remarks", type: "textarea" }],
       save: async function (v) {
         v.next = v.date;
         await U.add("quote_followups", { quotation_id: id, lead_id: q.lead_id || "", date: v.date, by: v.by, status: "Quotation Sent", mode: U.nm("send-mode", v.mode), next_date: v.next, remarks: v.remarks || "", doc: v.proof || null });
@@ -3839,7 +3870,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     U.modal({ mod: "quotations", title: "Follow up on " + q.no, sub: esc(qCust(q)) + " · " + money(q.total) + (q.next_fu ? " · due " + U.dmy(q.next_fu) : ""), v: { date: U.today(), by: q.sales_person || "" },
       fields: function (v) { return [{ k: "date", label: "Date", type: "date", req: 1 }, BY, { k: "status", label: "Status", type: "select", req: 1, live: 1, opts: function () { return OUT.filter(function (s) { return s !== "Lead Cancel" || q.lead_id; }).map(function (s) { return { id: s, name: s }; }); }, first: "Choose a status" },
         { k: "next", label: "Next Follow Up Date", type: "date", req: 1, show: function (v) { return v.status === "Follow Up Again"; } },
-        { k: "remarks", label: "Remarks", type: "textarea", req: v.status === "Quotation Rejected" || v.status === "Lead Cancel" ? 1 : 0 }]; },
+        { k: "remarks", label: "Remarks", type: "textarea", req: v.status !== "Success" && v.status !== "Quotation Approved" ? 1 : 0 }]; },
       after: function () { return histHtml(id); },
       validate: function (v) { if (v.status === "Follow Up Again" && v.next < U.today()) return "The next follow-up date can’t be in the past."; return null; },
       save: async function (v) {
@@ -4052,7 +4083,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         body.fy = fy; body.seq = s; body.no = fy + "/" + s; body.status = "In Progress"; body.sheet_status = "Pending";
         var ref = await U.add("projects", body);
         if (v.quotation_id) await U.upd("quotations", v.quotation_id, { project_id: ref.id });
-        return { go: "projects.in-progress", msg: "Project " + body.no + " created." };
+        return { go: P.projectCreateReturn || "projects.pending-jobs", msg: "Project " + body.no + " created. It is pending job creation." };
       }
     });
   });
@@ -4104,14 +4135,14 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["Documents", function (p) { var a = p.sheet_documents || []; return a.length ? a.length + " · " + U.fileLinks(a) : ""; }],
       ["Action", function (p) { return U.btn("p-sheet", p.id, "Update Sheet", true); }]];
     cols[0] = ["Project No.", function (p) { return '<button type="button" class="link-no" data-a="p-view" data-id="' + esc(p.id) + '">' + esc(p.no) + '</button>'; }];
-    return U.bar(st, [{k:"owner",label:"Project Owner",first:"All Owners",opts:USERS()}, {k:"controller",label:"Project Controller",first:"All Controllers",opts:USERS()}], true) + U.table(cols, rows.slice((page-1)*20,page*20), null, "No pending project sheets.") + U.count(rows.length,"project") + (pages > 1 ? '<div class="mv-actions">' + (page>1 ? '<button type="button" class="mv-btn ghost sm" data-a="sheet-page" data-id="' + (page-1) + '">Previous</button>'  : '') + '<span>Page ' + page + ' of ' + pages + '</span>' + (page<pages ? '<button type="button" class="mv-btn ghost sm" data-a="sheet-page" data-id="' + (page+1) + '">Next</button>'  : '') + '</div>' : '');
+    return U.bar(st, [{k:"owner",label:"Project Owner",first:"All Owners",opts:USERS()}, {k:"controller",label:"Project Controller",first:"All Controllers",opts:USERS()}], true) + U.table(cols, rows.slice((page-1)*20,page*20), null, "No pending project sheets.", rows) + U.count(rows.length,"project") + (pages > 1 ? '<div class="mv-actions">' + (page>1 ? '<button type="button" class="mv-btn ghost sm" data-a="sheet-page" data-id="' + (page-1) + '">Previous</button>'  : '') + '<span>Page ' + page + ' of ' + pages + '</span>' + (page<pages ? '<button type="button" class="mv-btn ghost sm" data-a="sheet-page" data-id="' + (page+1) + '">Next</button>'  : '') + '</div>' : '');
   });
   U.title("projects.add-job", function () { var st = P.forms["projects.add-job"]; return st && st.v._id ? "Edit Job" : "Add Job"; });
   U.title("projects.add", function () { var st = P.forms["projects.add"]; return st && st.v._id ? "Edit Project" : st && st.v.quotation_id ? "Create Project" : "Add Project"; });
   U.act("p-create", function (qid) {
     var q = U.get("quotations", qid); if (!q) return; var l = U.get("leads", q.lead_id) || {};
     P.forms["projects.add"] = { v: { date: U.today(), due: addDays(U.today(), 15), quotation_id: qid, firm_id: q.firm_id, customer_id: q.customer_id, lead_category_id: l.lead_category_id || "", lead_subcategory_id: l.lead_subcategory_id || "", lead_source_id: l.lead_source_id || "", owner: q.sales_person || l.owner_id || "", controller: l.assigned_to || "" }, err: "", saving: false };
-    P.keepForm = true; location.hash = "projects.add";
+    P.projectCreateReturn = P.slug === "quotations" ? "quotations.pending-create" : "projects.pending-jobs"; P.keepForm = true; location.hash = P.slug === "quotations" ? "quotations.create-project" : "projects.add";
   });
   U.act("p-edit", function (id) { var p = U.get("projects", id); if (!p) return; var tx = { outsource_to: U.nm("vendors", p.outsource_to), delivery_head: U.user(p.delivery_head), vendor_id: U.nm("vendors", p.vendor_id) }; Object.keys(tx).forEach(function (k) { if (!tx[k]) delete tx[k]; }); P.forms["projects.add"] = { v: Object.assign({}, p, tx, { _id: id }), err: "", saving: false }; P.keepForm = true; location.hash = "projects.add"; });
   U.act("p-job", function (id) { P.forms["projects.add-job"] = { v: { date: U.today(), target: addDays(U.today(), 7), project_id: id }, err: "", saving: false }; P.keepForm = true; location.hash = "projects.add-job"; });
@@ -4161,11 +4192,11 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["Customer", function (q) { return esc(cust(q)); }, "strong"], ["Sales Person", function (q) { return esc(U.user(q.sales_person)); }], ["Total", function (q) { return U.money(q.total); }, "numcell"],
       ['<span class="sr-only">Actions</span>', function (q) { return U.btn("p-create", q.id, "Create Project", true); }, "act"]], rows, null, "No approved quotations waiting for a project.") + U.count(rows.length, "quotation");
   }
-  U.page("projects.pending-create", pendingCreate); U.page("leads.pending-create-project", pendingCreate);
+  U.page("quotations.pending-create", pendingCreate); U.page("projects.pending-create", pendingCreate); U.page("leads.pending-create-project", pendingCreate);
   /* ---------- project list (plugin columns) + details ---------- */
   function pQuote(p) { return U.get("quotations", p.quotation_id) || U.rows("quotations").find(function (q) { return q.project_id === p.id; }) || null; }
   function pQty(p) { var tq = 0, dq = 0; liveJobs().filter(function (j) { return j.project_id === p.id; }).forEach(function (j) { (j.items || []).forEach(function (it) { tq += n(it.qty); dq += dispatched(j.id, it.lid); }); }); return { job: q3(tq), disp: q3(dq), pend: q3(Math.max(0, tq - dq)) }; }
-  function pPipe(coll, p, total, doneFn) { var list = U.rows(coll).filter(function (x) { return x.project_id === p.id && x.status !== "Canceled"; }); if (!list.length) return ""; var t = 0, d = 0; list.forEach(function (x) { t += n(x[total]); d += doneFn(x); }); return d + "/" + t; }
+  function pPipe(coll, p, total, doneFn) { var list = U.rows(coll).filter(function (x) { return (x.project_id === p.id || (p.lead_id && x.lead_id === p.lead_id)) && x.status !== "Canceled"; }); if (!list.length) return ""; var t = 0, d = 0; list.forEach(function (x) { t += n(x[total]); d += doneFn(x); }); return d + "/" + t; }
   function pRecce(p) { return pPipe("recce", p, "units", function (x) { var k = x.done || {}; return n(k.completed) + n(k.denied) + n(k.cancel); }); }
   function pDesign(p) { return pPipe("designs", p, "count", function (x) { var k = x.done || {}; return n(k.completed) + n(k.cancel); }); }
   var PIC = { recce: '<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>', design: '<path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><circle cx="11" cy="11" r="2"/>',
@@ -4208,7 +4239,8 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     return U.bar(st, [{ k: "who", label: "Owner or controller", first: "All people", opts: U.mact("users") }], true) +
       U.table(pCols(view), rows, function () { return "click-row p-row"; }, U.rows("projects").length ? "No projects match." : "No projects yet.").replace(/<tr class="click-row p-row">/g, function () { return '<tr class="click-row p-row">'; }) + U.count(rows.length, "project");
   }
-  U.page("projects.in-progress", function () { return plist2(function (p) { return p.status === "In Progress"; }, "ip"); });
+  U.page("projects.in-progress", function () { return plist2(function (p) { return p.status === "In Progress" && U.rows("jobs").some(function (j) { return j.project_id === p.id; }); }, "ip"); });
+  U.page("projects.pending-jobs", function () { return plist2(function (p) { return p.status === "In Progress" && !U.rows("jobs").some(function (j) { return j.project_id === p.id; }); }, "ip"); });
   U.page("projects.master", function () { return plist2(function () { return true; }, "master"); });
   U.page("projects.canceled", function () { return plist2(function (p) { return p.status === "Canceled"; }, "canceled"); });
   U.act("p-recce", function (id) { var p = proj(id); P.forms["recce.add"] = { v: { date: U.today(), src: "P:" + id }, err: "", saving: false }; P.keepForm = true; location.hash = "recce.add"; void p; });
@@ -4252,6 +4284,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     U.modal({ mod: "projects", wide: 1, title: "Project Details", sub: esc(p.no) + " · " + esc(cust(p)), fields: [], submit: "Close", save: function () { return Promise.resolve(""); },
       intro: function () {
         p = U.get("projects", id) || p; var q = pQuote(p) || {};
+        var modalEl = document.getElementById("u-modal"); if (modalEl) modalEl.dataset.projectId = id;
         var h = '<div class="pd-acts">' + U.pill(p.status, p.status === "Completed" ? "on" : p.status === "Canceled" ? "off" : "warn") + pActs(p, "ip") + (q.no && U.downloads ? '<button type="button" class="mv-btn ghost sm" data-qpdf="' + esc(q.id) + '">Quotation PDF</button>' : "") + "</div>";
         h += '<section class="ld-card"><div class="ld-card-title"><span>Project</span></div><div class="ld-grid">' + pField("Project No.", p.no) + pField("Date", U.dmy(p.date)) + pField("Target Date", U.dmy(p.due)) +
           pField("Category", U.nm("lead-category", p.lead_category_id)) + pField("Sub Category", U.nm("lead-subcategory", p.lead_subcategory_id)) + pField("Source", U.nm("lead-sources", p.lead_source_id)) + pField("Customer", cust(p)) +
@@ -4432,6 +4465,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     });
     return h + "</tbody></table></div>" + (j.remarks ? '<p class="mf-hint">Remarks: ' + esc(j.remarks) + "</p>" : "");
   }
+  U.jobView = jobView;
   U.act("j-view", function (id) { var j = U.get("jobs", id); if (!j) return; U.modal({ mod: "projects", wide: 1, title: "Job " + j.no, sub: "Project " + esc(proj(j.project_id).no) + (jQno(j) ? " · Quotation " + esc(jQno(j)) : "") + " · " + esc(cust(j)) + " · " + esc(j.status), fields: [], submit: "Close", save: function () { return Promise.resolve(""); }, intro: function () { return jobView(U.get("jobs", id) || j); } }); });
   U.act("j-cancel", function (id) {
     var j = U.get("jobs", id); if (!j) return; var hasD = (j.items || []).some(function (it) { return dispatched(j.id, it.lid) > 0; });
@@ -4943,6 +4977,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       intro: function () {
         c = U.get("complaints", id) || c; var p = proj(c.project_id);
         var acts = U.ro() ? "" : c.status === "New" ? U.btn("c-assign", c.id, "Assign", true) : c.status === "Assigned" ? U.btn("c-resolve", c.id, "Update", true) + U.btn("c-assign", c.id, "Reassign") : "";
+        var modalEl = document.getElementById("u-modal"); if (modalEl) modalEl.dataset.projectId = id;
         var h = '<div class="pd-acts">' + U.pill(c.status === "Assigned" ? "In Progress" : c.status, c.status === "Resolved" ? "on" : "warn") + U.pill(c.priority + " priority", c.priority === "High" ? "warn hi" : c.priority === "Low" ? "off" : "warn") + acts + "</div>";
         h += '<section class="ld-card"><div class="ld-card-title"><span>Complaint</span></div><div class="ld-grid">' + cF("Complaint No.", c.no) + cF("Complaint Date", U.dmy(c.date)) + cF("Project No.", p.no) + cF("Customer", cust(c)) +
           cF("Priority", c.priority) + cF("Assigned To", U.user(c.assigned_to)) + cF("Assigned Date", U.dmy(c.assigned_at)) + cF("Target Date", U.dmy(c.target)) +
@@ -5054,7 +5089,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function open(r) { return r.status !== "Completed" && r.status !== "Canceled"; }
   var WATCH = {
     leads: ["leads", "quotations", "projects"], recce: ["recce", "recce_updates"], design: ["designs", "design_updates"],
-    quotations: ["quotations", "quote_followups"], projects: ["projects", "quotations", "jobs", "job_assign", "qc", "dispatches", "wastage"],
+    quotations: ["quotations", "quote_followups", "projects"], projects: ["projects", "quotations", "jobs", "job_assign", "qc", "dispatches", "wastage"],
     invoices: ["invoices", "projects", "jobs", "dispatches", "qc", "job_assign"], complaints: ["complaints"], masters: []
   };
   function qn(st) { return cnt("quotations", function (q) { return q.status === st; }); }
@@ -5080,6 +5115,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       worked: function () { return cnt("design_updates"); }, completed: function () { return cnt("designs", function (d) { return d.status === "Completed"; }); }, master: function () { return cnt("designs"); }
     },
     quotations: {
+      "pending-create": function () { return U.PJ ? U.PJ.approvedFree().length : 0; },
       prepare: function () { return qn("Pending Prepare Quotation"); }, checking: function () { return qn("Pending Checking"); }, sending: function () { return qn("Pending Sending"); },
       "client-approval": function () { return qn("Pending Approval") + qn("Rejected"); }, "follow-ups": function () { return qn("Pending Approval"); },
       "follow-up-master": function () { return cnt("quote_followups"); }, master: function () { return cnt("quotations", function (q) { return !!q.no; }); },
@@ -5087,7 +5123,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     },
     projects: {
       "pending-sheet": function () { return U.PJ ? cnt("projects", U.PJ.sheetPending) : 0; },
-      "pending-create": function () { return U.PJ ? U.PJ.approvedFree().length : 0; }, "in-progress": function () { return cnt("projects", function (p) { return p.status === "In Progress"; }); },
+      "pending-create": function () { return U.PJ ? U.PJ.approvedFree().length : 0; }, "pending-jobs": function () { return cnt("projects", function(p) { return p.status === "In Progress" && !U.rows("jobs").some(function(j) { return j.project_id === p.id; }); }); }, "in-progress": function () { return cnt("projects", function (p) { return p.status === "In Progress" && U.rows("jobs").some(function(j) { return j.project_id === p.id; }); }); },
       "jobs-in-progress": function () { return cnt("jobs", function (j) { return j.status === "Pending" || j.status === "In Progress"; }); },
       "quality-check-due": function () { return U.PJ ? U.PJ.jobItemsFlat(function (r) { return r.j.status !== "Completed" && (U.PJ.qcDue(r.j, r.it) > 0 || U.PJ.onHold(r.j.id, r.it.lid) > 0); }).length : 0; },
       "jobs-master": function () { return cnt("jobs"); }, "job-items-master": function () { var s = 0; U.rows("jobs").forEach(function (j) { s += (j.items || []).length; }); return s; },
@@ -5322,3 +5358,6 @@ document.addEventListener("keydown", function (e) {
 
 
 
+
+<link rel="stylesheet" href="assets/operations.css?v=20261027">
+<script src="assets/operations.js?v=20261027"></script>

@@ -271,7 +271,7 @@ function permittedWrite(string $path): bool {
         'job_assign' => ['projects'], 'qc' => ['projects'], 'dispatches' => ['projects'],
         'wastage' => ['projects'], 'invoices' => ['invoices'], 'payments' => ['invoices'], 'complaints' => ['complaints'], 'complaint_updates' => ['complaints']
     ];
-    if ($path === 'projects' && in_array('leads.pending-create-project', $allowed, true)) return true;
+    if ($path === 'projects' && (in_array('leads.pending-create-project', $allowed, true) || in_array('quotations.pending-create', $allowed, true))) return true;
     if ($path === 'counters') return count($allowed) > 0;
     $root = explode('/', $path)[0];
     foreach ($modules[$root] ?? [] as $module) foreach ($allowed as $view) if (str_starts_with($view, $module . '.')) return true;
@@ -353,6 +353,62 @@ if ($action === 'acquire') {
     if ($acquired) query('UPDATE umang_leases SET holder=?,expires_at=? WHERE lease_key=?', [$holder, $now+8, $key]);
     txCommit(); reply(['acquired' => $acquired]);
 }
+function businessError(string $message): void { txRollback(); reject($message, 400, 'validation_failed'); }
+function hasReference(mixed $value, string $id): bool {
+    if (is_array($value)) { foreach ($value as $item) if (hasReference($item, $id)) return true; return false; }
+    return is_string($value) && ($value === $id || str_starts_with($value, $id . ':'));
+}
+function validateOperations(string $path, string $id, array &$body, ?array $old): void {
+    global $user;
+    if ($path === 'projects' && empty($user['owner']) && is_array($user['allowed_views'] ?? null)) {
+        $hasProjects = false;
+        foreach ($user['allowed_views'] as $view) if (str_starts_with($view, 'projects.')) $hasProjects = true;
+        if (!$hasProjects && ($old || empty($body['quotation_id']))) businessError('This permission allows creating projects from successful quotations only.');
+    }
+    if ($path === 'masters/customers/rows') {
+        foreach (['name'=>'Customer name','category_id'=>'Category','city_id'=>'City','mobile'=>'Mobile'] as $key=>$label) if (trim((string)($body[$key] ?? '')) === '') businessError($label . ' is mandatory.');
+        if (empty($body['subcategory_ids']) || !is_array($body['subcategory_ids'])) businessError('Choose at least one subcategory.');
+        if (!preg_match('/^\d{10}$/', (string)$body['mobile'])) businessError('Enter a 10-digit mobile number.');
+        $city = document('masters/city/rows', (string)$body['city_id']);
+        if (!$city || ($city['state_id'] ?? '') !== ($body['state_id'] ?? '')) businessError('Choose a city for the selected state.');
+        if (!document('masters/customer-category/rows', (string)$body['category_id'])) businessError('Choose a valid customer category.');
+        foreach ($body['subcategory_ids'] as $sub) if (!is_string($sub) || !document('masters/customer-subcategory/rows', $sub)) businessError('Choose valid customer subcategories.');
+    }
+    $followup = $path === 'quote_followups' || preg_match('#^leads/[^/]+/followups$#', $path);
+    if ($followup && !in_array($body['status'] ?? '', ['Success','Quotation Approved','Quotation Sent','Pending Follow Up'], true) && trim((string)($body['remarks'] ?? '')) === '') businessError('Remarks are mandatory for an unsuccessful follow-up.');
+    if ($followup && ($body['status'] ?? '') === 'Quotation Sent') requireScreenshot($body['doc'] ?? null);
+    if ($path === 'quotations' && isset($body['sent']) && ($body['sent'] !== ($old['sent'] ?? null))) requireScreenshot($body['sent']['proof'] ?? null);
+    if ($path === 'quotations' && ($body['status'] ?? '') === 'Pending Approval' && ($old['status'] ?? '') !== 'Pending Approval') requireScreenshot($body['sent']['proof'] ?? null);
+    if (in_array($path, ['recce','designs','quotations'], true)) {
+        if (!empty($old['source_locked'])) {
+            foreach (['lead_id','project_id','customer_id'] as $key) if (($body[$key] ?? '') !== ($old[$key] ?? '')) businessError('The inherited source and customer cannot be changed.');
+            if ($path === 'quotations') foreach (['firm_id','sales_person'] as $key) if (!empty($old[$key]) && ($body[$key] ?? '') !== $old[$key]) businessError('Inherited firm and sales person cannot be changed.');
+            $body['source_locked'] = true;
+        }
+        if (!empty($body['source_locked']) && !empty($body['lead_id']) && empty($body['project_id'])) {
+            $lead = document('leads', (string)$body['lead_id']);
+            if (!$lead) businessError('The source lead no longer exists.');
+            $body['customer_id'] = $lead['customer_id'] ?? '';
+            if ($path === 'quotations') { $body['firm_id'] = $lead['firm_id'] ?? ''; if (!empty($lead['owner_id'])) $body['sales_person'] = $lead['owner_id']; }
+        }
+    }
+    if ($path === 'projects' && !empty($body['quotation_id']) && (!$old || ($old['quotation_id'] ?? '') !== $body['quotation_id'])) {
+        $qid = (string)$body['quotation_id']; $q = document('quotations', $qid, true);
+        if (!$q || ($q['status'] ?? '') !== 'Approved') businessError('Create projects only from successful quotations.');
+        foreach (query("SELECT id,body FROM umang_documents WHERE collection_path='projects'")->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $other = json_decode($row['body'], true);
+            if ($row['id'] !== $id && ($other['quotation_id'] ?? '') === $qid) businessError('A project already exists for this quotation.');
+        }
+        if (!empty($q['project_id']) && $q['project_id'] !== $id) businessError('A project already exists for this quotation.');
+        $body['lead_id'] = $q['lead_id'] ?? ''; $body['customer_id'] = $q['customer_id'] ?? ''; $body['firm_id'] = $q['firm_id'] ?? '';
+    }
+}
+function requireScreenshot(mixed $file): void {
+    if (!is_array($file) || empty($file['id'])) businessError('Upload the sending screenshot.');
+    $stored = query('SELECT mime FROM umang_files WHERE id=?', [(string)$file['id']])->fetchColumn();
+    if (!in_array($stored, ['image/jpeg','image/png','image/webp'], true)) businessError('Sending proof must be an uploaded screenshot image.');
+}
+
 txBegin();
 if ($path === 'counters') {
     $lease = query('SELECT holder,expires_at FROM umang_leases WHERE lease_key=? FOR UPDATE', [$path . '/' . $id])->fetch(PDO::FETCH_ASSOC);
@@ -362,12 +418,20 @@ if ($path === 'counters') {
 $old = document($path, $id, true);
 if ($action === 'delete') {
     if ($path === 'counters') { txRollback(); reject('Counters cannot be deleted.'); }
+    if (str_starts_with($path, 'masters/')) {
+        if (!empty($old['protected'])) businessError('This fixed master cannot be deleted.');
+        foreach (query('SELECT collection_path,id,body FROM umang_documents')->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            if ($row['collection_path'] === $path && $row['id'] === $id) continue;
+            if (hasReference(json_decode($row['body'], true), $id)) businessError('This master is used by existing records. Make it inactive instead.');
+        }
+    }
     query('DELETE FROM umang_documents WHERE collection_path=? AND id=?', [$path, $id]);
 } else {
     $body = $input['data'] ?? null;
     if (!is_array($body)) { txRollback(); reject('Invalid record.'); }
     if ($action === 'update' && !$old) { txRollback(); reject('Record no longer exists.', 404); }
     if ($action === 'update') $body = array_merge($old, $body);
+    validateOperations($path, $id, $body, $old);
     if ($path === 'masters/users/rows') {
         unset($body['has_password'], $body['owner'], $body['id']);
         if (empty($body['pw_hash']) && $old) { $body['pw_hash'] = $old['pw_hash'] ?? ''; $body['pw_salt'] = $old['pw_salt'] ?? ''; }
