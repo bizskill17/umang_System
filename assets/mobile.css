@@ -1,0 +1,55 @@
+/* Phone layouts share the same records, permissions and workflows as desktop. */
+.m-outsource { --c: #0f766e; --t: #d5f5ee; }
+#home-view .m-outsource { --a: #26bba7; --b: #177c89; }
+.side.m-outsource { --a: #26bba7; --b: #177c89; }
+.mobile-table-hint { display: none; }
+@media (max-width: 719px) {
+  html { -webkit-text-size-adjust: 100%; }
+  body { min-width: 0; }
+  .wrap, body.in-module .wrap { padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+  #home-view { min-height: 100dvh; padding-top: 20px; padding-bottom: max(20px, env(safe-area-inset-bottom, 0px)); }
+  #home-view .grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  #home-view .tile, #home-view .tile[class] { min-height: 68px; padding: 12px 14px; }
+  #home-view .tile .name { font-size: 16px; }
+  #home-view .home-user { position: static; margin: 20px 0 0; width: 100%; max-width: none; }
+  .shell, .content, .master-view, .mv-form, .fu-form, .ld-card, .ops-table, .field, .mv-grid > * { min-width: 0; max-width: 100%; }
+  #ops-nav { flex-wrap: nowrap; overflow-x: auto; width: 100%; margin-bottom: 0; padding: 2px 0 8px; -webkit-overflow-scrolling: touch; }
+  #ops-nav .ops-dept { flex: 0 0 auto; min-height: 44px; display: inline-flex; align-items: center; padding: 8px 12px; font-size: 13px; }
+  .content h1 { font-size: 24px; overflow-wrap: anywhere; }
+  .crumb { min-width: 0; flex-wrap: wrap; }
+  .menu-btn { width: 100%; min-height: 44px; text-align: left; }
+  .menu-btn > span { min-width: 0; overflow-wrap: anywhere; }
+  .mv-grid, .mv-grid.two { grid-template-columns: minmax(0, 1fr); }
+  .field.wide { grid-column: 1 / -1; }
+  .mv-form :is(input, select, textarea), .fu-form :is(input, select, textarea), .login-card :is(input, select), .ss-btn { font-size: 16px; }
+  .field input, .field textarea, .field .ss-btn { max-width: 100%; }
+  .mv-btn, .sel-plus, .icon-btn, .ico-act { min-height: 44px; }
+  .icon-btn, .ico-act, .sel-plus { min-width: 44px; }
+  .mv-actions, .row-acts, .ico-acts { flex-wrap: wrap; gap: 8px; }
+  .mv-actions > .mv-btn { flex: 1 1 auto; }
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kpi { min-width: 0; padding: 12px; }
+  .kpi-n { font-size: 24px; overflow-wrap: anywhere; }
+  .kpi-l { font-size: 13px; }
+  .ld-card { padding: 12px; }
+  .ld-card .ops-table { padding: 0; }
+  .fu-modal { padding: max(10px, env(safe-area-inset-top, 0px)) 10px max(10px, env(safe-area-inset-bottom, 0px)); }
+  .fu-modal .fu-card { max-width: 100%; min-width: 0; padding: 14px; }
+  .fu-head { min-width: 0; }
+  .fu-head > div { min-width: 0; overflow-wrap: anywhere; }
+  .fu-head h2 { font-size: 18px; }
+  .ld-grid, .q-meta { grid-template-columns: minmax(0, 1fr); }
+  /* Keep headings aligned with their values. Wide tables scroll within their own region. */
+  .mv-table-wrap { width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+  table.mv-table, table.mv-table.qi-table { display: table; width: max-content; min-width: 100%; border-collapse: collapse; }
+  .mv-table thead { display: table-header-group; }
+  .mv-table tbody { display: table-row-group; }
+  .mv-table tfoot { display: table-footer-group; }
+  .mv-table tr, .qi-table tr { display: table-row; padding: 0; }
+  .mv-table :is(td, th), .mv-table td.num, .mv-table td.act { display: table-cell; width: auto; padding: 10px 12px; border: 1px solid var(--line-soft, var(--border)); vertical-align: top; }
+  .mv-table th { white-space: nowrap; }
+  .mv-table td { max-width: 260px; overflow-wrap: anywhere; }
+  .mv-table .qi-del { min-width: 44px; min-height: 44px; }
+  .mobile-table-hint { display: block; margin: 4px 0 8px; font-size: 12px; color: var(--muted); }
+  #ops-busy { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom, 0px)); justify-content: center; }
+}

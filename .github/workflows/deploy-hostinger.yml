@@ -67,6 +67,7 @@ jobs:
             node "$UMANG_NODE_MODULES/playwright/cli.js" install chromium --only-shell
           fi
           node tests/operations_test.cjs
+          node tests/mobile_test.cjs
       - name: Test database backend with disposable MySQL
         env:
           UMANG_TEST_DB_HOST: 127.0.0.1
