@@ -65,6 +65,8 @@ def main():
     # Direct mutations cannot bypass the financial transaction engine.
     c.call('update',{'path':'vendor_payments','id':p1,'data':{'amount_cents':999999}},expected=403)
     c.call('delete',{'path':'work_orders','id':w2},expected=403)
+    put('projects','p2',{'no':'P2','firm_id':'f1','status':'In Progress','outsource':'Yes','outsource_to':'','vendor_id':'v1'})
+    command('save_order',dict(order(['d9']),lines=[dict(kind='projects',source_id='p2',rate='50',gst_pct='0')]))
     # Document preparation permission does not grant cash/payment permission.
     import hashlib
     salt='0123456789abcdef0123456789abcdef';pw='WorkOrderEmployee123'

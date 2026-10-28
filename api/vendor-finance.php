@@ -33,7 +33,7 @@ function vfSource(array $ref): array {
     $job=$kind==='job_assign'?(document('jobs',(string)($r['job_id']??''))??[]):[];
     $pid=$kind==='projects'?$id:($r['project_id']??$job['project_id']??'');$p=$pid?(document('projects',(string)$pid)??[]):[];
     $leadId=$r['lead_id']??$p['lead_id']??'';$lead=$leadId?(document('leads',(string)$leadId)??[]):[];
-    $vendor=vfVendor((string)($kind==='projects'?($r['outsource_to']??$r['vendor_id']??''):($kind==='dispatches'?($r['party']??''):($r['vendor_id']??''))));
+    $vendor=vfVendor((string)($kind==='projects'?(($r['outsource_to']??'')?:($r['vendor_id']??'')):($kind==='dispatches'?($r['party']??''):($r['vendor_id']??''))));
     if(!$vendor||($kind==='dispatches'&&($r['mode_type']??'')!=='Outsource'))vfFail('Select a valid vendor on each outsourced task before preparing its Work Order.');
     $item=[];foreach($job['items']??[] as $it)if(($it['lid']??'')===($r['lid']??''))$item=$it;
     $itemMaster=!empty($item['item_id'])?(document('masters/items/rows',(string)$item['item_id'])??[]):[];
