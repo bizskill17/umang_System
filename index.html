@@ -3592,15 +3592,38 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     }
     return '<input id="' + id + '" name="' + id + '"' + lab + ' type="' + (f[2] === "num" ? "number" : "text") + '"' + (f[2] === "num" ? ' inputmode="decimal" step="any" min="0"' : ' placeholder="Enter item description"') + ' value="' + esc(val) + '" data-oninput="q-calc">';
   }
+  var quotePhotoURLs = new Map();
+  function quotePhotoURL(file) {
+    if (!quotePhotoURLs.has(file)) quotePhotoURLs.set(file, URL.createObjectURL(file));
+    return quotePhotoURLs.get(file);
+  }
+  window.addEventListener("beforeunload", function () { quotePhotoURLs.forEach(function (url) { URL.revokeObjectURL(url); }); });
+  function quotePhotoHtml(it, i) {
+    var photo = it.photo || (U.get(U.m("items"), it.item_id) || {}).photo;
+    var src = it.__photo ? quotePhotoURL(it.__photo) : photo && photo.id ? window.UmangBlobURL(photo.id) : "";
+    return '<td class="qc-photo"><div class="qi-photo-control">' +
+      '<img class="qi-photo-preview" alt="Quotation item photo"' + (src ? ' src="' + esc(src) + '"' : ' hidden') + '>' +
+      '<label class="qi-photo-upload"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h4l2-3h4l2 3h4v14H4z"/><circle cx="12" cy="12" r="4"/></svg><span>' + (src ? 'Replace Photo' : 'Upload Photo') + '</span>' +
+      '<input type="file" name="qi_photo_' + i + '" aria-label="Item photo" accept=".jpg,.jpeg,.png,.webp"></label>' +
+      '<span class="qi-photo-name">' + esc(it.__photo ? it.__photo.name : photo && photo.name || '') + '</span></div></td>';
+  }
+  document.addEventListener("change", function (event) {
+    var input = event.target;
+    if (!input.matches('#qi-wrap input[type="file"]') || !input.files[0]) return;
+    var box = input.closest('.qi-photo-control'), img = box.querySelector('img');
+    img.src = quotePhotoURL(input.files[0]); img.hidden = false;
+    box.querySelector('.qi-photo-upload span').textContent = 'Replace Photo';
+    box.querySelector('.qi-photo-name').textContent = input.files[0].name;
+  });
   function itemsHtml(v) {
     var items = v.items && v.items.length ? v.items : [{}];
     var opts = {}; ["item_id", "uom", "gst_pct"].forEach(function (k) { opts[k] = selOpts(k); });
     var F = {}; IF.forEach(function (f) { F[f[0]] = f; });
     var h = '<div class="qi-wrap" id="qi-wrap"><div class="qi-head"><span class="mf-legend">Quotation Items <span class="req" aria-hidden="true">*</span></span><button type="button" class="mv-btn ghost sm" data-a="q-add-row">＋ Add Item</button></div>';
-    h += '<div class="mv-table-wrap qi-table-wrap"><table class="mv-table qi-table"><thead><tr><th>Particulars</th><th>Photo</th><th>Description</th><th>Width</th><th>Height</th><th>Quantity</th><th>Unit <span class="req">*</span></th><th>Area (Sq. Ft)</th><th>Rate</th><th>Before GST</th><th>GST %</th><th>GST</th><th>After GST</th><th>Action</th></tr></thead><tbody>';
+    h += '<div class="mv-table-wrap qi-table-wrap"><table class="mv-table qi-table"><thead><tr><th>Particulars</th><th>Photo</th><th>Description</th><th>Width</th><th>Height</th><th>Quantity</th><th>Unit <span class="req">*</span></th><th>Area (Sq. Ft)</th><th>Rate</th><th>Before GST</th><th>GST %</th><th>GST</th><th>After GST</th><th>Actions</th></tr></thead><tbody>';
     items.forEach(function (it, i) {
       var c = calc(it), cell = function (k) { return '<td class="qc-' + k + '">' + cellIn(F[k], i, it[k] == null ? "" : it[k], opts[k] || []) + "</td>"; };
-      h += '<tr class="qi-tr" data-i="' + i + '">' + cell("item_id") + '<td>' + U.fileLink(it.photo || (U.get(U.m("items"), it.item_id) || {}).photo, "Photo") + '<input type="file" name="qi_photo_' + i + '" aria-label="Item photo" accept=".jpg,.jpeg,.png,.webp">' + (it.__photo ? '<span class="mf-hint">' + esc(it.__photo.name) + '</span>' : '') + '</td>' + cell("description") + cell("width") + cell("height") + cell("qty") + cell("uom") +
+      h += '<tr class="qi-tr" data-i="' + i + '">' + cell("item_id") + quotePhotoHtml(it, i) + cell("description") + cell("width") + cell("height") + cell("qty") + cell("uom") +
         '<td class="qc-out"><output id="qo_area_' + i + '">' + (c.area === "" ? "—" : U.num(c.area)) + "</output></td>" + cell("rate") +
         '<td class="qc-out"><output id="qo_base_' + i + '">' + U.num(c.base) + "</output></td>" + cell("gst_pct") +
         '<td class="qc-out"><output id="qo_gst_' + i + '">' + U.num(c.gst) + '</output></td><td class="qc-out"><output id="qo_amt_' + i + '"><b>' + U.num(c.amount) + "</b></output></td>" +
@@ -5382,3 +5405,5 @@ document.addEventListener("keydown", function (e) {
 <link rel="stylesheet" href="assets/master-controls.css?v=20261028">
 
 <link rel="stylesheet" href="assets/export-controls.css?v=20261028-position">
+
+<link rel="stylesheet" href="assets/quotation-photo.css?v=20261028">

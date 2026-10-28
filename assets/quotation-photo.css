@@ -1,0 +1,16 @@
+/* Quotation item photo and action controls. */
+#qi-wrap .qc-photo { min-width: 150px; width: 150px; }
+.qi-photo-control { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 136px; padding: 4px 0; }
+.qi-photo-preview { width: 112px; height: 76px; object-fit: contain; border: 1px solid var(--border); border-radius: 7px; background: white; }
+.qi-photo-preview[hidden] { display: none; }
+.qi-photo-upload { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 64px; width: 100%; box-sizing: border-box; padding: 8px; border: 1px dashed #9bb5ff; border-radius: 8px; color: #245be3; background: #f4f7ff; cursor: pointer; font-size: 12px; }
+.qi-photo-preview:not([hidden]) + .qi-photo-upload { min-height: 44px; flex-direction: row; padding: 6px; }
+.qi-photo-upload:hover { background: #e9efff; }
+.qi-photo-upload:focus-within { outline: 3px solid #245be3; outline-offset: 2px; }
+.mv-form .qi-table .qi-photo-upload input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; opacity: 0; cursor: pointer; padding: 0; }
+.qi-photo-name { max-width: 136px; overflow-wrap: anywhere; color: var(--muted); font-size: 11px; text-align: center; }
+#qi-wrap .qc-act { min-width: 64px; }
+#qi-wrap .qi-del { width: 44px; height: 44px; margin: auto; border: 1px solid #e11927; background: #fff0f1; color: #e00018 !important; border-color: #e11927 !important; }
+#qi-wrap .qi-del svg { width: 21px; height: 21px; }
+#qi-wrap .qi-del:hover:not(:disabled) { background: #ffdade !important; color: #c40015 !important; }
+#qi-wrap .qi-del:disabled { opacity: 1; color: #ba6570 !important; border-color: #e4b4ba !important; background: #fff5f6; cursor: not-allowed; }
