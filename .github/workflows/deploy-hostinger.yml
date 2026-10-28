@@ -10,6 +10,7 @@ on:
       - .user.ini
       - tests/backend_test.py
       - tests/check-js.cjs
+      - tests/operations_test.cjs
       - tests/adapter_test.cjs
       - .github/workflows/deploy-hostinger.yml
   pull_request:
