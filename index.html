@@ -1705,7 +1705,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     });
     h += '<button type="button" class="mv-btn ghost" data-act="clear-f">Clear</button>';
     if (!ro && !editing) h += '<button type="button" class="mv-btn primary master-add" data-act="add" title="Add ' + esc(def.one) + '" aria-label="Add ' + esc(def.one) + '">+ Add</button>';
-    h += '<button type="button" class="master-icon master-excel" data-ops="excel" data-master-export="1" title="Download Excel" aria-label="Download Excel"' + (!loaded || !shown.length ? ' disabled' : '') + '><svg width="23" height="23" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H9" fill="#e7f4ec" stroke="#168047" stroke-width="1.5"/><path d="M13 7h6M13 11h6M13 15h6M16 6v12" stroke="#168047" stroke-width="1.2"/><path d="M2 6l10-2v16L2 18z" fill="#168047"/><path d="M5 9l4 6M9 9l-4 6" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg></button>';
+    h += '<button type="button" class="master-icon master-excel app-excel" data-ops="excel" data-master-export="1" title="Download Excel" aria-label="Download Excel"' + (!loaded || !shown.length ? ' disabled' : '') + '><svg width="23" height="23" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H9" fill="#e7f4ec" stroke="#168047" stroke-width="1.5"/><path d="M13 7h6M13 11h6M13 15h6M16 6v12" stroke="#168047" stroke-width="1.2"/><path d="M2 6l10-2v16L2 18z" fill="#168047"/><path d="M5 9l4 6M9 9l-4 6" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg></button>';
     h += "</div>";
     if (dbState === "ready" && loaded && !list.length) {
       h += '<div class="mv-empty"><p><b>No ' + esc(def.many.toLowerCase()) + " yet.</b></p><p>" + (ro ? "Entries appear here once someone with edit access adds them." : "Add the first one with “+ Add”.") + "</p></div>";
@@ -4770,7 +4770,6 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var wp = {}; U.rows("wastage").forEach(function (w) { if (w.project_id) wp[w.project_id] = 1; });
     return U.bar(st, [{ k: "wproj", label: "Project No.", first: "All", opts: Object.keys(wp).map(function (id) { return { id: id, name: proj(id).no || id }; }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name), undefined, { numeric: true }); }) },
       { k: "wperson", label: "Person Responsible", first: "All", opts: U.mact("users") }, { k: "dept", label: "Department", first: "All Departments", opts: WDEPTS() }], true) +
-      (U.downloads && rows.length ? '<div><button type="button" class="mv-btn ghost" data-a="w-export">Download Excel (CSV)</button></div>' : "") +
       U.table([["Sl.", function (w, i) { return i + 1; }, "numcell"], ["Date", function (w) { return '<span class="nowrap">' + U.dmy(w.date) + "</span>"; }], ["Project No.", function (w) { return '<b class="nowrap">' + esc(proj(w.project_id).no) + "</b>"; }], ["Customer Name", function (w) { return esc(cust(proj(w.project_id))); }],
         ["Department", function (w) { return esc(w.department); }], ["Person Responsible", function (w) { return esc(U.user(w.person)); }], ["Entered By", function (w) { return esc(U.user(w.entered_by)); }], ["Remarks", function (w) { return esc(w.remarks).replace(/\n/g, "<br>"); }],
         ["Photo", function (w) { var f = w.photo; if (!f || !f.id) return ""; var img = /^image\//.test(f.type || "") || /\.(jpe?g|png|gif|webp)$/i.test(f.name || ""); return img ? '<a class="file-link w-thumb-link" href="' + esc(window.UmangBlobURL(f.id)) + '" data-blob="' + esc(f.id) + '" data-type="' + esc(f.type || "image/jpeg") + '" data-name="' + esc(f.name || "Photo") + '" aria-label="Open wastage photo"><img class="w-thumb" data-thumb="' + esc(f.id) + '" alt="Wastage photo"></a>' : U.fileLink(f, "Open"); }],
@@ -5373,7 +5372,7 @@ document.addEventListener("keydown", function (e) {
 
 
 <link rel="stylesheet" href="assets/operations.css?v=20261027">
-<script src="assets/operations.js?v=20261028masters"></script>
+<script src="assets/operations.js?v=20261028excel"></script>
 
 <link rel="stylesheet" href="assets/mobile.css?v=20261028a">
 
@@ -5381,3 +5380,5 @@ document.addEventListener("keydown", function (e) {
 <script src="assets/work-orders.js?v=20261028"></script>
 
 <link rel="stylesheet" href="assets/master-controls.css?v=20261028">
+
+<link rel="stylesheet" href="assets/export-controls.css?v=20261028">

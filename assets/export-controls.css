@@ -1,0 +1,9 @@
+/* One Excel export control for master lists, operational tables, reports and dialogs. */
+.app-excel { all: unset; box-sizing: border-box; display: inline-grid; place-items: center; flex: none; width: 42px; height: 42px; min-width: 42px; min-height: 42px; border: 1px solid var(--border, #d9e1e7); border-radius: 9px; background: #fff; color: #168047; cursor: pointer; vertical-align: middle; }
+.app-excel svg { display: block; pointer-events: none; }
+.app-excel:hover:not(:disabled) { background: #eaf7ef; }
+.app-excel:focus-visible { outline: 3px solid #168047; outline-offset: 2px; }
+.app-excel:disabled { opacity: .4; cursor: default; }
+.app-excel[aria-busy=true] { opacity: .55; cursor: progress; }
+.ops-table > .app-excel, .mv-table-wrap > .app-excel { margin: 6px 0 10px; }
+@media (max-width: 719px) { .app-excel { width: 44px; height: 44px; min-width: 44px; min-height: 44px; } }
