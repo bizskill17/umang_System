@@ -306,7 +306,7 @@ if ($action === 'blob') {
     header("Content-Security-Policy: sandbox"); session_write_close(); readfile($privateStorage . '/' . $id); exit;
 }
 $masters = ['firm','customers','vendors','customer-category','customer-subcategory','state','city','lead-category','lead-subcategory','lead-sources','send-mode','users','user-roles','designation','user-document-types','items','uom','gst','machines','delivery-modes','transporters','vehicles'];
-$collections = ['leads','quotations','quote_followups','projects','recce','recce_updates','designs','design_updates','jobs','job_assign','qc','dispatches','wastage','invoices','payments','complaints','complaint_updates','counters','access_requests'];
+$collections = ['leads','quotations','quote_followups','projects','recce','recce_updates','designs','design_updates','jobs','job_assign','qc','dispatches','wastage','invoices','payments','complaints','complaint_updates','counters','access_requests','work_orders','work_order_versions','vendor_payments','vendor_allocations','vendor_refunds','finance_events'];
 function validPath(string $p): bool {
     global $collections, $masters;
     return in_array($p, $collections, true) || (preg_match('#^masters/([a-z-]+)/rows$#', $p, $m) && in_array($m[1], $masters, true)) || (bool)preg_match('#^leads/[a-zA-Z0-9_-]{1,96}/followups$#', $p);
@@ -316,6 +316,8 @@ function shapeDoc(string $p, array $body): array {
     if ($p === 'masters/users/rows') { $body = safeUser($body); if (!canManageUsers()) $body = array_intersect_key($body, array_flip(['name','status','designation_id','signature'])); }
     return $body;
 }
+define('UMANG_VENDOR_FINANCE', true);
+require_once __DIR__ . '/vendor-finance.php';
 // One request (one connection, one query) returns several collections; keeps hosting connection limits low.
 if ($action === 'batch') {
     $paths = array_values(array_unique(array_filter(explode(',', (string)($_GET['paths'] ?? '')), 'validPath')));
@@ -340,6 +342,7 @@ if ($action === 'get') {
     $body = document($path, $id); if ($path === 'masters/users/rows' && $body) { $body = safeUser($body); if (!canManageUsers()) $body = array_intersect_key($body, array_flip(['name','status','designation_id','signature'])); }
     reply(['id' => $id, 'exists' => $body !== null, 'data' => $body]);
 }
+if (in_array($path, ['work_orders','work_order_versions','vendor_payments','vendor_allocations','vendor_refunds','finance_events'], true)) reject('Use the transactional vendor finance actions to change these records.', 403);
 if (!permittedWrite($path)) reject('You do not have permission to save here. Contact the administrator.', 403);
 if (!in_array($action, ['acquire','set','update','delete'], true)) reject('Unknown action.');
 if ($action === 'acquire') {

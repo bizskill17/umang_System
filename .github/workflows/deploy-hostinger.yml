@@ -51,10 +51,12 @@ jobs:
       - name: Check PHP and JavaScript
         run: |
           php -l api/index.php
+          php -l api/vendor-finance.php
           php -l config/database.example.php
           node tests/check-js.cjs
           node tests/adapter_test.cjs
           python3 tests/operations_backend_test.py
+          python3 tests/work_order_backend_test.py
       - name: Test application workflows in Chromium
         timeout-minutes: 3
         env:
@@ -68,6 +70,7 @@ jobs:
           fi
           node tests/operations_test.cjs
           node tests/mobile_test.cjs
+          node tests/work_order_ui_test.cjs
       - name: Test database backend with disposable MySQL
         env:
           UMANG_TEST_DB_HOST: 127.0.0.1

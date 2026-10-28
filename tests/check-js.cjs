@@ -7,6 +7,7 @@ for (const match of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
 }
 new vm.Script(fs.readFileSync('assets/hostinger.js', 'utf8'));
 new vm.Script(fs.readFileSync('assets/operations.js', 'utf8'));
+new vm.Script(fs.readFileSync('assets/work-orders.js', 'utf8'));
 if (!html.startsWith('<meta charset="utf-8">')) throw Error('Missing UTF-8 declaration');
 if (!html.includes('p.status === "In Progress" && sheetStatus(p) !== "Submitted"')) throw Error('Pending sheet filter regressed');
 console.log(`${count} inline scripts and Hostinger adapter parse successfully`);

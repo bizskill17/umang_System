@@ -1012,7 +1012,7 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
   <div class="scrim" id="scrim" hidden></div>
 </main>
 
-<script src="assets/hostinger.js?v=2026-10-26b"></script>
+<script src="assets/hostinger.js?v=2026-10-28wo"></script>
 <script>
 window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangServer.blobURL(id) : "/_blob/" + id; };
 </script>
@@ -1163,6 +1163,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   MENUS.masters = { name: "Master Data", start: "m-firm", items: [["label:Leads"]].concat(MENUS.leads.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; }),
     [["label:Projects"]], MENUS.projects.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; })) };
   MENUS.outsource = { name: "Outsource", start: "all", items: [["all", "All Outsource Tasks", "Outsourced work across all departments."], ["pending", "Pending Outsource Tasks", "Open outsourced work."], ["completed", "Completed Outsource Tasks", "Completed outsourced work."]] };
+  MENUS.outsource.items = MENUS.outsource.items.concat([["label:Work Orders"], ["pending-work-orders", "Pending Work Order", "Assigned vendor tasks awaiting an issued Work Order."], ["create-work-order", "Create Work Order", "Combine tasks for one vendor into a Work Order."], ["work-orders", "Work Order Master", "Issued documents, revisions, task progress and payment balances."], ["label:Vendor Payments"], ["vendor-payments", "Vendor Payments", "Record payments and distribute them across Work Orders."], ["advances", "Available Advances", "Unallocated vendor payments available for adjustment."], ["pending-payments", "Pending Payments", "Issued Work Orders with outstanding amounts."], ["vendor-ledger", "Vendor Ledger", "Vendor balances, allocations, refunds and audit history."]]);
   window.UmangMenus = MENUS;
   /* ---------- View permissions (same rules as the plugin) ---------- */
   function pkey(slug, key) { return key.indexOf("m-") === 0 ? "master:" + key : slug + "." + key; }
@@ -5367,6 +5368,9 @@ document.addEventListener("keydown", function (e) {
 
 
 <link rel="stylesheet" href="assets/operations.css?v=20261027">
-<script src="assets/operations.js?v=20261027"></script>
+<script src="assets/operations.js?v=20261028wo"></script>
 
 <link rel="stylesheet" href="assets/mobile.css?v=20261028a">
+
+<link rel="stylesheet" href="assets/work-orders.css?v=20261028">
+<script src="assets/work-orders.js?v=20261028"></script>

@@ -36,3 +36,13 @@ Table exports are real XLSX workbooks; the paginated Project Sheet view exports 
 Server validations cover required customer fields, follow-up remarks, uploaded screenshot proof, inherited source locks, master dependencies and duplicate quotation projects. A quotation-only permission permits project creation from successful quotations without granting general project editing.
 
 Run `python3 tests/operations_backend_test.py` for isolated SQLite validations. Run `node tests/operations_test.cjs` with Playwright and pdf-lib available via `UMANG_NODE_MODULES`; optionally set `UMANG_CHROMIUM` to a Chromium executable. CI runs these alongside the existing backend and adapter suites before deployment.
+
+## Vendor Work Orders and payments
+
+Outsource now includes Pending Work Order, combined Work Order creation, Work Order Master, Vendor Payments, Available Advances, Pending Payments and Vendor Ledger. Select tasks for one vendor and issuing firm. Rates are optional; any unpriced line leaves the order Value Pending and prevents payment allocation until a priced revision is issued. GST treatment and percentages are explicitly selected. Issued revision snapshots are retained separately from live task progress.
+
+`api/vendor-finance.php` handles the authenticated `workorder` command. It serialises vendor finance operations, uses integer paise, reserves issue numbers server-side, validates source assignments and enforces idempotent request references. Financial collections reject generic CRUD mutations. Payments can be split across orders and unallocated amounts remain advance; refunds consume advance. Cancellations and reversals release allocations without inventing cash movements. Cross-firm allocations are rejected. Backdated transaction dates are retained, while audit running balances follow posting order.
+
+Task records are not modified by document issue or settlement. Their views display linked issued Work Order numbers and PDFs. Source specification changes flag an issued order for review; revisions explicitly confirm any release of excess settlement to advance. Issued PDFs use revision snapshots; payment statements use current allocations. Download and manually confirmed sharing are tracked separately. Vendor bills and payment proofs can be attached.
+
+Additional checks: `python3 tests/work_order_backend_test.py` tests real isolated SQLite transactions, reversals and concurrent allocation attempts. `node tests/work_order_ui_test.cjs` runs Chromium against a temporary PHP server to test combined issue, PDFs, excess and part payments, advance adjustment, source links and mobile layout. Set `UMANG_PHP`, `UMANG_CHROMIUM` and `UMANG_NODE_MODULES` when using non-default runtimes.
