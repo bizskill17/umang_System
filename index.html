@@ -4169,7 +4169,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var cols = [PC.no, PC.date, PC.due, PC.cust, PC.owner, PC.ctrl,
       ["Sheet Status", function (p) { return U.pill(sheetStatus(p), "warn"); }],
       ["Documents", function (p) { var a = p.sheet_documents || []; return a.length ? a.length + " · " + U.fileLinks(a) : ""; }],
-      ["Action", function (p) { return U.btn("p-sheet", p.id, "Update Sheet", true) + ' <button type="button" class="mv-btn ghost sm" data-ops="project-sheet" data-id="' + esc(p.id) + '">Sheet PDF</button>'; }]];
+      ["Action", function (p) { return '<span class="ico-acts"><button type="button" class="mv-btn primary sm" data-a="p-sheet" data-id="' + esc(p.id) + '">Update Sheet</button><button type="button" class="mv-btn ghost sm" data-ops="project-sheet" data-id="' + esc(p.id) + '">Sheet PDF</button></span>'; }]];
     cols[0] = ["Project No.", function (p) { return '<button type="button" class="link-no" data-a="p-view" data-id="' + esc(p.id) + '">' + esc(p.no) + '</button>'; }];
     return U.bar(st, [{k:"owner",label:"Project Owner",first:"All Owners",opts:USERS()}, {k:"controller",label:"Project Controller",first:"All Controllers",opts:USERS()}], true) + U.table(cols, rows.slice((page-1)*20,page*20), null, "No pending project sheets.", rows) + U.count(rows.length,"project") + (pages > 1 ? '<div class="mv-actions">' + (page>1 ? '<button type="button" class="mv-btn ghost sm" data-a="sheet-page" data-id="' + (page-1) + '">Previous</button>'  : '') + '<span>Page ' + page + ' of ' + pages + '</span>' + (page<pages ? '<button type="button" class="mv-btn ghost sm" data-a="sheet-page" data-id="' + (page+1) + '">Next</button>'  : '') + '</div>' : '');
   });
@@ -4244,7 +4244,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var h = "", s = projState(p), open = p.status === "In Progress";
     if (open && view === "ip") { h += pIco("recce", "p-recce", p.id, "Assign Recce") + pIco("design", "p-design", p.id, "Assign Design") + pIco("job", "p-job", p.id, "Add Job"); if (s.jobs && s.pending_delivery > 0 && dlines(p.id).length) h += pIco("truck", "p-deliver", p.id, "Update Delivery"); }
     if (open && s.jobs && !s.active && s.pending_delivery <= 0) h += pIco("done", "p-complete", p.id, "Complete Project");
-    if (p.status !== "Canceled") h += pIco("edit", "p-edit", p.id, "Edit") + U.btn("p-sheet", p.id, "Update Sheet") + (view === "ip" ? '<button type="button" class="mv-btn ghost sm" data-ops="project-sheet" data-id="' + esc(p.id) + '">Sheet PDF</button>' : "");
+    if (p.status !== "Canceled") h += pIco("edit", "p-edit", p.id, "Edit") + (view === "ip" ? '<span class="ico-acts"><button type="button" class="mv-btn primary sm" data-a="p-sheet" data-id="' + esc(p.id) + '">Update Sheet</button><button type="button" class="mv-btn ghost sm" data-ops="project-sheet" data-id="' + esc(p.id) + '">Sheet PDF</button></span>' : U.btn("p-sheet", p.id, "Update Sheet"));
     if (open && view === "master") h += pIco("cancel", "p-cancel", p.id, "Cancel Project");
     return h ? '<span class="ico-acts">' + h + "</span>" : "";
   }
