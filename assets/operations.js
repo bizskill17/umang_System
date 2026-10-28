@@ -136,18 +136,25 @@
   function plain(html) {var div=document.createElement('div');div.innerHTML=String(html==null?'':html);div.querySelectorAll('input,select,svg').forEach(function(x){x.remove();});return div.textContent.trim();}
   function cellValue(value) {if(typeof value==='number')return value;var text=plain(value), ungroup=text.replace(/^₹\s*/,'').replace(/,/g,'');return /^-?\d+(\.\d+)?$/.test(ungroup)&&!/^0\d/.test(ungroup)?Number(ungroup):text;}
   U.excelIcon = '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H9" fill="#e7f4ec" stroke="#168047" stroke-width="1.5"/><path d="M13 7h6M13 11h6M13 15h6M16 6v12" stroke="#168047" stroke-width="1.2"/><path d="M2 6l10-2v16L2 18z" fill="#168047"/><path d="M5 9l4 6M9 9l-4 6" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg>';
-  U.excelButton = function () { return '<button type="button" class="app-excel ops-excel" data-ops="excel" title="Download Excel" aria-label="Download Excel">'+U.excelIcon+'</button>'; };
+  U.excelButton = function (id) { return '<button type="button" class="app-excel ops-excel" data-ops="excel"'+(id?' data-export-id="'+id+'"':'')+' title="Download Excel" aria-label="Download Excel">'+U.excelIcon+'</button>'; };
   var table=U.table, exports=new Map(), exportSeq=0;
   U.table=function(cols,rows,rowCls,empty,allRows){
     var h=table(cols,rows,rowCls,empty), id=String(++exportSeq), filtered=U.onlyRows(allRows||rows);
     var keep=cols.map(function(c,i){return /action/i.test(plain(c[0]))||c[2]==='act'? -1:i;}).filter(function(i){return i>=0;});
     exports.set(id,{cols:cols,rows:filtered,keep:keep});if(exports.size>120)exports.delete(exports.keys().next().value);
-    return '<div class="ops-table" data-export="'+id+'">'+U.excelButton()+h+'</div>';
+    return '<div class="ops-table" data-export="'+id+'">'+U.excelButton(id)+h+'</div>';
   };
-  async function exportTable(button) {
-    var owner=button.closest('[data-export]'), snapshot=owner&&exports.get(owner.dataset.export), rows;
+  var excelTables = new WeakMap(), excelGroups = new WeakMap();
+  function exportRows(button) {
+    var owner=button.closest('[data-export]'), snapshot=exports.get(button.dataset.exportId||(owner&&owner.dataset.export)), rows;
     if(snapshot)rows=[snapshot.keep.map(function(i){return plain(snapshot.cols[i][0]);})].concat(snapshot.rows.map(function(r,index){return snapshot.keep.map(function(i){return cellValue(snapshot.cols[i][1](r,index));});}));
-    else {var wrap=button.parentElement,t=button.hasAttribute('data-master-export')?document.querySelector('#master-view table'):wrap.querySelector('table'),header=t.tHead&&t.tHead.rows[0],omit=[];if(header)Array.from(header.cells).forEach(function(c,i){if(/^actions?$/i.test(c.textContent.trim())||c.classList.contains('act'))omit.push(i);});rows=Array.from(t.rows).map(function(r){return Array.from(r.cells).filter(function(c,i){return omit.indexOf(i)<0&&!c.classList.contains('act');}).map(function(c){return cellValue(c.innerHTML);});});}
+    else {var wrap=button.parentElement,t=excelTables.get(button)||(button.hasAttribute('data-master-export')?document.querySelector('#master-view table'):wrap.querySelector('table')),header=t.tHead&&t.tHead.rows[0],omit=[];if(header)Array.from(header.cells).forEach(function(c,i){if(/^actions?$/i.test(c.textContent.trim())||c.classList.contains('act'))omit.push(i);});rows=Array.from(t.rows).map(function(r){return Array.from(r.cells).filter(function(c,i){return omit.indexOf(i)<0&&!c.classList.contains('act');}).map(function(c){return cellValue(c.innerHTML);});});}
+    return rows;
+  }
+  async function exportTable(button) {
+    var group=excelGroups.get(button), rows=[];
+    if(group)group.forEach(function(b,i){var t=excelTables.get(b),card=t&&t.closest('.ld-card,.dash-card'),label=card&&card.querySelector('h3,.ld-card-title');rows.push([label?label.textContent.trim():'Table '+(i+1)]);rows=rows.concat(exportRows(b),[[]]);});
+    else rows=exportRows(button);
     await U.saveBlob(U.xlsx(rows),(location.hash.slice(1)||'report').replace(/[^\w.-]/g,'-')+'.xlsx');
   }
 
@@ -229,9 +236,26 @@
 
   // Add UI controls to legacy tables and dialogs, which predate U.table.
   var queued=false;
+  function positionExcel() {
+    var title=document.getElementById('page-title'),head=title.closest('.export-title-row');
+    if(!head){head=document.createElement('div');head.className='export-title-row';title.before(head);head.appendChild(title);}
+    var roots=['master-view','leads-live','mod-live'].map(function(id){return document.getElementById(id);}),root=roots.find(function(r){return !r.hidden&&r.offsetParent!==null;});
+    head.querySelectorAll('[data-ops="excel"]').forEach(function(b){var members=excelGroups.get(b)||[b];if(!root||b.dataset.exportRoot!==root.id||members.some(function(m){var t=excelTables.get(m);return t?!t.isConnected:!m._excelHost||!m._excelHost.isConnected;}))b.remove();});
+    if(!root)return;
+    var icons=Array.from(root.querySelectorAll('[data-ops="excel"]:not([data-excel-group])')).concat(Array.from(head.querySelectorAll('[data-ops="excel"]:not([data-excel-group])')));
+    icons.forEach(function(b){var owner=b.closest('[data-export]'),t=excelTables.get(b)||(owner?owner.querySelector('table'):b.hasAttribute('data-master-export')?root.querySelector('table'):null);if(t)excelTables.set(b,t);b._excelHost=b._excelHost||b.parentElement;b.dataset.exportRoot=root.id;});
+    var previous=root.querySelector('[data-excel-group]')||head.querySelector('[data-excel-group]'),button;
+    if(icons.length>1){button=previous||document.createRange().createContextualFragment(U.excelButton()).firstElementChild;button.dataset.excelGroup='1';button.dataset.exportRoot=root.id;button.title='Download Excel — all tables in this view';button.setAttribute('aria-label','Download Excel — all tables in this view');excelGroups.set(button,icons);icons.forEach(function(b){b.hidden=true;});}
+    else {if(previous)previous.remove();button=icons[0];if(button)button.hidden=false;}
+    if(!button)return;
+    var invoice=location.hash.slice(1).split('.')[0]==='invoices',filter=root.querySelector('.mv-bar .mv-ficon');
+    if(!invoice&&filter){if(filter.nextElementSibling!==button)filter.after(button);}
+    else if(button.parentElement!==head)head.appendChild(button);
+  }
   function enhance(){queued=false;navigation();
     document.querySelectorAll('.mv-table-wrap').forEach(function(w){if(w.dataset.mobileScroll)return;w.dataset.mobileScroll='1';w.setAttribute('tabindex','0');w.setAttribute('role','region');w.setAttribute('aria-label','Scrollable data table');var hint=document.createElement('p');hint.className='mobile-table-hint';hint.textContent='Swipe the table sideways to view all columns.';w.before(hint);});
-    document.querySelectorAll('table.mv-table').forEach(function(t){if(t.closest('#master-view')||t.closest('#qi-wrap')||t.closest('#u-pform')||t.closest('[data-export]')||t.dataset.opsExport)return;t.dataset.opsExport='1';var holder=document.createElement('div');holder.innerHTML=U.excelButton();t.parentElement.prepend(holder.firstElementChild);});
+    document.querySelectorAll('table.mv-table').forEach(function(t){if(t.closest('#master-view')||t.closest('#qi-wrap')||t.closest('#u-pform')||t.closest('[data-export]')||t.dataset.opsExport)return;t.dataset.opsExport='1';var holder=document.createElement('div');holder.innerHTML=U.excelButton();var b=holder.firstElementChild;excelTables.set(b,t);t.parentElement.prepend(b);});
+    positionExcel();
     document.querySelectorAll('select').forEach(function(sel){if(sel.closest('#u-modal')||sel.disabled||!(/customer_id$/.test(sel.name||sel.id)||/cust|customer/.test(sel.name||sel.dataset.uf||sel.id)&&Array.from(sel.options).some(function(o){return U.mrows('customers').some(function(c){return c.id===o.value;});})))return;if(sel.dataset.opsPlus)return;sel.dataset.opsPlus='1';var parent=sel,ss=sel._ssBtn,wrap=document.createElement('div');wrap.className='sel-add';parent.before(wrap);wrap.append(parent);if(ss)wrap.append(ss);var b=document.createElement('button');b.type='button';b.className='sel-plus';b.textContent='+';b.title='Add Customer';b.setAttribute('aria-label','Add Customer');b.dataset.ops='customer';b.dataset.select=sel.id;wrap.append(b);});
     document.querySelectorAll('[data-a="p-view"]').forEach(function(b){if(b.closest('#u-modal')||b.parentElement.querySelector('[data-ops="project-sheet"]'))return;b.after(makeButton('project-sheet',b.dataset.id,'Sheet PDF'));});
     document.querySelectorAll('[data-a="j-view"]').forEach(function(b){if(b.parentElement.querySelector('[data-ops="job-pdf"]'))return;b.after(makeButton('job-pdf',b.dataset.id,'Job PDF'));});

@@ -7,3 +7,8 @@
 .app-excel[aria-busy=true] { opacity: .55; cursor: progress; }
 .ops-table > .app-excel, .mv-table-wrap > .app-excel { margin: 6px 0 10px; }
 @media (max-width: 719px) { .app-excel { width: 44px; height: 44px; min-width: 44px; min-height: 44px; } }
+
+.export-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.export-title-row h1 { flex: 1; min-width: 0; margin: 0; }
+.export-title-row > .app-excel, .mv-bar > .app-excel { margin: 0; }
+.app-excel[hidden] { display: none !important; }
