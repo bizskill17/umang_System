@@ -1,0 +1,20 @@
+/* Shared master toolbar and record actions. */
+#master-view .master-icon { all: unset; box-sizing: border-box; display: inline-grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 9px; cursor: pointer; transition: background .15s; }
+#master-view .master-icon svg { display: block; pointer-events: none; }
+#master-view .master-icon:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+#master-view .master-icon:disabled { opacity: .4; cursor: default; }
+#master-view .master-edit { color: #1d4ed8; background: #e0ebff; }
+#master-view .master-edit:hover { background: #cadcff; }
+#master-view .master-delete { color: #dc2626; background: #fee2e2; }
+#master-view .master-delete:hover { background: #fecaca; }
+#master-view .master-excel { width: 42px; height: 42px; background: #fff; border: 1px solid var(--border); color: #168047; }
+#master-view .master-excel:hover:not(:disabled) { background: #eaf7ef; }
+#master-view .master-action-icons { display: inline-flex; gap: 10px; align-items: center; justify-content: center; white-space: nowrap; }
+#master-view .master-actions, #master-view .master-actions-head { text-align: center; width: 112px; min-width: 112px; vertical-align: middle; }
+#master-view .master-add { flex: none; white-space: nowrap; }
+@media (max-width: 719px) {
+  #master-view .master-icon { min-width: 44px; min-height: 44px; }
+  #master-view .master-add { min-height: 44px; }
+  #master-view .mv-bar .mv-search { flex-basis: calc(100% - 116px); }
+}
+@media (prefers-reduced-motion: reduce) { #master-view .master-icon { transition: none; } }
