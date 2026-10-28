@@ -2161,7 +2161,6 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (act && !(Number(l.estimate) > 0)) h += icoBtn("est", "q-est", l.id, "Update Estimate");
     if (act) h += icoBtn("recce", "add-recce", l.id, asg ? "Add Recce" : "Assign someone before adding Recce", !asg);
     if (act) h += icoBtn("design", "add-design", l.id, asg ? "Add Design" : "Assign someone before adding Design", !asg);
-    if (act) h += icoBtn("quote", "assign-q", l.id, !asg ? "Assign someone before assigning Quotation" : hasQ ? "Quotation already assigned" : "Assign Quotation", !asg || hasQ);
     return h;
   }
   function C_ACT() {
