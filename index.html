@@ -3509,7 +3509,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   }
   U.page("design.in-progress", function () {
     return designList(function (d) { return d.status === "In Progress"; }, ["no", "who", "count", "comp", "can", "pend", "appr", "lead", "proj", "cust", "due", "ppt", "doc"],
-      function (d) { return '<span class="row-acts">' + '<button type="button" class="ico-act" data-a="design-history" data-id="' + esc(d.id) + '" title="View design" aria-label="View design">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>' + U.btn("design-update", d.id, "Update", true) + U.btn("design-edit", d.id, "Edit") + "</span>"; });
+      function (d) { return '<span class="row-acts">' + '<button type="button" class="ico-act design-view" data-a="design-history" data-id="' + esc(d.id) + '" title="View design" aria-label="View design">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>' + U.btn("design-update", d.id, "Update", true) + U.btn("design-edit", d.id, "Edit") + "</span>"; });
   });
   U.page("design.client-approval", function () {
     return designList(function (d) { return d.status !== "Canceled" && dAppPending(d) > 0; }, ["no", "who", "count", "comp", "appr", "papp", "lead", "proj", "cust", "ppt"],
