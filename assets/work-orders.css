@@ -2,5 +2,9 @@
 .wo-preview{display:flex;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px}.wo-preview b{flex-basis:100%}
 
 .wo-pick-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 6px 0 10px; }
-.wo-pick-n { color: var(--muted, #667); font-size: 13px; }
+.wo-pick-n { color: #fff; font-size: 13px; font-weight: 600; opacity: .9; }
 .mv-table input.wo-pick, .mv-table input.wo-pick-all { width: 18px; height: 18px; cursor: pointer; }
+
+.wo-vgroup { margin: 0 0 18px; }
+.wo-vhead { margin: 14px 0 8px; font-size: 16px; font-weight: 700; color: #fff; display: flex; align-items: baseline; gap: 8px; }
+.wo-vhead span { font-size: 13px; font-weight: 600; opacity: .85; }
