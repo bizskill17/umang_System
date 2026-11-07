@@ -1,2 +1,6 @@
 .wo-lines input[type=number]{min-width:105px;max-width:130px}.wo-lines input:not([type=checkbox]){min-height:40px}.wo-lines input[type=checkbox]{width:20px;min-height:20px;accent-color:var(--c)}.wo-preview{padding:8px 0}.wo-lines td:nth-child(3){min-width:220px;white-space:normal}.wo-lines td:last-child input{min-width:180px}#u-modal .mv-table-wrap{min-width:0;max-width:100%}@media(max-width:719px){.wo-lines input:not([type=checkbox]){font-size:16px;min-height:44px}}
 .wo-preview{display:flex;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px}.wo-preview b{flex-basis:100%}
+
+.wo-pick-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 6px 0 10px; }
+.wo-pick-n { color: var(--muted, #667); font-size: 13px; }
+.mv-table input.wo-pick, .mv-table input.wo-pick-all { width: 18px; height: 18px; cursor: pointer; }
