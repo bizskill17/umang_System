@@ -77,8 +77,8 @@ function vfRelease(string $wid,string $reason,int $release=PHP_INT_MAX): void {
 if($action==='workorder'){
     $command=(string)($input['command']??'');$vendor=(string)($input['vendor_id']??'');$firm=(string)($input['firm_id']??'');$request=(string)($input['request_id']??'');
     if(!preg_match('/^[a-zA-Z0-9_-]{16,96}$/',$request))reject('A unique request reference is required.');
-    $allowed=$user['allowed_views']??null;$isOrder=in_array($command,['save_order','cancel_order','mark_shared','download'],true);
-    $views=$isOrder?['outsource.pending-work-orders','outsource.work-orders','outsource.create-work-order','outsource.make-department','outsource.make-vendor','outsource.track-department','outsource.track-vendor']:['outsource.vendor-payments','outsource.advances','outsource.pending-payments','outsource.vendor-ledger','outsource.pay-vendors'];
+    $allowed=$user['allowed_views']??null;$isOrder=in_array($command,['save_order','cancel_order','mark_shared','download','record_bill'],true);
+    $views=$isOrder?['outsource.pending-work-orders','outsource.work-orders','outsource.create-work-order','outsource.make-department','outsource.make-vendor','outsource.track-department','outsource.track-vendor','outsource.invoice-department','outsource.invoice-vendor']:['outsource.vendor-payments','outsource.advances','outsource.pending-payments','outsource.vendor-ledger','outsource.pay-vendors'];
     if(empty($user['owner'])&&is_array($allowed)&&!array_intersect($views,$allowed))reject('You do not have permission for this Work Order or payment action.',403);
     if(!document('masters/vendors/rows',$vendor)||!document('masters/firm/rows',$firm))reject('Choose a valid vendor and issuing firm.');
     txBegin();
@@ -109,6 +109,14 @@ if($action==='workorder'){
       $w=document('work_orders',$id,true);if(!$w||!vfScope($w,$vendor,$firm))vfFail('Work Order not found for this vendor and firm.');
       if($command==='cancel_order'){if(!trim((string)($input['reason']??'')))vfFail('Enter the cancellation reason.');vfRelease($id,'Work Order cancelled');$w['status']='Cancelled';$w['cancel_reason']=$input['reason'];$w['cancelled_at']=$now;}
       elseif($command==='mark_shared'){if($w['status']!=='Issued')vfFail('Issue the Work Order before marking it shared.');$w['shared_at']=$now;$w['shared_by']=$actor;}else{$w['last_downloaded_at']=$now;$w['download_count']=(int)($w['download_count']??0)+1;}
+      vfPut('work_orders',$id,$w);$result['id']=$id;
+    }elseif($command==='record_bill'){
+      // The vendor's invoice against an issued Work Order. Recorded on the order itself; it does not create a revision.
+      $w=document('work_orders',$id,true);if(!$w||!vfScope($w,$vendor,$firm))vfFail('Work Order not found for this vendor and firm.');if($w['status']!=='Issued')vfFail('Record a vendor invoice only against an issued Work Order.');
+      $billNo=trim((string)($input['bill_reference']??''));if($billNo===''||mb_strlen($billNo)>80)vfFail('Enter the vendor invoice number.');
+      $w['bill_reference']=$billNo;$w['bill_date']=vfDate($input['bill_date']??'');$w['bill_amount_cents']=($input['bill_amount']??'')===''?null:vfMoney($input['bill_amount']);
+      $w['due_date']=empty($input['due_date'])?'':vfDate($input['due_date']);if($w['due_date']!==''&&$w['due_date']<$w['bill_date'])vfFail('Payment due date cannot be before the invoice date.');
+      $w['bill_document']=vfAttachment($input['bill_document']??null);$w['bill_remarks']=trim((string)($input['remarks']??''));$w['bill_recorded_at']=$now;$w['bill_recorded_by']=$actor;
       vfPut('work_orders',$id,$w);$result['id']=$id;
     }elseif($command==='payment'){
       $amount=vfMoney($input['amount']??'');if($amount<=0)vfFail('Payment amount must be greater than zero.');
