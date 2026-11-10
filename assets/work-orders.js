@@ -82,7 +82,7 @@ function projOpts(ids){return uniq(ids).map(function(id){return{id:id,name:U.pro
 function openTask(t){return t.status!=='Completed'&&t.status!=='Canceled'&&t.status!=='Approved';}
 function tabBar(tabs,cur,label){return '<div class="os-tabs" role="tablist" aria-label="'+E(label)+'">'+tabs.map(function(t){var on=t.id===cur;return '<button type="button" role="tab" aria-selected="'+on+'" class="os-tab'+(on?' on':'')+(t.n?'':' zero')+'" data-a="os-tab" data-id="'+E(t.id)+'">'+E(t.name)+'<span class="os-n">'+t.n+'</span></button>';}).join('')+'</div>';}
 function buildTabs(byDept,rows,keyOf,st){var counts={};rows.forEach(function(r){var k=keyOf(r)||'';counts[k]=(counts[k]||0)+1;});var tabs=[{id:'',name:byDept?'All departments':'All vendors',n:rows.length}];
- if(byDept)DEPTS.concat(Object.keys(counts).filter(function(d){return DEPTS.indexOf(d)<0;})).forEach(function(d){tabs.push({id:d,name:d||'Other',n:counts[d]||0});});
+ if(byDept)DEPTS.concat(Object.keys(counts).filter(function(d){return DEPTS.indexOf(d)<0;})).forEach(function(d){if(counts[d]||d===st.tab)tabs.push({id:d,name:d||'Other',n:counts[d]||0});});
  else{Object.keys(counts).sort(function(a,b){return vname(a).localeCompare(vname(b));}).forEach(function(v){tabs.push({id:v,name:vname(v),n:counts[v]});});if(st.tab&&!counts[st.tab]&&U.nm('vendors',st.tab))tabs.push({id:st.tab,name:vname(st.tab),n:0});}
  if(st.tab&&!tabs.some(function(t){return t.id===st.tab;}))st.tab='';return tabs;}
 function dimFilter(byDept){return byDept?{k:'vendor',label:'Vendor',first:'All vendors',opts:U.mact('vendors')}:{k:'department',label:'Department',first:'All departments',opts:DEPTS.map(function(x){return{id:x,name:x};})};}

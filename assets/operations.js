@@ -211,7 +211,7 @@
     var open=outsourceRows().filter(function(r){return active(r)&&U.match(st,[r.source,r.no,r.remarks,vname(r.vendor),U.nm('customers',r.customer_id)].join(' '),r.date);});
     var counts={};open.forEach(function(r){var k=r[key]||'';counts[k]=(counts[k]||0)+1;});
     var tabs=[{id:'',name:kind==='department'?'All departments':'All vendors',n:open.length}];
-    if(kind==='department'){OS_DEPTS.concat(Object.keys(counts).filter(function(d){return OS_DEPTS.indexOf(d)===-1;})).forEach(function(d){tabs.push({id:d,name:d||'Other',n:counts[d]||0});});}
+    if(kind==='department'){OS_DEPTS.concat(Object.keys(counts).filter(function(d){return OS_DEPTS.indexOf(d)===-1;})).forEach(function(d){if(counts[d]||d===st.tab)tabs.push({id:d,name:d||'Other',n:counts[d]||0});});}
     else Object.keys(counts).sort(function(a,b){return vname(a).localeCompare(vname(b));}).forEach(function(v){tabs.push({id:v,name:vname(v),n:counts[v]});});
     if(st.tab&&!tabs.some(function(t){return t.id===st.tab;}))st.tab='';
     var cur=st.tab||'',rows=open.filter(function(r){return!cur||(r[key]||'')===cur;});
