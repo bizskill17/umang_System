@@ -38,3 +38,9 @@
 .wo-gline .wo-gcreate[hidden]{display:none}
 .wo-make-hint{margin:6px 2px 0;font-size:12px;color:#eef4ff}
 @media(max-width:600px){.wo-gline{position:sticky;left:8px;max-width:calc(100vw - 72px)}.wo-make .os-tabs{width:auto}}
+
+/* Material Issue */
+.mi-h{margin:18px 0 8px;font-size:15px}
+.mi-table input{width:100%;min-width:90px;min-height:38px;box-sizing:border-box}.mi-table td:first-child input{min-width:200px}.mi-table .num{text-align:right;white-space:nowrap}
+.mi-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 4px}.mi-total{margin:0;font-size:15px}.mi-total b{font-size:17px;margin-left:6px}
+.mi-list{min-width:220px}.mi-list div{white-space:nowrap}.mi-list .dim{color:#5b6475}

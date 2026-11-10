@@ -78,7 +78,7 @@ if($action==='workorder'){
     $command=(string)($input['command']??'');$vendor=(string)($input['vendor_id']??'');$firm=(string)($input['firm_id']??'');$request=(string)($input['request_id']??'');
     if(!preg_match('/^[a-zA-Z0-9_-]{16,96}$/',$request))reject('A unique request reference is required.');
     $allowed=$user['allowed_views']??null;$isOrder=in_array($command,['save_order','cancel_order','mark_shared','download','record_bill'],true);
-    $views=$isOrder?['outsource.pending-work-orders','outsource.work-orders','outsource.create-work-order','outsource.make-department','outsource.make-vendor','outsource.track-department','outsource.track-vendor','outsource.invoice-department','outsource.invoice-vendor','outsource.fill-rate']:['outsource.vendor-payments','outsource.advances','outsource.pending-payments','outsource.vendor-ledger','outsource.pay-vendors'];
+    $views=$isOrder?['outsource.pending-work-orders','outsource.work-orders','outsource.create-work-order','outsource.make-department','outsource.make-vendor','outsource.track-department','outsource.track-vendor','outsource.invoice-department','outsource.invoice-vendor','outsource.fill-rate']:['outsource.vendor-payments','outsource.advances','outsource.pending-payments','outsource.vendor-ledger','outsource.pay-vendors','outsource.material-issue','outsource.issue-material'];
     if(empty($user['owner'])&&is_array($allowed)&&!array_intersect($views,$allowed))reject('You do not have permission for this Work Order or payment action.',403);
     if(!document('masters/vendors/rows',$vendor)||!document('masters/firm/rows',$firm))reject('Choose a valid vendor and issuing firm.');
     txBegin();
@@ -119,9 +119,21 @@ if($action==='workorder'){
       $w['bill_document']=vfAttachment($input['bill_document']??null);$w['bill_remarks']=trim((string)($input['remarks']??''));$w['bill_recorded_at']=$now;$w['bill_recorded_by']=$actor;
       vfPut('work_orders',$id,$w);$result['id']=$id;
     }elseif($command==='payment'){
-      $amount=vfMoney($input['amount']??'');if($amount<=0)vfFail('Payment amount must be greater than zero.');
-      $mode=trim((string)($input['mode']??''));$account=trim((string)($input['account']??''));if(!$mode||!$account)vfFail('Enter the payment mode and bank/cash account.');$id=bin2hex(random_bytes(16));$eventAmount=$amount;
-      vfPut('vendor_payments',$id,['vendor_id'=>$vendor,'firm_id'=>$firm,'date'=>$date,'amount_cents'=>$amount,'mode'=>$mode,'account'=>$account,'reference'=>trim((string)($input['reference']??'')),'remarks'=>trim((string)($input['remarks']??'')),'proof'=>vfAttachment($input['proof']??null),'status'=>'Active','createdAt'=>$now,'created_by'=>$actor]);
+      $mode=trim((string)($input['mode']??''));$materials=[];$project='';
+      if($mode==='Material'){
+        // Material issued to the vendor counts as a payment at its value; the server totals the items.
+        $amount=0;foreach((array)($input['materials']??[]) as $m){$name=trim((string)($m['name']??''));if($name==='')continue;if(mb_strlen($name)>120)vfFail('Material name is too long.');
+          $qty=(float)($m['qty']??0);if(!is_finite($qty)||$qty<=0)vfFail('Enter a quantity above zero for '.$name.'.');$rate=vfMoney($m['rate']??'');if($rate<=0)vfFail('Enter a rate above zero for '.$name.'.');
+          $line=(int)round($qty*$rate);$amount+=$line;$materials[]=['name'=>$name,'qty'=>round($qty,3),'unit'=>mb_substr(trim((string)($m['unit']??'')),0,20),'rate_cents'=>$rate,'amount_cents'=>$line];}
+        if(!$materials)vfFail('Add at least one material with quantity and rate.');if(count($materials)>50)vfFail('Too many material lines.');
+        $account=trim((string)($input['account']??''));if($account==='')$account='Material Issue';
+        $project=trim((string)($input['project_id']??''));if($project!==''&&!document('projects',$project))vfFail('Project not found.');
+      }else{$amount=vfMoney($input['amount']??'');$account=trim((string)($input['account']??''));}
+      if($amount<=0)vfFail('Payment amount must be greater than zero.');
+      if(!$mode||!$account)vfFail('Enter the payment mode and bank/cash account.');$id=bin2hex(random_bytes(16));$eventAmount=$amount;
+      $pay=['vendor_id'=>$vendor,'firm_id'=>$firm,'date'=>$date,'amount_cents'=>$amount,'mode'=>$mode,'account'=>$account,'reference'=>trim((string)($input['reference']??'')),'remarks'=>trim((string)($input['remarks']??'')),'proof'=>vfAttachment($input['proof']??null),'status'=>'Active','createdAt'=>$now,'created_by'=>$actor];
+      if($mode==='Material'){$pay['materials']=$materials;$pay['project_id']=$project;}
+      vfPut('vendor_payments',$id,$pay);
       $alloc=$input['allocations']??[];foreach($alloc as &$a)$a['payment_id']=$id;unset($a);vfAllocate($alloc,$vendor,$firm,$date,$actor);$result['id']=$id;
     }elseif($command==='allocate'){
       if(empty($input['allocations']))vfFail('Enter at least one allocation.');vfAllocate($input['allocations'],$vendor,$firm,$date,$actor);
