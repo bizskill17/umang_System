@@ -1164,7 +1164,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     [["label:Projects"]], MENUS.projects.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; })) };
   /* Outsource item: [key, menu title, description, depth, hidden, page title]. Hidden views stay reachable from buttons and links. */
   MENUS.outsource = { name: "Outsource", start: "make-department", items: [
-    ["label:Make Work Orders"], ["make-department", "Departmentwise", "Vendor tasks waiting for a Work Order, one tab per department.", 0, 0, "Make Work Orders – Departmentwise"], ["make-vendor", "Vendorwise", "Vendor tasks waiting for a Work Order, one tab per vendor.", 0, 0, "Make Work Orders – Vendorwise"],
+    ["label:Make Work Orders"], ["make-department", "Departmentwise", "Vendor tasks waiting for a Work Order, one tab per department.", 0, 0, "Make Work Orders – Departmentwise"], ["make-vendor", "Vendorwise", "Vendor tasks waiting for a Work Order, one tab per vendor.", 0, 0, "Make Work Orders – Vendorwise"], ["fill-rate", "Fill Rate", "Work Orders with tasks that have no rate yet. Fill the rates here.", 0, 0, "Fill Rate"],
     ["label:Pending Vendor Invoice"], ["invoice-department", "Departmentwise", "Issued Work Orders waiting for the vendor's invoice, one tab per department.", 0, 1, "Pending Vendor Invoice \u2013 Departmentwise"], ["invoice-vendor", "Vendorwise", "Issued Work Orders waiting for the vendor's invoice, one tab per vendor.", 0, 0, "Pending Vendor Invoice \u2013 Vendorwise"],
     ["label:Track Work Orders"], ["track-department", "Departmentwise", "Tasks on issued Work Orders with progress and payment, one tab per department.", 0, 0, "Track Work Orders – Departmentwise"], ["track-vendor", "Vendorwise", "Tasks on issued Work Orders with progress and payment, one tab per vendor.", 0, 0, "Track Work Orders – Vendorwise"],
     ["label:Vendor Payments"], ["pay-vendors", "Pay Vendors", "Vendor balances. Open a vendor to see the ledger, filter by project and pay."],
@@ -1173,7 +1173,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   /* Access to the reorganised Outsource views follows the views a user already had (old keys) or the new menu items. */
   var OS_ALIAS = (function () {
     var make = ["make-department", "make-vendor", "pending-work-orders", "create-work-order"], track = ["track-department", "track-vendor", "work-orders"], pay = ["pay-vendors", "vendor-payments", "pending-payments", "vendor-ledger", "advances"], tasks = ["all", "pending", "completed", "pending-department", "pending-vendor"];
-    return { "invoice-department": make.concat(track), "invoice-vendor": make.concat(track), "make-department": make.concat(["pending", "pending-department"]), "make-vendor": make.concat(["pending", "pending-vendor"]), "track-department": track.concat(["pending-work-orders", "all"]), "track-vendor": track.concat(["pending-work-orders", "all"]), "pay-vendors": pay, "create-work-order": make.concat(["work-orders"]), "pending-work-orders": make, all: tasks.concat(make, track), pending: tasks.concat(make), completed: tasks.concat(track), "pending-department": tasks.concat(make), "pending-vendor": tasks.concat(make), advances: pay, "pending-payments": pay, "vendor-ledger": pay };
+    return { "fill-rate": make.concat(track), "invoice-department": make.concat(track), "invoice-vendor": make.concat(track), "make-department": make.concat(["pending", "pending-department"]), "make-vendor": make.concat(["pending", "pending-vendor"]), "track-department": track.concat(["pending-work-orders", "all"]), "track-vendor": track.concat(["pending-work-orders", "all"]), "pay-vendors": pay, "create-work-order": make.concat(["work-orders"]), "pending-work-orders": make, all: tasks.concat(make, track), pending: tasks.concat(make), completed: tasks.concat(track), "pending-department": tasks.concat(make), "pending-vendor": tasks.concat(make), advances: pay, "pending-payments": pay, "vendor-ledger": pay };
   })();
   window.UmangMenus = MENUS;
   /* ---------- View permissions (same rules as the plugin) ---------- */
@@ -5416,8 +5416,8 @@ document.addEventListener("keydown", function (e) {
 
 <link rel="stylesheet" href="assets/mobile.css?v=20261028a">
 
-<link rel="stylesheet" href="assets/work-orders.css?v=20261110round">
-<script src="assets/work-orders.js?v=20261110round"></script>
+<link rel="stylesheet" href="assets/work-orders.css?v=20261110fill2">
+<script src="assets/work-orders.js?v=20261110fill"></script>
 
 <link rel="stylesheet" href="assets/master-controls.css?v=20261028">
 
