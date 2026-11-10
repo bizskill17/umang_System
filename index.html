@@ -864,6 +864,24 @@ html:has(body.in-module), html:has(body.on-home) { background: linear-gradient(1
 .bv-body img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; background: #fff; }
 .bv-body iframe { width: 100%; height: 100%; border: 0; border-radius: 8px; background: #fff; }
 .bv-msg { color: #fff; text-align: center; max-width: 420px; }
+
+/* Sidebar sections as coloured cards */
+.nav-sec { --sb: #c9f2e9; --sa: #0f766e; background: var(--sb); border-radius: 12px; padding: 6px 6px 6px; margin: 8px 0; box-shadow: 0 1px 3px rgba(15,23,42,.14); }
+.nav-sec.ns-1 { --sb: #ffe1c7; --sa: #b4410b; }
+.nav-sec.ns-2 { --sb: #e2dbff; --sa: #5b21b6; }
+.nav-sec.ns-3 { --sb: #fff2b3; --sa: #854d0e; }
+.nav-sec.ns-4 { --sb: #dbe4f0; --sa: #334155; }
+.nav-sec.ns-5 { --sb: #ffd6e7; --sa: #9d174d; }
+body.in-module .side .nav-sec .nav-label, .nav-sec .nav-label { color: var(--sa); padding: 6px 10px 4px; font-weight: 700; }
+body.in-module .side .nav-sec .nav-link, body.in-module .side .nav-sec .nav-group, .nav-sec .nav-link, .nav-sec .nav-group { color: #1e293b; }
+body.in-module .side .nav-sec .nav-link:hover, body.in-module .side .nav-sec .nav-group:hover { background: rgba(15,23,42,.07); }
+body.in-module .side .nav-sec .nav-link[aria-current="page"], .nav-sec .nav-link[aria-current="page"] { background: var(--sa); color: #fff; box-shadow: none; }
+body.in-module .side .nav-sec .nav-link:focus-visible, body.in-module .side .nav-sec .nav-group:focus-visible { outline-color: var(--sa); }
+body.in-module .side[class*="m-"] .nav-sec .nav-link .nav-count { background: rgba(15,23,42,.12); color: #1e293b; }
+body.in-module .side[class*="m-"] .nav-sec .nav-link[aria-current="page"] .nav-count { background: rgba(255,255,255,.28); color: #fff; }
+body.in-module .side .nav-sec .nav-sub { border-left-color: rgba(15,23,42,.2); }
+.nav-sec.grp { margin: 6px 0; }
+body.in-module .side .nav-sec.grp > ul > li > .nav-group { color: var(--sa); font-weight: 700; }
 </style>
 
 
@@ -1224,6 +1242,26 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var html = '<ul class="nav">';
     root.forEach(function (n) { html += n.label !== undefined ? '</ul><div class="nav-label">' + esc(n.label) + '</div><ul class="nav">' : li(n); });
     nav.innerHTML = (html + "</ul>").replace(/<ul class="nav"><\/ul>/g, "").replace(/<div class="nav-label">[^<]*<\/div>(?=<div class="nav-label">|$)/g, "");
+    // Each labelled section, and each top-level group, becomes its own coloured card.
+    var blocks = [], curB = null;
+    Array.prototype.slice.call(nav.children).forEach(function (el) {
+      if (el.classList.contains("nav-label")) { curB = { label: el, items: [] }; blocks.push(curB); return; }
+      Array.prototype.slice.call(el.children).forEach(function (li) {
+        var isGroup = li.firstElementChild && li.firstElementChild.classList.contains("nav-group");
+        if (isGroup) { blocks.push({ items: [li], group: true }); curB = null; return; }
+        if (!curB) { curB = { items: [] }; blocks.push(curB); }
+        curB.items.push(li);
+      });
+    });
+    nav.innerHTML = "";
+    var secN = 0;
+    blocks.forEach(function (bk) {
+      if (!bk.items.some(function (li) { return !li.hidden; })) return;
+      var sec = document.createElement("section"), ul = document.createElement("ul");
+      sec.className = "nav-sec ns-" + (secN++ % 6) + (bk.group ? " grp" : "");
+      if (bk.label) { sec.setAttribute("aria-label", bk.label.textContent); sec.appendChild(bk.label); }
+      ul.className = "nav"; bk.items.forEach(function (li) { ul.appendChild(li); }); sec.appendChild(ul); nav.appendChild(sec);
+    });
     nav.querySelectorAll("[data-group-toggle]").forEach(function (b) {
       b.addEventListener("click", function () { setGroup(b.getAttribute("data-group-toggle"), b.getAttribute("aria-expanded") !== "true"); });
     });
