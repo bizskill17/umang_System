@@ -202,6 +202,25 @@
   U.outsourceRows = outsourceRows;
   ['all','pending','completed'].forEach(function(view){U.page('outsource.'+view,function(){if(!U.base(['recce','designs','projects','job_assign','jobs','dispatches']))return U.loading;var st=U.st(),rows=outsourceRows().filter(function(r){return(view==='all'||(view==='pending'?active(r):r.status==='Completed'))&&(!st.vendor||r.vendor===st.vendor)&&(!st.department||r.source===st.department)&&U.match(st,[r.source,r.no,r.remarks,U.nm('vendors',r.vendor),U.nm('customers',r.customer_id)].join(' '),r.date);});return U.bar(st,[{k:'vendor',label:'Vendor',first:'All vendors',opts:U.mact('vendors')},{k:'department',label:'Department',first:'All departments',opts:['Recce','Design','Printing','Laser','Fabrication','Cutting','Project','Delivery'].map(function(x){return{id:x,name:x};})}],true)+U.table([['Department',function(r){return E(r.source);}],['Reference',function(r){return '<a href="#'+r.route+'">'+E(r.no)+'</a>';}],['Project',function(r){return E(U.projNo(r.project_id));}],['Customer',function(r){return E(U.nm('customers',r.customer_id));}],['Vendor',function(r){return E(U.nm('vendors',r.vendor)||r.vendor);}],['Assigned',function(r){return U.dmy(r.date);}],['Due',function(r){return U.dmy(r.due);}],['Status',function(r){return U.pill(r.status);}],['Overdue Days',function(r){return active(r)?daysLate(r.due):0;}],['Responsible',function(r){return E(U.user(r.owner));}],['Details',function(r){return E(r.remarks);}]],rows)+U.count(rows.length,'task');});});
 
+  // Pending outsourced work split into tabs: one per department, or one per vendor.
+  var OS_DEPTS=['Recce','Design','Printing','Laser','Fabrication','Cutting','Project'];
+  U.act('os-tab',function(id){U.st().tab=id||'';U.render();});
+  ['department','vendor'].forEach(function(kind){U.page('outsource.pending-'+kind,function(){
+    if(!U.base(['recce','designs','projects','job_assign','jobs','dispatches']))return U.loading;
+    var st=U.st(),key=kind==='department'?'source':'vendor',vname=function(v){return U.nm('vendors',v)||v||'No vendor';};
+    var open=outsourceRows().filter(function(r){return active(r)&&U.match(st,[r.source,r.no,r.remarks,vname(r.vendor),U.nm('customers',r.customer_id)].join(' '),r.date);});
+    var counts={};open.forEach(function(r){var k=r[key]||'';counts[k]=(counts[k]||0)+1;});
+    var tabs=[{id:'',name:kind==='department'?'All departments':'All vendors',n:open.length}];
+    if(kind==='department'){OS_DEPTS.concat(Object.keys(counts).filter(function(d){return OS_DEPTS.indexOf(d)===-1;})).forEach(function(d){tabs.push({id:d,name:d||'Other',n:counts[d]||0});});}
+    else Object.keys(counts).sort(function(a,b){return vname(a).localeCompare(vname(b));}).forEach(function(v){tabs.push({id:v,name:vname(v),n:counts[v]});});
+    if(st.tab&&!tabs.some(function(t){return t.id===st.tab;}))st.tab='';
+    var cur=st.tab||'',rows=open.filter(function(r){return!cur||(r[key]||'')===cur;});
+    var bar='<div class="os-tabs" role="tablist" aria-label="'+(kind==='department'?'Departments':'Vendors')+'">'+tabs.map(function(t){var on=t.id===cur;return '<button type="button" role="tab" aria-selected="'+on+'" class="os-tab'+(on?' on':'')+(t.n?'':' zero')+'" data-a="os-tab" data-id="'+E(t.id)+'">'+E(t.name)+'<span class="os-n">'+t.n+'</span></button>';}).join('')+'</div>';
+    var cols=[['Department',function(r){return E(r.source);}],['Reference',function(r){return '<a href="#'+r.route+'">'+E(r.no)+'</a>';}],['Project',function(r){return E(U.projNo(r.project_id));}],['Customer',function(r){return E(U.nm('customers',r.customer_id));}],['Vendor',function(r){return E(vname(r.vendor));}],['Assigned',function(r){return U.dmy(r.date);}],['Due',function(r){return U.dmy(r.due);}],['Status',function(r){return U.pill(r.status);}],['Overdue Days',function(r){return daysLate(r.due);}],['Responsible',function(r){return E(U.user(r.owner));}],['Details',function(r){return E(r.remarks);}]];
+    if(cur)cols=cols.filter(function(c){return c[0]!==(kind==='department'?'Department':'Vendor');});
+    return U.bar(st,[],true)+bar+U.table(cols,rows,null,cur?'No pending tasks for '+(kind==='department'?cur:vname(cur))+'.':'No pending outsourced tasks.')+U.count(rows.length,'task');
+  });});
+
   function daysLate(date){if(!date||date>=U.today())return 0;return Math.max(0,Math.floor((Date.parse(U.today()+'T00:00:00Z')-Date.parse(date.slice(0,10)+'T00:00:00Z'))/86400000));}
   U.opsLate=daysLate;
   // Dashboards share filters, actionable records, ageing and workload summaries.
