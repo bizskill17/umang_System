@@ -8,3 +8,5 @@
 .wo-vgroup { margin: 0 0 18px; }
 .wo-vhead { margin: 14px 0 8px; font-size: 16px; font-weight: 700; color: #fff; display: flex; align-items: baseline; gap: 8px; }
 .wo-vhead span { font-size: 13px; font-weight: 600; opacity: .85; }
+
+.wo-foot{display:flex;justify-content:flex-end;margin:12px 0 4px}.wo-gst{width:180px;margin:0}.wo-gst[hidden]{display:none!important}.wo-gst input{text-align:right}.wo-terms{margin-top:12px}
