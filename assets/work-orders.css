@@ -14,3 +14,4 @@
 .wo-totals dt,.wo-totals dd{align-self:center}.wo-totals [hidden]{display:none!important}.wo-totals input{width:130px;text-align:right;min-height:38px}
 .fr-card{margin:0 0 22px}.fr-card h3 small{font-weight:500;opacity:.85;margin-left:6px}.fr-card .wo-lines input{max-width:140px}
 .fr-card .mf-hint{color:#f1f5ff;margin:6px 2px 10px}.fr-card .wo-lines input{min-height:40px;padding:6px 10px;border:1px solid #c9d2e0;border-radius:8px;background:#fff;font:inherit;width:100%;max-width:150px;box-sizing:border-box}.fr-card .wo-lines input:focus-visible{outline:2px solid #2563eb;outline-offset:1px}
+.fr-table .fr-in{min-height:38px;padding:6px 10px;border:1px solid #c9d2e0;border-radius:8px;background:#fff;font:inherit;width:120px;box-sizing:border-box}.fr-table .fr-in:focus-visible{outline:2px solid #2563eb;outline-offset:1px}.fr-na{color:#7a8494}.fr-actions{margin:14px 0 4px}
