@@ -78,7 +78,7 @@ if($action==='workorder'){
     $command=(string)($input['command']??'');$vendor=(string)($input['vendor_id']??'');$firm=(string)($input['firm_id']??'');$request=(string)($input['request_id']??'');
     if(!preg_match('/^[a-zA-Z0-9_-]{16,96}$/',$request))reject('A unique request reference is required.');
     $allowed=$user['allowed_views']??null;$isOrder=in_array($command,['save_order','cancel_order','mark_shared','download'],true);
-    $views=$isOrder?['outsource.pending-work-orders','outsource.work-orders','outsource.create-work-order']:['outsource.vendor-payments','outsource.advances','outsource.pending-payments','outsource.vendor-ledger'];
+    $views=$isOrder?['outsource.pending-work-orders','outsource.work-orders','outsource.create-work-order','outsource.make-department','outsource.make-vendor','outsource.track-department','outsource.track-vendor']:['outsource.vendor-payments','outsource.advances','outsource.pending-payments','outsource.vendor-ledger','outsource.pay-vendors'];
     if(empty($user['owner'])&&is_array($allowed)&&!array_intersect($views,$allowed))reject('You do not have permission for this Work Order or payment action.',403);
     if(!document('masters/vendors/rows',$vendor)||!document('masters/firm/rows',$firm))reject('Choose a valid vendor and issuing firm.');
     txBegin();

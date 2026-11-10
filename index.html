@@ -1162,14 +1162,24 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 
   MENUS.masters = { name: "Master Data", start: "m-firm", items: [["label:Leads"]].concat(MENUS.leads.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; }),
     [["label:Projects"]], MENUS.projects.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; })) };
-  MENUS.outsource = { name: "Outsource", start: "all", items: [["all", "All Outsource Tasks", "Outsourced work across all departments."], ["completed", "Completed Outsource Tasks", "Completed outsourced work."], ["label:Pending Tasks"], ["pending", "All Pending Tasks", "Open outsourced work."], ["pending-department", "Department-wise", "Open outsourced work, one tab per department."], ["pending-vendor", "Vendor-wise", "Open outsourced work, one tab per vendor."]] };
-  MENUS.outsource.items = MENUS.outsource.items.concat([["label:Work Orders"], ["pending-work-orders", "Pending Work Order", "Assigned vendor tasks awaiting an issued Work Order."], ["create-work-order", "Create Work Order", "Combine tasks for one vendor into a Work Order."], ["work-orders", "Work Order Master", "Issued documents, revisions, task progress and payment balances."], ["label:Vendor Payments"], ["vendor-payments", "Vendor Payments", "Record payments and distribute them across Work Orders."], ["advances", "Available Advances", "Unallocated vendor payments available for adjustment."], ["pending-payments", "Pending Payments", "Issued Work Orders with outstanding amounts."], ["vendor-ledger", "Vendor Ledger", "Vendor balances, allocations, refunds and audit history."]]);
+  /* Outsource item: [key, menu title, description, depth, hidden, page title]. Hidden views stay reachable from buttons and links. */
+  MENUS.outsource = { name: "Outsource", start: "make-department", items: [
+    ["label:Make Work Orders"], ["make-department", "Departmentwise", "Vendor tasks waiting for a Work Order, one tab per department.", 0, 0, "Make Work Orders – Departmentwise"], ["make-vendor", "Vendorwise", "Vendor tasks waiting for a Work Order, one tab per vendor.", 0, 0, "Make Work Orders – Vendorwise"],
+    ["label:Track Work Orders"], ["track-department", "Departmentwise", "Tasks on issued Work Orders with progress and payment, one tab per department.", 0, 0, "Track Work Orders – Departmentwise"], ["track-vendor", "Vendorwise", "Tasks on issued Work Orders with progress and payment, one tab per vendor.", 0, 0, "Track Work Orders – Vendorwise"],
+    ["label:Vendor Payments"], ["pay-vendors", "Pay Vendors", "Vendor balances. Open a vendor to see the ledger, filter by project and pay."],
+    ["label:Masters"], ["vendor-payments", "Payments", "All vendor payments, advances and refunds.", 0, 0, "Payments Master"], ["work-orders", "Work Orders", "All Work Orders: drafts, issued, revisions and cancellations.", 0, 0, "Work Orders Master"],
+    ["create-work-order", "Create Work Order", "Combine tasks for one vendor into a Work Order.", 0, 1], ["all", "All Outsource Tasks", "Outsourced work across all departments.", 0, 1], ["completed", "Completed Outsource Tasks", "Completed outsourced work.", 0, 1], ["pending", "All Pending Tasks", "Open outsourced work.", 0, 1], ["pending-department", "Pending Tasks – Department-wise", "Open outsourced work, one tab per department.", 0, 1], ["pending-vendor", "Pending Tasks – Vendor-wise", "Open outsourced work, one tab per vendor.", 0, 1], ["pending-work-orders", "Pending Work Order", "Assigned vendor tasks awaiting an issued Work Order.", 0, 1], ["advances", "Available Advances", "Unallocated vendor payments available for adjustment.", 0, 1], ["pending-payments", "Pending Payments", "Issued Work Orders with outstanding amounts.", 0, 1], ["vendor-ledger", "Vendor Ledger (audit)", "Vendor balances, allocations, refunds and audit history.", 0, 1]] };
+  /* Access to the reorganised Outsource views follows the views a user already had (old keys) or the new menu items. */
+  var OS_ALIAS = (function () {
+    var make = ["make-department", "make-vendor", "pending-work-orders", "create-work-order"], track = ["track-department", "track-vendor", "work-orders"], pay = ["pay-vendors", "vendor-payments", "pending-payments", "vendor-ledger", "advances"], tasks = ["all", "pending", "completed", "pending-department", "pending-vendor"];
+    return { "make-department": make.concat(["pending", "pending-department"]), "make-vendor": make.concat(["pending", "pending-vendor"]), "track-department": track.concat(["pending-work-orders", "all"]), "track-vendor": track.concat(["pending-work-orders", "all"]), "pay-vendors": pay, "create-work-order": make.concat(["work-orders"]), "pending-work-orders": make, all: tasks.concat(make, track), pending: tasks.concat(make), completed: tasks.concat(track), "pending-department": tasks.concat(make), "pending-vendor": tasks.concat(make), advances: pay, "pending-payments": pay, "vendor-ledger": pay };
+  })();
   window.UmangMenus = MENUS;
   /* ---------- View permissions (same rules as the plugin) ---------- */
   function pkey(slug, key) { return key.indexOf("m-") === 0 ? "master:" + key : slug + "." + key; }
   var AUTH = { ready: false, full: false, denied: false, allowed: null, row: null, me: null, email: "", ver: 0, why: "" };
   window.UmangAuth = AUTH;
-  function allow(slug, key) { if (slug === "quotations" && key === "create-project") key = "pending-create"; if (!AUTH.ready || AUTH.denied) return false; if (AUTH.full || !AUTH.allowed) return true; if (slug === "outsource" && (key === "pending-department" || key === "pending-vendor") && AUTH.allowed.indexOf("outsource.pending") !== -1) return true; return AUTH.allowed.indexOf(pkey(slug, key)) !== -1; }
+  function allow(slug, key) { if (slug === "quotations" && key === "create-project") key = "pending-create"; if (!AUTH.ready || AUTH.denied) return false; if (AUTH.full || !AUTH.allowed) return true; if (slug === "outsource" && (OS_ALIAS[key] || []).some(function (k) { return AUTH.allowed.indexOf("outsource." + k) !== -1; })) return true; return AUTH.allowed.indexOf(pkey(slug, key)) !== -1; }
   AUTH.allow = allow; AUTH.pkey = pkey;
   function realItems(slug) { return MENUS[slug].items.filter(function (it) { return it[0].indexOf("label:") !== 0 && it[0].indexOf("group:") !== 0; }); }
   function modAllowed(slug) { var m = MENUS[slug]; if (m.add && allow(slug, m.add[0])) return true; return realItems(slug).some(function (it) { return allow(slug, it[0]); }); }
@@ -1197,7 +1207,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       var depth = it[3] || 0;
       if (it[0].indexOf("group:") !== 0 && !allow(slug, it[0])) return;
       while (stack[stack.length - 1].depth >= depth) stack.pop();
-      var node = { key: it[0], title: it[1], desc: it[2], children: [] };
+      var node = { key: it[0], title: it[1], desc: it[2], hide: !!it[4], ptitle: it[5] || it[1], children: [] };
       stack[stack.length - 1].children.push(node);
       stack.push({ depth: depth, children: node.children });
     });
@@ -1208,7 +1218,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         var g = n.key.slice(6);
         return '<li><button type="button" class="nav-group" data-group-toggle="' + g + '" aria-expanded="true">' + esc(n.title) + CHEV + '</button><ul class="nav-sub" data-group-list="' + g + '">' + kids + "</ul></li>";
       }
-      return '<li><a class="nav-link nav-item" href="#' + slug + "." + n.key + '" data-title="' + esc(n.title) + '" data-desc="' + esc(n.desc) + '">' + esc(n.title) + "</a>" + (kids ? '<ul class="nav-sub">' + kids + "</ul>" : "") + "</li>";
+      return '<li' + (n.hide ? " hidden" : "") + '><a class="nav-link nav-item" href="#' + slug + "." + n.key + '" data-title="' + esc(n.ptitle) + '" data-desc="' + esc(n.desc) + '">' + esc(n.title) + "</a>" + (kids ? '<ul class="nav-sub">' + kids + "</ul>" : "") + "</li>";
     }
     var html = '<ul class="nav">';
     root.forEach(function (n) { html += n.label !== undefined ? '</ul><div class="nav-label">' + esc(n.label) + '</div><ul class="nav">' : li(n); });
@@ -1558,10 +1568,10 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       if (m.add) items.push([slug + "." + m.add[0], m.add[1]]);
       m.items.forEach(function (it) {
         var k = it[0], d = it[3] || 0;
-        if (k.indexOf("label:") === 0 || k.indexOf("m-") === 0) return;
+        if (k.indexOf("label:") === 0 || k.indexOf("m-") === 0 || it[4]) return;
         if (k.indexOf("group:") === 0) { gt[d] = it[1]; return; }
         var pre = d > 1 && gt[d - 1] ? gt[d - 1] + " \u2192 " : "";
-        items.push([slug + "." + k, pre + it[1]]);
+        items.push([slug + "." + k, pre + (it[5] || it[1])]);
       });
       out.push({ name: m.name, items: items });
     });
@@ -5400,13 +5410,13 @@ document.addEventListener("keydown", function (e) {
 
 
 
-<link rel="stylesheet" href="assets/operations.css?v=20261110tabs">
+<link rel="stylesheet" href="assets/operations.css?v=20261110hub">
 <script src="assets/operations.js?v=20261110pending-tabs"></script>
 
 <link rel="stylesheet" href="assets/mobile.css?v=20261028a">
 
 <link rel="stylesheet" href="assets/work-orders.css?v=20261107b">
-<script src="assets/work-orders.js?v=20261107b"></script>
+<script src="assets/work-orders.js?v=20261110hub"></script>
 
 <link rel="stylesheet" href="assets/master-controls.css?v=20261028">
 
