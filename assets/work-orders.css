@@ -15,3 +15,26 @@
 .fr-card{margin:0 0 22px}.fr-card h3 small{font-weight:500;opacity:.85;margin-left:6px}.fr-card .wo-lines input{max-width:140px}
 .fr-card .mf-hint{color:#f1f5ff;margin:6px 2px 10px}.fr-card .wo-lines input{min-height:40px;padding:6px 10px;border:1px solid #c9d2e0;border-radius:8px;background:#fff;font:inherit;width:100%;max-width:150px;box-sizing:border-box}.fr-card .wo-lines input:focus-visible{outline:2px solid #2563eb;outline-offset:1px}
 .fr-table .fr-in{min-height:38px;padding:6px 10px;border:1px solid #c9d2e0;border-radius:8px;background:#fff;font:inherit;width:120px;box-sizing:border-box}.fr-table .fr-in:focus-visible{outline:2px solid #2563eb;outline-offset:1px}.fr-na{color:#7a8494}.fr-actions{margin:14px 0 4px}
+
+/* Compact Make Work Orders */
+.content:has(.wo-make) #page-title{font-size:24px;margin:4px 0 10px}
+.content:has(.wo-make) .mv-bar input,.content:has(.wo-make) .mv-bar select{min-height:38px}
+.wo-make .os-tabs{gap:4px;padding:3px;margin:8px 0;background:rgba(255,255,255,.18);border-radius:10px;width:max-content;max-width:100%}
+.wo-make .os-tab{padding:5px 10px;font-size:12.5px;border:0;border-radius:8px;background:transparent;color:#fff;gap:6px}
+.wo-make .os-tab:hover{background:rgba(255,255,255,.15)}
+.wo-make .os-tab.on{background:#fff;color:#0b4f52}
+.wo-make .os-tab .os-n{background:rgba(9,40,70,.35);color:#fff;font-size:11px;padding:0 6px}
+.wo-make .os-tab.on .os-n{background:#e3f2f1;color:#0b4f52}
+.wo-ctable{font-size:13px}
+.wo-ctable th{padding:7px 10px;font-size:11px}
+.wo-ctable td{padding:6px 10px;vertical-align:middle}
+.wo-ctable .wo-cbox{width:30px;padding-right:0}
+.wo-ctable input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#0f766e}
+.wo-ctable .nw{white-space:nowrap}.wo-ctable .num{text-align:right}.wo-ctable .dim{color:#5b6475}
+.wo-ctable .wo-ghead td{background:#eef6f6;border-top:1px solid #d5dde8;padding:4px 10px}
+.wo-gline{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-height:30px}
+.wo-gline strong{font-size:13.5px;color:#0f172a}.wo-gline span{font-size:12px;color:#475467;flex:1}
+.wo-gline .wo-gcreate{min-height:30px;padding:0 12px;font-size:12.5px}
+.wo-gline .wo-gcreate[hidden]{display:none}
+.wo-make-hint{margin:6px 2px 0;font-size:12px;color:#eef4ff}
+@media(max-width:600px){.wo-gline{position:sticky;left:8px;max-width:calc(100vw - 72px)}.wo-make .os-tabs{width:auto}}
