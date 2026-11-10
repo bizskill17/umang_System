@@ -10,3 +10,4 @@
 .wo-vhead span { font-size: 13px; font-weight: 600; opacity: .85; }
 
 .wo-foot{display:flex;justify-content:flex-end;margin:12px 0 4px}.wo-gst{width:180px;margin:0}.wo-gst[hidden]{display:none!important}.wo-gst input{text-align:right}.wo-terms{margin-top:12px}
+.wo-lines.no-gst .wo-gstcol{display:none}.wo-totals{display:grid;grid-template-columns:auto auto;gap:6px 24px;margin:0;min-width:300px;padding:12px 16px;background:var(--surface,#fff);border:1px solid var(--border,#d8dde6);border-radius:12px;font-variant-numeric:tabular-nums}.wo-totals dt{color:#475467;font-weight:600}.wo-totals dd{margin:0;text-align:right;font-weight:600}.wo-totals .wo-grand{border-top:1px solid var(--border,#d8dde6);padding-top:8px;font-size:16px;color:#101828;font-weight:700}@media(max-width:600px){.wo-totals{min-width:0;width:100%}}
