@@ -1202,7 +1202,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     ["label:Masters"], ["m-materials", "Material", "Materials issued to vendors, with unit and default rate.", 0, 0, "Material Master"], ["m-stores", "Store", "Stores and godowns material is issued from, by firm.", 0, 0, "Store Master"], ["vendor-payments", "Payments", "All vendor payments, advances and refunds.", 0, 0, "Payments Master"], ["work-orders", "Work Orders", "All Work Orders: drafts, issued, revisions and cancellations.", 0, 0, "Work Orders Master"],
     ["create-work-order", "Create Work Order", "Combine tasks for one vendor into a Work Order.", 0, 1], ["all", "All Outsource Tasks", "Outsourced work across all departments.", 0, 1], ["completed", "Completed Outsource Tasks", "Completed outsourced work.", 0, 1], ["pending", "All Pending Tasks", "Open outsourced work.", 0, 1], ["pending-department", "Pending Tasks – Department-wise", "Open outsourced work, one tab per department.", 0, 1], ["pending-vendor", "Pending Tasks – Vendor-wise", "Open outsourced work, one tab per vendor.", 0, 1], ["pending-work-orders", "Pending Work Order", "Assigned vendor tasks awaiting an issued Work Order.", 0, 1], ["advances", "Available Advances", "Unallocated vendor payments available for adjustment.", 0, 1], ["pending-payments", "Pending Payments", "Issued Work Orders with outstanding amounts.", 0, 1], ["vendor-ledger", "Vendor Ledger (audit)", "Vendor balances, allocations, refunds and audit history.", 0, 1]] };
   MENUS.requisition = { name: "Material Requisition", add: ["raise", "Raise Requisition", "Request material for a project on the Inventory form. It is sent to the Inventory system and gets its number there."], start: "pending", items: [
-    ["label:Requisitions"], ["not-sent", "Not Sent to Inventory", "Saved here but not yet accepted by the Inventory system. Send them again.", 0, 0], ["pending", "Pending at Inventory", "In the Inventory system and not yet fully issued."], ["closed", "Issued / Closed", "Fully issued and closed in the Inventory system."],
+    ["label:Requisitions"], ["not-sent", "Not Sent to IMS", "Saved here but not yet accepted by the Inventory system. Send them again.", 0, 0], ["pending", "Pending at IMS", "In the Inventory system and not yet fully issued."], ["closed", "Issued / Closed", "Fully issued and closed in the Inventory system."],
     ["label:Masters"], ["all", "Requisitions", "All material requisitions.", 0, 0, "Requisitions Master"]
   ] };
   /* Access to the reorganised Outsource views follows the views a user already had (old keys) or the new menu items. */
@@ -5481,7 +5481,7 @@ document.addEventListener("keydown", function (e) {
 
 <link rel="stylesheet" href="assets/work-orders.css?v=20261111unit">
 <script src="assets/work-orders.js?v=20261111noslip"></script>
-<script src="assets/requisition.js?v=20261111nodept"></script>
+<script src="assets/requisition.js?v=20261111imsname"></script>
 
 <link rel="stylesheet" href="assets/master-controls.css?v=20261028">
 
