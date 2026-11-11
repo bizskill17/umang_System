@@ -124,7 +124,7 @@ if($action==='workorder'){
         // Material issued to the vendor counts as a payment at its value; the server totals the items.
         $amount=0;foreach((array)($input['materials']??[]) as $m){$name=trim((string)($m['name']??''));if($name==='')continue;if(mb_strlen($name)>120)vfFail('Material name is too long.');
           $qty=(float)($m['qty']??0);if(!is_finite($qty)||$qty<=0)vfFail('Enter a quantity above zero for '.$name.'.');$rate=vfMoney($m['rate']??'');if($rate<=0)vfFail('Enter a rate above zero for '.$name.'.');
-          $line=(int)round($qty*$rate);$amount+=$line;$materials[]=['name'=>$name,'qty'=>round($qty,3),'unit'=>mb_substr(trim((string)($m['unit']??'')),0,20),'rate_cents'=>$rate,'amount_cents'=>$line];}
+          $line=(int)round($qty*$rate);$amount+=$line;$materials[]=['material_id'=>mb_substr(trim((string)($m['material_id']??'')),0,64),'name'=>$name,'qty'=>round($qty,3),'unit'=>mb_substr(trim((string)($m['unit']??'')),0,20),'rate_cents'=>$rate,'amount_cents'=>$line];}
         if(!$materials)vfFail('Add at least one material with quantity and rate.');if(count($materials)>50)vfFail('Too many material lines.');
         $account=trim((string)($input['account']??''));if($account==='')$account='Material Issue';
         $project=trim((string)($input['project_id']??''));if($project!==''&&!document('projects',$project))vfFail('Project not found.');

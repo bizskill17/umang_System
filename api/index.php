@@ -260,6 +260,7 @@ function permittedWrite(string $path): bool {
     if (str_starts_with($path, 'masters/')) {
         $master = explode('/', $path)[1];
         if (in_array($master, ['users', 'user-roles'], true)) return canManageUsers(); // owner and active Admin roles manage accounts
+        if ($master === 'materials' && is_array($allowed) && array_intersect(['outsource.issue-material','outsource.material-issue','outsource.pay-vendors','outsource.vendor-payments'], $allowed)) return true; // material can be added while issuing
         return $allowed === null || in_array('master:m-' . $master, $allowed, true);
     }
     if ($path === 'access_requests') return false;
@@ -305,7 +306,7 @@ if ($action === 'blob') {
     header('Content-Disposition: inline; filename="' . addcslashes($file['name'], '"\\') . '"');
     header("Content-Security-Policy: sandbox"); session_write_close(); readfile($privateStorage . '/' . $id); exit;
 }
-$masters = ['firm','customers','vendors','customer-category','customer-subcategory','state','city','lead-category','lead-subcategory','lead-sources','send-mode','users','user-roles','designation','user-document-types','items','uom','gst','machines','delivery-modes','transporters','vehicles'];
+$masters = ['firm','customers','vendors','customer-category','customer-subcategory','state','city','lead-category','lead-subcategory','lead-sources','send-mode','users','user-roles','designation','user-document-types','items','uom','gst','machines','materials','delivery-modes','transporters','vehicles'];
 $collections = ['leads','quotations','quote_followups','projects','recce','recce_updates','designs','design_updates','jobs','job_assign','qc','dispatches','wastage','invoices','payments','complaints','complaint_updates','counters','access_requests','work_orders','work_order_versions','vendor_payments','vendor_allocations','vendor_refunds','finance_events'];
 function validPath(string $p): bool {
     global $collections, $masters;
