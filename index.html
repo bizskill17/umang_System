@@ -5423,12 +5423,13 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     // or above it when there is not enough room below.
     pop.style.maxHeight = "none"; pop.style.top = "0px"; pop.style.bottom = "";
     var need = Math.min(320, pop.scrollHeight || 320);
-    var up = below < need && above > below;
+    // Prefer below; open above only when below is really cramped. When above, pin the list's
+    // bottom edge to the field so it stays attached as typing shortens the list.
+    var up = below < Math.min(need, 220) && above > below;
     var height = Math.max(80, Math.min(need, up ? above : below, Math.max(0, vh - 16)));
-    var top = up ? r.top - height - 4 : r.bottom + 4;
-    top = Math.max(vy + 8, Math.min(top, vy + vh - height - 8));
-    pop.style.top = top + "px";
     pop.style.maxHeight = height + "px";
+    if (up) { pop.style.top = "auto"; pop.style.bottom = Math.max(8, window.innerHeight - (r.top - 4)) + "px"; }
+    else { var top = Math.max(vy + 8, Math.min(r.bottom + 4, vy + vh - height - 8)); pop.style.bottom = ""; pop.style.top = top + "px"; }
   }
   function close(refocus) {
     if (!pop) return;
