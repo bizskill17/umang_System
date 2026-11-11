@@ -53,34 +53,5 @@ if ($cmd === 'masters') {
     @file_put_contents($cacheFile, json_encode($out, JSON_UNESCAPED_UNICODE), LOCK_EX);
     reply($out);
 }
-if ($cmd === 'send') {
-    $p = $input['request'] ?? null;
-    if (!is_array($p)) reject('Invalid requisition.');
-    $items = [];
-    foreach ((array)($p['items'] ?? []) as $it) {
-        $id = trim((string)($it['itemId'] ?? '')); $q = (float)($it['quantity'] ?? 0);
-        if ($id === '' || !is_finite($q) || $q <= 0) continue;
-        $items[] = ['itemId' => $id, 'quantity' => $q, 'specification' => mb_substr(trim((string)($it['specification'] ?? '')), 0, 1000)];
-    }
-    if (!$items) reject('Add at least one item with quantity.');
-    $type = ($p['requestByType'] ?? '') === 'Vendor' ? 'Vendor' : 'Inhouse';
-    $s = fn($k) => ($v = trim((string)($p[$k] ?? ''))) === '' ? null : mb_substr($v, 0, 255);
-    $body = ['date' => $s('date'), 'firmId' => $s('firmId'), 'storeId' => $s('storeId'), 'department' => $s('department'), 'customerId' => $s('customerId'), 'projectId' => $s('projectId'),
-        'requestByType' => $type, 'requestByUserId' => $type === 'Inhouse' ? $s('requestByUserId') : null, 'requestBySupplierId' => $type === 'Vendor' ? $s('requestBySupplierId') : null,
-        'enteredByUserId' => $s('enteredByUserId'), 'remarks' => $s('remarks'), 'items' => $items];
-    $r = imsCall('POST', '/api/material-requests', $body);
-    $req = $r['request'] ?? [];
-    if (empty($req['id'])) reject('The Inventory system did not confirm the requisition.', 502, 'ims_error');
-    reply(['id' => (string)$req['id'], 'requestNo' => (string)($req['requestNo'] ?? '')]);
-}
-if ($cmd === 'status') {
-    // Status and issued quantities of requisitions still open in the IMS; anything no longer pending is closed there.
-    $ids = array_values(array_filter(array_map('strval', (array)($input['ids'] ?? []))));
-    $pending = imsList('/api/material-requests/pending', 'requests'); $all = imsList('/api/material-requests', 'requests');
-    $byId = [];
-    foreach ($all as $r) $byId[(string)($r['id'] ?? '')] = ['status' => (string)($r['status'] ?? ''), 'requestNo' => (string)($r['request_no'] ?? $r['requestNo'] ?? '')];
-    foreach ($pending as $r) { $id = (string)($r['id'] ?? ''); if (!isset($byId[$id])) $byId[$id] = ['status' => 'Pending']; $byId[$id]['items'] = array_map(fn($i) => ['itemId' => (string)($i['item_id'] ?? $i['itemId'] ?? ''), 'quantity' => (float)($i['quantity'] ?? 0), 'issued' => (float)($i['issued_quantity'] ?? $i['issuedQuantity'] ?? 0)], (array)($r['items'] ?? [])); }
-    $out = []; foreach ($ids as $id) $out[$id] = $byId[$id] ?? ['status' => 'Not found'];
-    reply(['status' => $out]);
-}
+// Only master data is read from the IMS for now; nothing is written to it.
 reject('Unknown Inventory command.');
