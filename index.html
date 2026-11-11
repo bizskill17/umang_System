@@ -363,6 +363,8 @@ tr.fu-done td { background: var(--row-green); }
 .ss-list { min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; list-style: none; margin: 0; padding: 0 6px 6px; overflow-y: auto; flex: 1; }
 .ss-opt { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; }
 .ss-opt.ph { color: var(--muted); }
+.ss-t { display: inline; flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 400; } .ss-t b { font-weight: 700; }
+.ss-val .ss-t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ss-opt.on { font-weight: 600; }
 .ss-opt.on::after { content: "\2713"; margin-left: auto; }
 .ss-opt.act, .ss-opt:hover { background: var(--page); }
@@ -5313,7 +5315,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   }
 
   // An option may mark part of its text to show in bold (data-bold).
-  function optHtml(o) { var t = o.textContent, b = o.getAttribute("data-bold"), i = b ? t.indexOf(b) : -1; return i < 0 ? esc(t) : esc(t.slice(0, i)) + "<b>" + esc(b) + "</b>" + esc(t.slice(i + b.length)); }
+  function optHtml(o) { var t = o.textContent, b = o.getAttribute("data-bold"), i = b ? t.indexOf(b) : -1; return i < 0 ? esc(t) : '<span class="ss-t">' + esc(t.slice(0, i)) + "<b>" + esc(b) + "</b>" + esc(t.slice(i + b.length)) + "</span>"; }
   function sync(sel) {
     var btn = sel._ssBtn; if (!btn) return;
     var o = sel.options[sel.selectedIndex];
