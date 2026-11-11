@@ -338,6 +338,7 @@ function seedStores(): void {
     query("INSERT INTO umang_documents(collection_path,id,body) VALUES('_migrations','stores-v1','{}')");
     txCommit();
 }
+require __DIR__ . '/ims.php';
 if ($user) { try { seedStores(); } catch (Throwable $e) { if (function_exists('txRollback')) { try { txRollback(); } catch (Throwable $e2) {} } } }
 // One request (one connection, one query) returns several collections; keeps hosting connection limits low.
 if ($action === 'batch') {
