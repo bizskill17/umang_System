@@ -37,6 +37,8 @@ U.act('mr-add',function(){var f=P.forms[FK];if(!f)return;U.render();f=P.forms[FK
 U.act('mr-del',function(i){var f=P.forms[FK];if(!f)return;U.render();f=P.forms[FK];var l=f.v.items||[];if(l.length>1)l.splice(+i,1);else l[0]={specs:{}};U.paint();});
 
 // ---------- raise ----------
+// No department is asked here; the IMS needs one, so it is set from the request type.
+function autoDept(type){var want=type==='Vendor'?'vendor':'signage',d=(M.departments||[]).find(function(x){return low(x.name)===want;});return d?d.name:(type==='Vendor'?'VENDOR':'SIGNAGE');}
 var TYPES=[{id:'Inhouse',name:'Inhouse'},{id:'Vendor',name:'Vendor'}];
 U.page(FK,function(){if(!ready())return U.loading;
  if(!M){if(!MLOAD&&!MERR)loadMasters();return MERR?'<div class="mv-note warn"><p>'+E(MERR)+'</p><p><button type="button" class="mv-btn primary" data-a="mr-reload" data-id="">Try again</button></p></div>':'<p class="mv-note">Loading items and masters from the Inventory system…</p>';}
@@ -45,16 +47,15 @@ U.page(FK,function(){if(!ready())return U.loading;
   v.ims_store=fs.length?String(fs[0].id):'';v._firmTouched=1;if(!v.request_type)v.request_type='Inhouse';return[
    {k:'date',label:'Date',type:'date'},
    {k:'ims_firm',label:'Firm',type:'select',live:1,opts:function(){return opts(M.firms);}},
-   {k:'ims_dept',label:'Department',type:'select',opts:function(){return opts(M.departments);}},
    {k:'ims_cust',label:'Customer',type:'select',live:1,opts:function(){return opts(M.customers);}},
    {k:'ims_proj',label:'Project',type:'select',opts:function(){return opts((M.projects||[]).filter(function(p){return!cust||low(p.clientName)===low(cust.name);}));}},
    {k:'request_type',label:'Request By Type',type:'select',live:1,opts:function(){return TYPES;}},
    {k:'requested_by',label:v.request_type==='Vendor'?'Requested By (Vendor)':'Requested By',type:'select',req:1,opts:function(){return v.request_type==='Vendor'?opts((M.suppliers||[]).filter(function(s){return s.isVendor===undefined||s.isVendor===null||!!+s.isVendor||s.isVendor===true;})):opts(M.users);}},
    {k:'entered_by',label:'Entered By',type:'select',req:1,opts:function(){return opts(M.users);}}];},
   extra:itemsHtml,readExtra:readItems,
-  validate:function(v){if(!v.date)return'Enter the date.';if(!v.ims_firm)return'Choose the firm — the Inventory system needs it.';if(!v.ims_store)return'This firm has no store in the Inventory system. Add one there first.';if(!v.ims_dept)return'Choose the department — the Inventory system needs it.';var l=(v.items||[]).filter(function(r){return r.item_name_id||num(r.qty);});if(!l.length)return'Add at least one item.';for(var i=0;i<l.length;i++){var r=l[i],n=nm(M.itemNames,r.item_name_id);if(!r.item_name_id)return'Choose the item on every row that has a quantity.';if(!resolveItem(r))return'Fill all specifications of '+n+' (or pick values that exist in the Inventory).';if(!(num(r.qty)>0))return'Enter a quantity above zero for '+n+'.';}},
+  validate:function(v){if(!v.date)return'Enter the date.';if(!v.ims_firm)return'Choose the firm — the Inventory system needs it.';if(!v.ims_store)return'This firm has no store in the Inventory system. Add one there first.';var l=(v.items||[]).filter(function(r){return r.item_name_id||num(r.qty);});if(!l.length)return'Add at least one item.';for(var i=0;i<l.length;i++){var r=l[i],n=nm(M.itemNames,r.item_name_id);if(!r.item_name_id)return'Choose the item on every row that has a quantity.';if(!resolveItem(r))return'Fill all specifications of '+n+' (or pick values that exist in the Inventory).';if(!(num(r.qty)>0))return'Enter a quantity above zero for '+n+'.';}},
   save:async function(v){var rows=(v.items||[]).filter(function(r){return r.item_name_id;}).map(function(r){var it=resolveItem(r);return{itemId:String(it.id),quantity:num(r.qty),specification:specText(it),name:nm(M.itemNames,r.item_name_id),unit:(by(M.itemNames,r.item_name_id)||{}).unitName||''};});
-   var dept=nm(M.departments,v.ims_dept),req={date:v.date,firmId:v.ims_firm,storeId:v.ims_store,department:dept,customerId:v.ims_cust||'',projectId:v.ims_proj||'',requestByType:v.request_type,requestByUserId:v.request_type==='Inhouse'?v.requested_by:'',requestBySupplierId:v.request_type==='Vendor'?v.requested_by:'',enteredByUserId:v.entered_by,remarks:v.remarks||'',items:rows.map(function(r){return{itemId:r.itemId,quantity:r.quantity,specification:r.specification};})};
+   var dept=autoDept(v.request_type),req={date:v.date,firmId:v.ims_firm,storeId:v.ims_store,department:dept,customerId:v.ims_cust||'',projectId:v.ims_proj||'',requestByType:v.request_type,requestByUserId:v.request_type==='Inhouse'?v.requested_by:'',requestBySupplierId:v.request_type==='Vendor'?v.requested_by:'',enteredByUserId:v.entered_by,remarks:v.remarks||'',items:rows.map(function(r){return{itemId:r.itemId,quantity:r.quantity,specification:r.specification};})};
    var reqBy=v.request_type==='Vendor'?nm(M.suppliers,v.requested_by):nm(M.users,v.requested_by);
    var added=await U.add(C,{no:'',ims_ref:req,date:v.date,firm:nm(M.firms,v.ims_firm),store:nm(M.stores,v.ims_store),department:dept,customer:nm(M.customers,v.ims_cust),project:nm(M.projects,v.ims_proj),request_type:v.request_type,requested_by:reqBy,entered_by:nm(M.users,v.entered_by),remarks:v.remarks||'',
     items:rows.map(function(r){return{ims_item_id:r.itemId,name:r.name,specification:r.specification,qty:r.quantity,unit:r.unit,issued:0};}),status:'Not Sent'});
