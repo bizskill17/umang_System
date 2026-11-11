@@ -128,11 +128,12 @@ if($action==='workorder'){
         if(!$materials)vfFail('Add at least one material with quantity and rate.');if(count($materials)>50)vfFail('Too many material lines.');
         $account=trim((string)($input['account']??''));if($account==='')$account='Material Issue';
         $project=trim((string)($input['project_id']??''));if($project!==''&&!document('projects',$project))vfFail('Project not found.');
+        $woId=trim((string)($input['work_order_id']??''));$wo=$woId!==''?document('work_orders',$woId):null;if(!$wo||($wo['status']??'')!=='Issued'||($wo['vendor_id']??'')!==$vendor||($wo['firm_id']??'')!==$firm)vfFail('Choose an issued Work Order of this vendor and firm.');
       }else{$amount=vfMoney($input['amount']??'');$account=trim((string)($input['account']??''));}
       if($amount<=0)vfFail('Payment amount must be greater than zero.');
       if(!$mode||!$account)vfFail('Enter the payment mode and bank/cash account.');$id=bin2hex(random_bytes(16));$eventAmount=$amount;
       $pay=['vendor_id'=>$vendor,'firm_id'=>$firm,'date'=>$date,'amount_cents'=>$amount,'mode'=>$mode,'account'=>$account,'reference'=>trim((string)($input['reference']??'')),'remarks'=>trim((string)($input['remarks']??'')),'proof'=>vfAttachment($input['proof']??null),'status'=>'Active','createdAt'=>$now,'created_by'=>$actor];
-      if($mode==='Material'){$pay['materials']=$materials;$pay['project_id']=$project;}
+      if($mode==='Material'){$pay['materials']=$materials;$pay['project_id']=$project;$pay['work_order_id']=$woId;}
       vfPut('vendor_payments',$id,$pay);
       $alloc=$input['allocations']??[];foreach($alloc as &$a)$a['payment_id']=$id;unset($a);vfAllocate($alloc,$vendor,$firm,$date,$actor);$result['id']=$id;
     }elseif($command==='allocate'){
