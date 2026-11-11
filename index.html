@@ -2983,7 +2983,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       if (f.type === "select" || f.type === "yesno") {
         var opts = f.type === "yesno" ? [{ id: "Yes", name: "Yes" }, { id: "No", name: "No" }] : f.opts(v);
         var o = '<option value="">' + U.esc(f.first || "Select " + f.label.toLowerCase()) + "</option>";
-        opts.forEach(function (x) { o += '<option value="' + U.esc(x.id) + '"' + (x.id === val ? " selected" : "") + ">" + U.esc(x.name) + "</option>"; });
+        opts.forEach(function (x) { o += '<option value="' + U.esc(x.id) + '"' + (x.id === val ? " selected" : "") + (x.bold ? ' data-bold="' + U.esc(x.bold) + '"' : "") + ">" + U.esc(x.name) + "</option>"; });
         h += '<div class="' + cls + '">' + lab + '<select id="' + id + '" name="' + f.k + '"' + (f.live ? ' data-live="1"' : "") + dis + ">" + o + "</select>" + hint + err + "</div>"; return;
       }
       if (f.type === "check") { h += '<div class="' + cls + '"><label class="chk"><input type="checkbox" id="' + id + '" name="' + f.k + '"' + (val ? " checked" : "") + (f.live ? ' data-live="1"' : "") + dis + "> " + U.esc(f.label) + "</label>" + hint + "</div>"; return; }
@@ -5310,11 +5310,13 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (document.activeElement === sel || (pickedId && sel.id === pickedId && (!document.activeElement || document.activeElement === document.body))) { btn.focus(); pickedId = null; }
   }
 
+  // An option may mark part of its text to show in bold (data-bold).
+  function optHtml(o) { var t = o.textContent, b = o.getAttribute("data-bold"), i = b ? t.indexOf(b) : -1; return i < 0 ? esc(t) : esc(t.slice(0, i)) + "<b>" + esc(b) + "</b>" + esc(t.slice(i + b.length)); }
   function sync(sel) {
     var btn = sel._ssBtn; if (!btn) return;
     var o = sel.options[sel.selectedIndex];
     var v = btn.querySelector(".ss-val");
-    v.textContent = o ? o.textContent : "";
+    v.innerHTML = o ? optHtml(o) : "";
     v.classList.toggle("ph", !o || o.value === "");
     btn.disabled = sel.disabled;
   }
@@ -5357,7 +5359,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       if (q && (o.value === "" || t.toLowerCase().indexOf(q) === -1)) return;
       var on = i === sel.selectedIndex;
       if (pop.active === -1 && on && !q) pop.active = n;
-      h += '<li class="ss-opt' + (o.value === "" ? " ph" : "") + (on ? " on" : "") + '" role="option" id="sso-' + uid + "-" + n + '" data-i="' + i + '" aria-selected="' + on + '">' + esc(t) + "</li>";
+      h += '<li class="ss-opt' + (o.value === "" ? " ph" : "") + (on ? " on" : "") + '" role="option" id="sso-' + uid + "-" + n + '" data-i="' + i + '" aria-selected="' + on + '">' + optHtml(o) + "</li>";
       n++;
     });
     if (!n) h = '<li class="ss-none" role="presentation">No matches</li>';
@@ -5458,7 +5460,7 @@ document.addEventListener("keydown", function (e) {
 <link rel="stylesheet" href="assets/mobile.css?v=20261028a">
 
 <link rel="stylesheet" href="assets/work-orders.css?v=20261111unit">
-<script src="assets/work-orders.js?v=20261111unit"></script>
+<script src="assets/work-orders.js?v=20261111bold"></script>
 
 <link rel="stylesheet" href="assets/master-controls.css?v=20261028">
 
