@@ -40,7 +40,7 @@ U.act('mr-del',function(i){var f=P.forms[FK];if(!f)return;U.render();f=P.forms[F
 var TYPES=[{id:'Inhouse',name:'Inhouse'},{id:'Vendor',name:'Vendor'}];
 U.page(FK,function(){if(!ready())return U.loading;
  if(!M){if(!MLOAD&&!MERR)loadMasters();return MERR?'<div class="mv-note warn"><p>'+E(MERR)+'</p><p><button type="button" class="mv-btn primary" data-a="mr-reload" data-id="">Try again</button></p></div>':'<p class="mv-note">Loading items and masters from the Inventory system…</p>';}
- return U.formPage(FK,{init:function(){return{date:U.today(),request_type:'Inhouse',items:[{specs:{}}]};},title:function(){return'';},submit:'Send to Inventory',
+ return U.formPage(FK,{init:function(){return{date:U.today(),request_type:'Inhouse',items:[{specs:{}}]};},title:function(){return'';},submit:'Request Material',
   fields:function(v){var cust=by(M.customers,v.ims_cust);if(!v.ims_firm&&!v._firmTouched){var f0=(M.firms||[])[0];if(f0)v.ims_firm=String(f0.id);}var fs=(M.stores||[]).filter(function(s){return String(s.firmId)===String(v.ims_firm);});if(v.ims_store&&!fs.some(function(s){return String(s.id)===String(v.ims_store);}))v.ims_store='';if(!v.ims_store&&fs.length){v.ims_store=String(fs[0].id);}v._firmTouched=1;if(!v.request_type)v.request_type='Inhouse';return[
    {k:'date',label:'Date',type:'date'},
    {k:'ims_firm',label:'Firm',type:'select',live:1,opts:function(){return opts(M.firms);}},
