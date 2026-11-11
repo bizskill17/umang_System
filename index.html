@@ -1159,6 +1159,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["m-machines", "Machines", "Machines, each linked to its job type: Printing, Laser, Fabrication or Cutting.", 1],
       ["m-vendors", "Vendors", "Outside vendors for recce, design, production and delivery.", 1],
       ["m-materials", "Materials", "Materials issued to vendors, with unit and default rate.", 1],
+      ["m-stores", "Stores", "Stores and godowns material is issued from, by firm.", 1],
       ["m-transporters", "Transporters/Courier", "Transporters and couriers used for dispatch.", 1],
       ["m-vehicles", "Vehicles", "Vehicles used for delivery.", 1],
       ["m-delivery-modes", "Delivery Modes", "Ways goods are delivered.", 1]
@@ -1192,12 +1193,12 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     ["label:Track Work Orders"], ["track-department", "Departmentwise", "Tasks on issued Work Orders with progress and payment, one tab per department.", 0, 0, "Track Work Orders – Departmentwise"], ["track-vendor", "Vendorwise", "Tasks on issued Work Orders with progress and payment, one tab per vendor.", 0, 0, "Track Work Orders – Vendorwise"],
     ["label:Vendor Payments"], ["pay-vendors", "Pay Vendors", "Vendor balances. Open a vendor to see the ledger, filter by project and pay."],
     ["label:Material Issue to Vendors"], ["issue-material", "Issue Material", "Give material to a vendor as payment, valued at its rate."], ["material-issue", "Material Issued", "Register of material given to vendors, vendorwise."],
-    ["label:Masters"], ["m-materials", "Material", "Materials issued to vendors, with unit and default rate.", 0, 0, "Material Master"], ["vendor-payments", "Payments", "All vendor payments, advances and refunds.", 0, 0, "Payments Master"], ["work-orders", "Work Orders", "All Work Orders: drafts, issued, revisions and cancellations.", 0, 0, "Work Orders Master"],
+    ["label:Masters"], ["m-materials", "Material", "Materials issued to vendors, with unit and default rate.", 0, 0, "Material Master"], ["m-stores", "Store", "Stores and godowns material is issued from, by firm.", 0, 0, "Store Master"], ["vendor-payments", "Payments", "All vendor payments, advances and refunds.", 0, 0, "Payments Master"], ["work-orders", "Work Orders", "All Work Orders: drafts, issued, revisions and cancellations.", 0, 0, "Work Orders Master"],
     ["create-work-order", "Create Work Order", "Combine tasks for one vendor into a Work Order.", 0, 1], ["all", "All Outsource Tasks", "Outsourced work across all departments.", 0, 1], ["completed", "Completed Outsource Tasks", "Completed outsourced work.", 0, 1], ["pending", "All Pending Tasks", "Open outsourced work.", 0, 1], ["pending-department", "Pending Tasks – Department-wise", "Open outsourced work, one tab per department.", 0, 1], ["pending-vendor", "Pending Tasks – Vendor-wise", "Open outsourced work, one tab per vendor.", 0, 1], ["pending-work-orders", "Pending Work Order", "Assigned vendor tasks awaiting an issued Work Order.", 0, 1], ["advances", "Available Advances", "Unallocated vendor payments available for adjustment.", 0, 1], ["pending-payments", "Pending Payments", "Issued Work Orders with outstanding amounts.", 0, 1], ["vendor-ledger", "Vendor Ledger (audit)", "Vendor balances, allocations, refunds and audit history.", 0, 1]] };
   /* Access to the reorganised Outsource views follows the views a user already had (old keys) or the new menu items. */
   var OS_ALIAS = (function () {
     var make = ["make-department", "make-vendor", "pending-work-orders", "create-work-order"], track = ["track-department", "track-vendor", "work-orders"], pay = ["pay-vendors", "vendor-payments", "pending-payments", "vendor-ledger", "advances"], tasks = ["all", "pending", "completed", "pending-department", "pending-vendor"];
-    return { "fill-rate": make.concat(track), "invoice-department": make.concat(track), "invoice-vendor": make.concat(track), "make-department": make.concat(["pending", "pending-department"]), "make-vendor": make.concat(["pending", "pending-vendor"]), "track-department": track.concat(["pending-work-orders", "all"]), "track-vendor": track.concat(["pending-work-orders", "all"]), "pay-vendors": pay, "material-issue": pay, "issue-material": pay, "m-materials": pay.concat(["issue-material", "material-issue"]), "create-work-order": make.concat(["work-orders"]), "pending-work-orders": make, all: tasks.concat(make, track), pending: tasks.concat(make), completed: tasks.concat(track), "pending-department": tasks.concat(make), "pending-vendor": tasks.concat(make), advances: pay, "pending-payments": pay, "vendor-ledger": pay };
+    return { "fill-rate": make.concat(track), "invoice-department": make.concat(track), "invoice-vendor": make.concat(track), "make-department": make.concat(["pending", "pending-department"]), "make-vendor": make.concat(["pending", "pending-vendor"]), "track-department": track.concat(["pending-work-orders", "all"]), "track-vendor": track.concat(["pending-work-orders", "all"]), "pay-vendors": pay, "material-issue": pay, "issue-material": pay, "m-materials": pay.concat(["issue-material", "material-issue"]), "m-stores": pay.concat(["issue-material", "material-issue"]), "create-work-order": make.concat(["work-orders"]), "pending-work-orders": make, all: tasks.concat(make, track), pending: tasks.concat(make), completed: tasks.concat(track), "pending-department": tasks.concat(make), "pending-vendor": tasks.concat(make), advances: pay, "pending-payments": pay, "vendor-ledger": pay };
   })();
   window.UmangMenus = MENUS;
   /* ---------- View permissions (same rules as the plugin) ---------- */
@@ -1531,6 +1532,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     "m-user-document-types": { coll: "user-document-types", one: "User Document Type", many: "User Document Types", fields: [["name", "User Document Type", "text", 1]], cols: ["name"] },
     "m-items": { coll: "items", one: "Item", many: "Items", fields: [["name", "Item Name", "text", 1], ["photo", "Photo", "image"], ["category", "Category", "stage", 0, { choices: ["Charge"] }]], cols: ["name", "photo", "category"] },
     "m-materials": { coll: "materials", one: "Material", many: "Materials", fields: [["name", "Material Name", "text", 1, { unique: true }], ["unit_id", "Unit", "select", 0, { of: "uom" }], ["rate", "Default Rate (₹)", "number"]], cols: ["name", "unit_id", "rate"] },
+    "m-stores": { coll: "stores", one: "Store", many: "Stores", fields: [["firm_id", "Firm", "select", 1, { of: "firm" }], ["name", "Store Name", "text", 1, { unique: true }], ["location", "Location", "text"]], cols: ["firm_id", "name", "location"] },
     "m-uom": { coll: "uom", one: "UOM", many: "UOM", fields: [["name", "UOM", "text", 1]], cols: ["name"], note: "Foot, Inch, cm and Metre are fixed units used to work out area. They are locked and can't be edited." },
     "m-gst": { coll: "gst", one: "GST %", many: "GST rates", fields: [["name", "GST %", "number", 1]], cols: ["name"] },
     "m-machines": { coll: "machines", one: "Machine", many: "Machines", fields: [["name", "Machine Name", "text", 1], ["job_step", "Machine Category", "stage", 1]], cols: ["name", "job_step"] },
@@ -5464,7 +5466,7 @@ document.addEventListener("keydown", function (e) {
 <link rel="stylesheet" href="assets/mobile.css?v=20261028a">
 
 <link rel="stylesheet" href="assets/work-orders.css?v=20261111unit">
-<script src="assets/work-orders.js?v=20261111noadj"></script>
+<script src="assets/work-orders.js?v=20261111store"></script>
 
 <link rel="stylesheet" href="assets/master-controls.css?v=20261028">
 

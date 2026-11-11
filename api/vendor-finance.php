@@ -133,7 +133,7 @@ if($action==='workorder'){
       if($amount<=0)vfFail('Payment amount must be greater than zero.');
       if(!$mode||!$account)vfFail('Enter the payment mode and bank/cash account.');$id=bin2hex(random_bytes(16));$eventAmount=$amount;
       $pay=['vendor_id'=>$vendor,'firm_id'=>$firm,'date'=>$date,'amount_cents'=>$amount,'mode'=>$mode,'account'=>$account,'reference'=>trim((string)($input['reference']??'')),'remarks'=>trim((string)($input['remarks']??'')),'proof'=>vfAttachment($input['proof']??null),'status'=>'Active','createdAt'=>$now,'created_by'=>$actor];
-      if($mode==='Material'){$pay['materials']=$materials;$pay['project_id']=$project;$pay['work_order_id']=$woId;}
+      if($mode==='Material'){$pay['materials']=$materials;$pay['project_id']=$project;$pay['work_order_id']=$woId;$pay['store_id']=mb_substr(trim((string)($input['store_id']??'')),0,64);}
       vfPut('vendor_payments',$id,$pay);
       $alloc=$input['allocations']??[];foreach($alloc as &$a)$a['payment_id']=$id;unset($a);vfAllocate($alloc,$vendor,$firm,$date,$actor);$result['id']=$id;
     }elseif($command==='allocate'){

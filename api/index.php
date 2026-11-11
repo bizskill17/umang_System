@@ -260,7 +260,7 @@ function permittedWrite(string $path): bool {
     if (str_starts_with($path, 'masters/')) {
         $master = explode('/', $path)[1];
         if (in_array($master, ['users', 'user-roles'], true)) return canManageUsers(); // owner and active Admin roles manage accounts
-        if ($master === 'materials' && is_array($allowed) && array_intersect(['outsource.issue-material','outsource.material-issue','outsource.pay-vendors','outsource.vendor-payments'], $allowed)) return true; // material can be added while issuing
+        if (($master === 'materials' || $master === 'stores') && is_array($allowed) && array_intersect(['outsource.issue-material','outsource.material-issue','outsource.pay-vendors','outsource.vendor-payments'], $allowed)) return true; // material can be added while issuing
         return $allowed === null || in_array('master:m-' . $master, $allowed, true);
     }
     if ($path === 'access_requests') return false;
@@ -306,7 +306,7 @@ if ($action === 'blob') {
     header('Content-Disposition: inline; filename="' . addcslashes($file['name'], '"\\') . '"');
     header("Content-Security-Policy: sandbox"); session_write_close(); readfile($privateStorage . '/' . $id); exit;
 }
-$masters = ['firm','customers','vendors','customer-category','customer-subcategory','state','city','lead-category','lead-subcategory','lead-sources','send-mode','users','user-roles','designation','user-document-types','items','uom','gst','machines','materials','delivery-modes','transporters','vehicles'];
+$masters = ['firm','customers','vendors','customer-category','customer-subcategory','state','city','lead-category','lead-subcategory','lead-sources','send-mode','users','user-roles','designation','user-document-types','items','uom','gst','machines','materials','stores','delivery-modes','transporters','vehicles'];
 $collections = ['leads','quotations','quote_followups','projects','recce','recce_updates','designs','design_updates','jobs','job_assign','qc','dispatches','wastage','invoices','payments','complaints','complaint_updates','counters','access_requests','work_orders','work_order_versions','vendor_payments','vendor_allocations','vendor_refunds','finance_events'];
 function validPath(string $p): bool {
     global $collections, $masters;
@@ -319,6 +319,26 @@ function shapeDoc(string $p, array $body): array {
 }
 define('UMANG_VENDOR_FINANCE', true);
 require_once __DIR__ . '/vendor-finance.php';
+// One-time load of the company's stores into the Store master (firm matched by name).
+function seedStores(): void {
+    if (query("SELECT 1 FROM umang_documents WHERE collection_path='_migrations' AND id='stores-v1'")->fetchColumn()) return;
+    $firms = [];
+    foreach (query("SELECT id,body FROM umang_documents WHERE collection_path='masters/firm/rows'")->fetchAll(PDO::FETCH_ASSOC) as $r) { $b = json_decode($r['body'], true); $firms[strtolower(trim((string)($b['name'] ?? '')))] = $r['id']; }
+    $have = [];
+    foreach (query("SELECT body FROM umang_documents WHERE collection_path='masters/stores/rows'")->fetchAll(PDO::FETCH_ASSOC) as $r) { $b = json_decode($r['body'], true); $have[strtolower(trim((string)($b['name'] ?? '')))] = 1; }
+    $list = [['Umang Communications Pvt Ltd','1ST FLOOR UC-1','ADAAGUDAM'],['Umang Communications Pvt Ltd Unit 2','1ST FLOOR UC-2','BISHNUPUR'],['Umang Communications Pvt Ltd Unit 2','2nd Floor MEZZANINE UC-2','BISHNUPUR'],['Umang Communications Pvt Ltd Unit 2','DHOPOLIA GODOWN UC-2','JYOTIKUCHI'],['JB Communications','GROUND FLOOR JB','REHABARI'],['Umang Communications Pvt Ltd','GROUND FLOOR UC-1','ADAGUDAM'],['Umang Communications Pvt Ltd Unit 2','GROUND FLOOR UC-2','BISHNUPUR'],['Umang Communications Pvt Ltd Unit 2','LASER ROOM UC-2','BISHNUPUR'],['Umang Communications Pvt Ltd Unit 2','PRINTING ROOM UC-2','BISHNUPUR'],['Umang Communications Pvt Ltd Unit 2','ROOF UC-2','BISHNUPUR']];
+    $t = gmdate('Y-m-d\TH:i:s\Z');
+    txBegin();
+    foreach ($list as [$firm, $name, $loc]) {
+        if (isset($have[strtolower($name)])) continue;
+        $body = ['name' => $name, 'firm_id' => $firms[strtolower($firm)] ?? '', 'location' => $loc, 'status' => 'Active', 'createdAt' => $t, 'updatedAt' => $t];
+        if ($body['firm_id'] === '') $body['firm_name'] = $firm;
+        query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?)', ['masters/stores/rows', bin2hex(random_bytes(16)), json_encode($body, JSON_UNESCAPED_UNICODE)]);
+    }
+    query("INSERT INTO umang_documents(collection_path,id,body) VALUES('_migrations','stores-v1','{}')");
+    txCommit();
+}
+if ($user) { try { seedStores(); } catch (Throwable $e) { if (function_exists('txRollback')) { try { txRollback(); } catch (Throwable $e2) {} } } }
 // One request (one connection, one query) returns several collections; keeps hosting connection limits low.
 if ($action === 'batch') {
     $paths = array_values(array_unique(array_filter(explode(',', (string)($_GET['paths'] ?? '')), 'validPath')));
