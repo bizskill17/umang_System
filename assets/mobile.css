@@ -53,3 +53,12 @@
   .mobile-table-hint { display: block; margin: 4px 0 8px; font-size: 12px; color: var(--muted); }
   #ops-busy { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom, 0px)); justify-content: center; }
 }
+
+.m-requisition { --c: #5d7a10; --t: #eef6cf; }
+#home-view .m-requisition { --a: #c6dc5c; --b: #7f9a22; }
+#home-view .m-requisition .name { white-space: normal; line-height: 1.15; display: block; }
+#home-view .m-requisition .text { overflow: visible; }
+.side.m-requisition { --a: #c6dc5c; --b: #6f8a1a; }
+.fu-card.m-requisition { --c: #5d7a10; --t: #eef6cf; }
+.mr-late { color: #b42318; font-weight: 600; }
+.nw { white-space: nowrap; }

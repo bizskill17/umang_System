@@ -976,6 +976,12 @@ body.in-module .side .nav-sec.grp > ul > li > .nav-group { color: var(--sa); fon
         <span class="text"><span class="name">Outsource</span></span>
         <span class="hm-go" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
       </a></li>
+      <li><a class="tile m-requisition" href="#requisition">
+        <svg class="hm-wave" viewBox="0 0 300 200" preserveAspectRatio="none" aria-hidden="true"><path d="M0 150 C80 110 150 190 300 120 L300 200 L0 200Z"/><path d="M120 200 C170 150 230 170 300 90 L300 200Z"/><circle cx="270" cy="10" r="70"/></svg>
+        <span class="icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg></span>
+        <span class="text"><span class="name">Material Requisition</span></span>
+        <span class="hm-go" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a></li>
     </ul>
   </nav>
   <div class="home-user" aria-label="Signed-in user">
@@ -1195,6 +1201,10 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     ["label:Material Issue to Vendors"], ["issue-material", "Issue Material", "Give material to a vendor as payment, valued at its rate."], ["material-issue", "Material Issued", "Register of material given to vendors, vendorwise."],
     ["label:Masters"], ["m-materials", "Material", "Materials issued to vendors, with unit and default rate.", 0, 0, "Material Master"], ["m-stores", "Store", "Stores and godowns material is issued from, by firm.", 0, 0, "Store Master"], ["vendor-payments", "Payments", "All vendor payments, advances and refunds.", 0, 0, "Payments Master"], ["work-orders", "Work Orders", "All Work Orders: drafts, issued, revisions and cancellations.", 0, 0, "Work Orders Master"],
     ["create-work-order", "Create Work Order", "Combine tasks for one vendor into a Work Order.", 0, 1], ["all", "All Outsource Tasks", "Outsourced work across all departments.", 0, 1], ["completed", "Completed Outsource Tasks", "Completed outsourced work.", 0, 1], ["pending", "All Pending Tasks", "Open outsourced work.", 0, 1], ["pending-department", "Pending Tasks – Department-wise", "Open outsourced work, one tab per department.", 0, 1], ["pending-vendor", "Pending Tasks – Vendor-wise", "Open outsourced work, one tab per vendor.", 0, 1], ["pending-work-orders", "Pending Work Order", "Assigned vendor tasks awaiting an issued Work Order.", 0, 1], ["advances", "Available Advances", "Unallocated vendor payments available for adjustment.", 0, 1], ["pending-payments", "Pending Payments", "Issued Work Orders with outstanding amounts.", 0, 1], ["vendor-ledger", "Vendor Ledger (audit)", "Vendor balances, allocations, refunds and audit history.", 0, 1]] };
+  MENUS.requisition = { name: "Material Requisition", add: ["raise", "Raise Requisition", "Request material for a project. It is then sent to the Inventory Management system."], start: "not-sent", items: [
+    ["label:Requisitions"], ["not-sent", "Not Sent to Inventory", "Requisitions saved here and not yet sent to the Inventory Management system."], ["sent", "Pending at Inventory", "Sent to Inventory and waiting for the material."], ["received", "Received", "Requisitions whose material has been received."],
+    ["label:Masters"], ["all", "Requisitions", "All material requisitions.", 0, 0, "Requisitions Master"]
+  ] };
   /* Access to the reorganised Outsource views follows the views a user already had (old keys) or the new menu items. */
   var OS_ALIAS = (function () {
     var make = ["make-department", "make-vendor", "pending-work-orders", "create-work-order"], track = ["track-department", "track-vendor", "work-orders"], pay = ["pay-vendors", "vendor-payments", "pending-payments", "vendor-ledger", "advances"], tasks = ["all", "pending", "completed", "pending-department", "pending-vendor"];
@@ -1610,7 +1620,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   document.addEventListener("focusin", function (e) { if (e.target.id === "mf-acc-q" && ACC.u && !ACC.q && !ACC.hits.length) ACC.u.search("").then(function (hits) { ACC.hits = hits || []; if (ACC.hits.length) rerender(); }); });
   var PMOPEN = { 0: true };
   function permGroups() {
-    var M = window.UmangMenus || {}, out = [], order = ["leads", "recce", "design", "quotations", "projects", "invoices", "complaints", "outsource"];
+    var M = window.UmangMenus || {}, out = [], order = ["leads", "recce", "design", "quotations", "projects", "invoices", "complaints", "outsource", "requisition"];
     order.forEach(function (slug) {
       var m = M[slug]; if (!m) return; var items = [], gt = {};
       if (m.add) items.push([slug + "." + m.add[0], m.add[1]]);
@@ -5182,7 +5192,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   var WATCH = {
     leads: ["leads", "quotations", "projects"], recce: ["recce", "recce_updates"], design: ["designs", "design_updates"],
     quotations: ["quotations", "quote_followups", "projects"], projects: ["projects", "quotations", "jobs", "job_assign", "qc", "dispatches", "wastage"],
-    invoices: ["invoices", "projects", "jobs", "dispatches", "qc", "job_assign"], complaints: ["complaints"], masters: []
+    invoices: ["invoices", "projects", "jobs", "dispatches", "qc", "job_assign"], complaints: ["complaints"], requisition: ["material_requisitions"], masters: []
   };
   function qn(st) { return cnt("quotations", function (q) { return q.status === st; }); }
   function rPend(r) { var d = r.done || {}; return n(r.units) - n(d.completed) - n(d.denied) - n(d.cancel); }
@@ -5231,6 +5241,9 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       "not-yet-paid": function () { return cnt("invoices", function (i) { return i.status !== "Canceled" && i.payment === "Not Yet Paid"; }); },
       "follow-up-again": function () { return cnt("invoices", function (i) { return i.status !== "Canceled" && i.payment !== "Fully Paid" && i.follow_required === "Yes" && i.next_fu; }); },
       "partly-paid": function () { return cnt("invoices", function (i) { return i.status !== "Canceled" && i.payment === "Partly Paid"; }); }, "fully-paid": function () { return cnt("invoices", function (i) { return i.status !== "Canceled" && i.payment === "Fully Paid"; }); }
+    },
+    requisition: {
+      "not-sent": function () { return cnt("material_requisitions", function (r) { return r.status === "Not Sent"; }); }, sent: function () { return cnt("material_requisitions", function (r) { return r.status === "Sent"; }); }
     },
     complaints: {
       assign: function () { return cnt("complaints", function (c) { return c.status === "New"; }); }, "in-progress": function () { return cnt("complaints", function (c) { return c.status === "Assigned"; }); },
@@ -5463,10 +5476,11 @@ document.addEventListener("keydown", function (e) {
 <link rel="stylesheet" href="assets/operations.css?v=20261110wrap">
 <script src="assets/operations.js?v=20261110tabs0"></script>
 
-<link rel="stylesheet" href="assets/mobile.css?v=20261028a">
+<link rel="stylesheet" href="assets/mobile.css?v=20261111mr2">
 
 <link rel="stylesheet" href="assets/work-orders.css?v=20261111unit">
 <script src="assets/work-orders.js?v=20261111noslip"></script>
+<script src="assets/requisition.js?v=20261111mr2"></script>
 
 <link rel="stylesheet" href="assets/master-controls.css?v=20261028">
 
