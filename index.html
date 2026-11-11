@@ -3185,7 +3185,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   U.formPage = function (key, cfg) {
     var st = P.forms[key] = P.forms[key] || { v: cfg.init(), err: "", saving: false };
     var fs = cfg.fields(st.v);
-    var h = '<form class="mv-form" id="u-pform" data-key="' + key + '" novalidate><h2>' + esc(cfg.title(st.v)) + "</h2>";
+    var h = '<form class="mv-form" id="u-pform" data-key="' + key + '" novalidate>' + (cfg.title(st.v) ? "<h2>" + esc(cfg.title(st.v)) + "</h2>" : "");
     if (cfg.intro) h += cfg.intro(st.v);
     h += U.fields(fs, st.v, "up_");
     if (cfg.extra) h += cfg.extra(st.v);
@@ -5456,7 +5456,7 @@ document.addEventListener("keydown", function (e) {
 <link rel="stylesheet" href="assets/mobile.css?v=20261028a">
 
 <link rel="stylesheet" href="assets/work-orders.css?v=20261111miwo">
-<script src="assets/work-orders.js?v=20261111notiles"></script>
+<script src="assets/work-orders.js?v=20261111notitle"></script>
 
 <link rel="stylesheet" href="assets/master-controls.css?v=20261028">
 
