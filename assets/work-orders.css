@@ -55,3 +55,4 @@
 .wo-ctable tbody.wo-vgroup tr:not(.wo-ghead):hover td{filter:brightness(.97)}
 .wo-ctable tbody.wo-vgroup + tbody.wo-vgroup .wo-ghead td{border-top:3px solid #1e293b}
 .mi-wo .wo-totals{max-width:440px;margin-left:auto}
+.mi-table .mi-c{width:120px}.mi-table td input.mi-qty,.mi-table td input.mi-rate,.mi-table td select.mi-unit{min-width:0;width:100%;max-width:130px}.mi-table td:first-child{min-width:260px}.mi-table td:first-child .sel-add{max-width:none}
