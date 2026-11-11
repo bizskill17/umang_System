@@ -74,3 +74,4 @@
 .mr-nomatch { margin: 6px 0 0; color: #b42318; font-size: 12.5px; }
 .mr-items-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .mr-spec-t { font-size: 12px; }
+.mr-remarks { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; } .mr-remarks label { font-weight: 600; font-size: 14px; } .mr-remarks textarea { width: 100%; box-sizing: border-box; min-height: 80px; }
