@@ -53,3 +53,4 @@
 .wo-ctable tbody.wo-vgroup:nth-of-type(6n+5) .wo-ghead td{background:#dbe4f0;border-top:2px solid #fff}.wo-ctable tbody.wo-vgroup:nth-of-type(6n+5) tr:not(.wo-ghead) td{background:#f3f6fa}.wo-ctable tbody.wo-vgroup:nth-of-type(6n+5) .wo-gline strong{color:#334155}.wo-ctable tbody.wo-vgroup:nth-of-type(6n+5) tr:not(.wo-ghead) td:first-child{box-shadow:inset 4px 0 0 #dbe4f0}
 .wo-ctable tbody.wo-vgroup:nth-of-type(6n+6) .wo-ghead td{background:#ffd6e7;border-top:2px solid #fff}.wo-ctable tbody.wo-vgroup:nth-of-type(6n+6) tr:not(.wo-ghead) td{background:#fff2f7}.wo-ctable tbody.wo-vgroup:nth-of-type(6n+6) .wo-gline strong{color:#9d174d}.wo-ctable tbody.wo-vgroup:nth-of-type(6n+6) tr:not(.wo-ghead) td:first-child{box-shadow:inset 4px 0 0 #ffd6e7}
 .wo-ctable tbody.wo-vgroup tr:not(.wo-ghead):hover td{filter:brightness(.97)}
+.wo-ctable tbody.wo-vgroup + tbody.wo-vgroup .wo-ghead td{border-top:3px solid #1e293b}
