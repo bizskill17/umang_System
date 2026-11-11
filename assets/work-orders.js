@@ -225,6 +225,6 @@ U.page('outsource.material-issue',function(){if(!ready())return U.loading;var st
   ['Action',function(p){return U.ro()||p.status!=='Active'?'':(available(p)>0?U.btn('vf-allocate',p.id,'Adjust'):'')+U.btn('vf-reverse',p.id,'Reverse');},'act']];
  if(cur)cols=cols.filter(function(c){return c[0]!=='Vendor';});
  return U.bar(st,[{k:'firm',label:'Firm',first:'All firms',opts:U.mact('firm')},{k:'project',label:'Project',first:'All projects',opts:projOpts(base.map(function(p){return p.project_id;}).filter(Boolean))},{k:'status',label:'Status',first:'Issued and reversed',opts:[{id:'Active',name:'Issued'},{id:'Reversed',name:'Reversed'}]}],true)
-  +(U.ro()?'':'<p>'+U.btn('mi-issue',cur||'','Issue Material',true)+'</p>')+tabBar(tabs,cur,'Vendors')+sumTiles([['Material value',cash(val)],['Adjusted to Work Orders',cash(val-av)],['Advance left with vendor',cash(av),'net']])
+  +(U.ro()?'':'<p>'+U.btn('mi-issue',cur||'','Issue Material',true)+'</p>')+tabBar(tabs,cur,'Vendors')
   +U.table(cols,shown,null,base.length?'No material issue matches these filters.':'No material has been issued to vendors yet.')+U.count(shown.length,'issue');});
 })();
