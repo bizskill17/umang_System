@@ -656,6 +656,8 @@ body.in-module .mv-btn.primary, body.in-module .side-add { background: linear-gr
 body.in-module .content > .crumb, body.in-module .content > .crumb a, body.in-module #page-title { color: #fff; }
 body.in-module .content > .crumb { color: #e3eeff; }
 body.in-module #page-title { text-shadow: 0 2px 12px rgba(20,15,60,.25); }
+/* Page name already shows in the breadcrumb: keep the heading for screen readers only. */
+body.in-module #page-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 body.in-module .master-view > .mv-count, body.in-module .master-view > .fu-key, body.in-module .master-view > p.mv-count { color: #eef4ff; }
 body.in-module .master-view > .fu-key .k { border-color: rgba(255,255,255,.6); }
 body.in-module .ss-btn { background: var(--surface); color: var(--text); }
