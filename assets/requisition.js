@@ -56,30 +56,41 @@ U.page(FK,function(){if(!ready())return U.loading;
   validate:function(v){var l=(v.items||[]).filter(function(r){return r.item_name_id||num(r.qty);});if(!l.length)return'Add at least one item.';for(var i=0;i<l.length;i++){var r=l[i],n=nm(M.itemNames,r.item_name_id);if(!r.item_name_id)return'Choose the item on every row that has a quantity.';if(!resolveItem(r))return'Fill all specifications of '+n+' (or pick values that exist in the Inventory).';if(!(num(r.qty)>0))return'Enter a quantity above zero for '+n+'.';}},
   save:async function(v){var rows=(v.items||[]).filter(function(r){return r.item_name_id;}).map(function(r){var it=resolveItem(r);return{itemId:String(it.id),quantity:num(r.qty),specification:specText(it),name:nm(M.itemNames,r.item_name_id),unit:(by(M.itemNames,r.item_name_id)||{}).unitName||''};});
    var dept=nm(M.departments,v.ims_dept),req={date:v.date,firmId:v.ims_firm,storeId:v.ims_store,department:dept,customerId:v.ims_cust||'',projectId:v.ims_proj||'',requestByType:v.request_type,requestByUserId:v.request_type==='Inhouse'?v.requested_by:'',requestBySupplierId:v.request_type==='Vendor'?v.requested_by:'',enteredByUserId:v.entered_by,remarks:v.remarks||'',items:rows.map(function(r){return{itemId:r.itemId,quantity:r.quantity,specification:r.specification};})};
-   var fy=U.fy(v.date),n=await U.seq('mr-'+fy,U.maxSeq(C,'seq',function(r){return r.fy===fy;})),no='MR-'+fy+'/'+n;
    var reqBy=v.request_type==='Vendor'?nm(M.suppliers,v.requested_by):nm(M.users,v.requested_by);
-   await U.add(C,{fy:fy,seq:n,no:no,ims_ref:req,date:v.date,firm:nm(M.firms,v.ims_firm),store:nm(M.stores,v.ims_store),department:dept,customer:nm(M.customers,v.ims_cust),project:nm(M.projects,v.ims_proj),request_type:v.request_type,requested_by:reqBy,entered_by:nm(M.users,v.entered_by),remarks:v.remarks||'',
-    items:rows.map(function(r){return{ims_item_id:r.itemId,name:r.name,specification:r.specification,qty:r.quantity,unit:r.unit,issued:0};}),status:'Pending',sent_at:U.now()});
-   // Not sent to the Inventory system for now; kept here only.
-   return{go:'requisition.pending',msg:'Requisition '+no+' saved.'};}});});
+   var added=await U.add(C,{no:'',ims_ref:req,date:v.date,firm:nm(M.firms,v.ims_firm),store:nm(M.stores,v.ims_store),department:dept,customer:nm(M.customers,v.ims_cust),project:nm(M.projects,v.ims_proj),request_type:v.request_type,requested_by:reqBy,entered_by:nm(M.users,v.entered_by),remarks:v.remarks||'',
+    items:rows.map(function(r){return{ims_item_id:r.itemId,name:r.name,specification:r.specification,qty:r.quantity,unit:r.unit,issued:0};}),status:'Not Sent'});
+   // Saved here first; the IMS then gives the one requisition number used in both places.
+   try{var res=await ims('send',{id:added.id});return{go:'requisition.pending',msg:'Requisition '+res.requestNo+' sent to the Inventory system.'};}
+   catch(e){return{go:'requisition.not-sent',msg:'Saved here but not sent to Inventory: '+((e&&(e.msg||e.message))||'connection problem')};}}});});
 
-// ---------- status (kept here; not linked to the Inventory system for now) ----------
-function sync(){}
-U.act('mr-close',function(id){var r=U.get(C,id);if(!r)return;U.modal({mod:'requisition',title:'Mark '+r.no+' as Issued',sub:E(r.customer||'')+(r.project?' · '+E(r.project):''),v:{closed_on:U.today()},
- fields:[{k:'closed_on',label:'Issued On',type:'date',req:1}],validate:function(v){return v.closed_on<r.date?'Issued On can’t be before the requisition date.':null;},
- save:async function(v){await U.upd(C,id,{status:'Closed',closed_on:v.closed_on,items:(r.items||[]).map(function(it){return Object.assign({},it,{issued:it.qty});})});return r.no+' marked as issued.';}});});
-U.act('mr-cancel',function(id){var r=U.get(C,id);if(!r)return;U.modal({mod:'requisition',title:'Cancel '+r.no,fields:[{k:'cancel_reason',label:'Reason',type:'textarea',req:1}],submit:'Cancel Requisition',
- save:async function(v){await U.upd(C,id,{status:'Canceled',cancel_reason:v.cancel_reason,canceled_on:U.today()});return r.no+' canceled.';}});});
+// ---------- send / status with the IMS ----------
+var SENDING={};
+U.act('mr-send',async function(id){if(SENDING[id])return;SENDING[id]=1;U.flash('Sending to the Inventory system…');try{var res=await ims('send',{id:id});U.flash('Requisition '+res.requestNo+' sent to the Inventory system.');}catch(e){U.flash((e&&(e.msg||e.message))||'Could not send.');}finally{delete SENDING[id];}});
+var LAST=0,SYNC=false;
+async function sync(force){if(SYNC||(!force&&Date.now()-LAST<60000))return;var open=U.rows(C).filter(function(r){return r.ims_id&&r.status==='Pending';});if(!open.length){LAST=Date.now();if(force)U.flash('Nothing pending at Inventory.');return;}SYNC=true;
+ try{var d=await ims('status',{ids:open.map(function(r){return r.ims_id;})});LAST=Date.now();
+  for(var i=0;i<open.length;i++){var r=open[i],s=(d.status||{})[r.ims_id];if(!s)continue;var up={};
+   if(s.items){var items=(r.items||[]).map(function(it){var m=s.items.find(function(x){return x.itemId===it.ims_item_id;});return m?Object.assign({},it,{issued:m.issued}):it;});if(JSON.stringify(items)!==JSON.stringify(r.items))up.items=items;}
+   if(s.status&&s.status!=='Pending'&&s.status!=='Not found'){up.status='Closed';up.closed_at=U.now();up.ims_status=s.status;up.items=(up.items||r.items||[]).map(function(it){return Object.assign({},it,{issued:Math.max(num(it.issued),num(it.qty))});});}
+   if(s.status==='Not found'&&!r.missing)up.missing=true;if(s.status!=='Not found'&&r.missing)up.missing=false;
+   if(Object.keys(up).length)await U.upd(C,r.id,up);}
+  if(force)U.flash('Status updated from the Inventory system.');}
+ catch(e){if(force)U.flash((e&&(e.msg||e.message))||'Could not reach the Inventory system.');}
+ finally{SYNC=false;}}
+U.act('mr-sync',function(){sync(true);});
+U.act('mr-cancel',function(id){var r=U.get(C,id);if(!r||r.ims_id)return;U.modal({mod:'requisition',title:'Cancel requisition',fields:[{k:'cancel_reason',label:'Reason',type:'textarea',req:1}],submit:'Cancel Requisition',
+ save:async function(v){await U.upd(C,id,{status:'Canceled',cancel_reason:v.cancel_reason,canceled_on:U.today()});return'Requisition canceled.';}});});
 // ---------- lists ----------
 function itemsCell(r){return '<div class="mi-list">'+(r.items||[]).map(function(m){var done=num(m.issued);return '<div><b>'+E(m.name)+'</b> <span class="dim">'+U.num(m.qty)+(m.unit?' '+E(m.unit):'')+(done?' · issued '+U.num(done):'')+'</span>'+(m.specification?'<div class="dim mr-spec-t">'+E(m.specification).replace(/\n/g,' · ')+'</div>':'')+'</div>';}).join('')+'</div>';}
 function list(filter,empty,withSync){return function(){if(!ready())return U.loading;if(withSync)sync(false);var st=U.st(),base=U.rows(C).filter(filter);
  var rows=base.filter(function(r){return(!st.firm||r.firm===st.firm)&&(!st.store||r.store===st.store)&&(!st.dept||r.department===st.dept)&&U.match(st,[r.no,r.customer,r.project,r.requested_by,r.store,r.department,(r.items||[]).map(function(m){return m.name+' '+m.specification;}).join(' ')].join(' '),r.date);}).sort(function(a,b){return String(b.sent_at||b.createdAt||'').localeCompare(String(a.sent_at||a.createdAt||''));});
- var cols=[['Req. No.',function(r){return '<b class="nw">'+E(r.no||'—')+'</b>';}],['Date',function(r){return U.dmy(r.date);}],['Firm · Store',function(r){return E(r.firm)+'<div class="dim">'+E(r.store)+'</div>';}],['Department',function(r){return E(r.department);}],['Customer · Project',function(r){return E(r.customer||'—')+'<div class="dim">'+E(r.project)+'</div>';}],['Items',itemsCell],['Requested By',function(r){return E(r.requested_by)+'<div class="dim">'+E(r.request_type)+'</div>';}],['Status',function(r){return U.pill(r.status==='Closed'?'Issued':r.status);}]];
- if(withSync&&!U.ro())cols.push(['Action',function(r){return r.status==='Pending'?U.btn('mr-close',r.id,'Mark Issued',true)+U.btn('mr-cancel',r.id,'Cancel'):'';},'act']);
+ var cols=[['Req. No.',function(r){return '<b class="nw">'+E(r.no||'—')+'</b>'+(r.missing?'<div class="mr-late">Not found in Inventory</div>':'');}],['Date',function(r){return U.dmy(r.date);}],['Firm · Store',function(r){return E(r.firm)+'<div class="dim">'+E(r.store)+'</div>';}],['Department',function(r){return E(r.department);}],['Customer · Project',function(r){return E(r.customer||'—')+'<div class="dim">'+E(r.project)+'</div>';}],['Items',itemsCell],['Requested By',function(r){return E(r.requested_by)+'<div class="dim">'+E(r.request_type)+'</div>';}],['Status',function(r){return U.pill(r.status==='Closed'?'Issued':r.status==='Pending'?'Pending at Inventory':r.status)+(r.status==='Not Sent'&&r.send_error?'<div class="mr-late">'+E(r.send_error)+'</div>':'');}]];
+ if(!U.ro())cols.push(['Action',function(r){return r.status==='Not Sent'?U.btn('mr-send',r.id,'Send Again',true)+U.btn('mr-cancel',r.id,'Cancel'):'';},'act']);
  var uniqOpts=function(k){var s=[];base.forEach(function(r){if(r[k]&&s.indexOf(r[k])<0)s.push(r[k]);});return s.sort().map(function(x){return{id:x,name:x};});};
  return U.bar(st,[{k:'firm',label:'Firm',first:'All firms',opts:uniqOpts('firm')},{k:'store',label:'Store',first:'All stores',opts:uniqOpts('store')},{k:'dept',label:'Department',first:'All departments',opts:uniqOpts('department')}],true)
-  +U.table(cols,rows,null,base.length?'No requisition matches these filters.':empty)+U.count(rows.length,'requisition');};}
-U.page('requisition.pending',list(function(r){return r.status==='Pending';},'No pending requisitions.',true));
-U.page('requisition.closed',list(function(r){return r.status==='Closed';},'No requisitions issued yet.'));
+  +(withSync?'<p>'+U.btn('mr-sync','','Refresh status from Inventory')+'</p>':'')+U.table(cols,rows,null,base.length?'No requisition matches these filters.':empty)+U.count(rows.length,'requisition');};}
+U.page('requisition.not-sent',list(function(r){return r.status==='Not Sent';},'Every requisition has reached the Inventory system.'));
+U.page('requisition.pending',list(function(r){return r.status==='Pending';},'No requisitions are pending at Inventory.',true));
+U.page('requisition.closed',list(function(r){return r.status==='Closed';},'No requisitions have been fully issued yet.'));
 U.page('requisition.all',list(function(){return true;},'No requisitions yet. Use Raise Requisition.',true));
 })();
