@@ -40,7 +40,7 @@ U.act('mr-del',function(i){var f=P.forms[FK];if(!f)return;U.render();f=P.forms[F
 var TYPES=[{id:'Inhouse',name:'Inhouse'},{id:'Vendor',name:'Vendor'}];
 U.page(FK,function(){if(!ready())return U.loading;
  if(!M){if(!MLOAD&&!MERR)loadMasters();return MERR?'<div class="mv-note warn"><p>'+E(MERR)+'</p><p><button type="button" class="mv-btn primary" data-a="mr-reload" data-id="">Try again</button></p></div>':'<p class="mv-note">Loading items and masters from the Inventory system…</p>';}
- return U.formPage(FK,{init:function(){return{date:U.today(),request_type:'Inhouse',items:[{specs:{}}]};},title:function(){return'';},submit:'Save Requisition',
+ return U.formPage(FK,{init:function(){return{date:U.today(),request_type:'Inhouse',items:[{specs:{}}]};},title:function(){return'';},submit:'Send to Inventory',
   fields:function(v){var cust=by(M.customers,v.ims_cust);return[
    {k:'date',label:'Date',type:'date',req:1},
    {k:'ims_firm',label:'Firm',type:'select',req:1,live:1,opts:function(){return opts(M.firms);}},

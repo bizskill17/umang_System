@@ -60,6 +60,7 @@ if ($cmd === 'send') {
     /* Sends one requisition saved in this app. The IMS gives the only number; this app stores it.
        A lock stops two sends of the same requisition, and a reference written into the IMS remarks
        lets a retry find a requisition the IMS already created instead of creating it twice. */
+    if (isset($input['request'])) reject('This page is out of date. Press Ctrl+F5 to reload it, then submit again.', 409, 'stale_page');
     $id = (string)($input['id'] ?? '');
     if (!preg_match('/^[a-zA-Z0-9_-]{1,96}$/', $id)) reject('Invalid requisition.');
     txBegin();

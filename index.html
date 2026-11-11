@@ -5480,10 +5480,29 @@ document.addEventListener("keydown", function (e) {
 
 <link rel="stylesheet" href="assets/work-orders.css?v=20261111unit">
 <script src="assets/work-orders.js?v=20261111noslip"></script>
-<script src="assets/requisition.js?v=20261111once"></script>
+<script src="assets/requisition.js?v=20261111once2"></script>
 
 <link rel="stylesheet" href="assets/master-controls.css?v=20261028">
 
 <link rel="stylesheet" href="assets/export-controls.css?v=20261028-position">
 
 <link rel="stylesheet" href="assets/quotation-photo.css?v=20261028">
+
+<script>
+/* Tells the user when a newer version of the app has been published, so an old cached page is not used. */
+(function () {
+  function sig(html) { return (html.match(/assets\/[a-z-]+\.(?:js|css)\?v=[^"']+/g) || []).sort().join("|"); }
+  var mine = sig(document.documentElement.outerHTML), shown = false;
+  async function check() {
+    if (shown || document.hidden) return;
+    try { var r = await fetch(location.pathname + "?_=" + Date.now(), { cache: "no-store", credentials: "same-origin" }); if (!r.ok) return; var t = await r.text(), s = sig(t); if (!s || s === mine) return; } catch (e) { return; }
+    shown = true;
+    var b = document.createElement("div"); b.className = "upd-bar"; b.setAttribute("role", "status");
+    b.innerHTML = '<span>A newer version of the app is available.</span><button type="button" class="mv-btn primary sm">Reload now</button>';
+    b.querySelector("button").addEventListener("click", function () { location.reload(); });
+    document.body.appendChild(b);
+  }
+  setInterval(check, 5 * 60 * 1000); document.addEventListener("visibilitychange", check); window.addEventListener("focus", check); setTimeout(check, 20000);
+})();
+</script>
+<style>.upd-bar { position: fixed; z-index: 400; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: #0f172a; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.3); font-size: 14px; max-width: calc(100vw - 32px); flex-wrap: wrap; }</style>
