@@ -1,0 +1,19 @@
+/* Lead Dashboard funnel and Dashboard Settings */
+.fn{display:grid;gap:6px}
+.fn-row{display:grid;grid-template-columns:minmax(120px,170px) 1fr 44px 110px 96px;gap:10px;align-items:center;font-size:13px}
+.fn-name{font-weight:600;color:#334155}
+.fn-bar{height:18px;background:#eef2f7;border-radius:4px;overflow:hidden}
+.fn-bar span{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa);border-radius:4px}
+.fn-n{font-weight:700;text-align:right}
+.fn-v{color:#475569;text-align:right;white-space:nowrap}
+.fn-d{color:#b91c1c;font-size:12px;white-space:nowrap}
+.ld-bad{color:#b91c1c}
+.ds-card{max-width:720px}
+.ds-list{list-style:none;margin:8px 0 14px;padding:0;display:grid;gap:6px}
+.ds-row{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;background:#fff}
+.ds-row:hover{border-color:#93c5fd;background:#f8fbff}
+.ds-row input{width:18px;height:18px;margin-top:2px;flex:none}
+.ds-row b{display:block;font-size:14px}
+.ds-row small{display:block;color:#64748b;font-size:12px;margin-top:2px}
+.ds-acts{display:flex;gap:8px;justify-content:flex-end}
+@media(max-width:640px){.fn-row{grid-template-columns:1fr 40px 90px}.fn-bar,.fn-d{display:none}}

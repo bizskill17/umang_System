@@ -270,7 +270,7 @@ function permittedWrite(string $path): bool {
         'projects' => ['projects'], 'recce' => ['recce','projects'], 'recce_updates' => ['recce'],
         'designs' => ['design','projects'], 'design_updates' => ['design'], 'jobs' => ['projects'],
         'job_assign' => ['projects'], 'qc' => ['projects'], 'dispatches' => ['projects'],
-        'wastage' => ['projects'], 'invoices' => ['invoices'], 'payments' => ['invoices'], 'complaints' => ['complaints'], 'complaint_updates' => ['complaints'], 'material_requisitions' => ['requisition']
+        'wastage' => ['projects'], 'invoices' => ['invoices'], 'payments' => ['invoices'], 'complaints' => ['complaints'], 'complaint_updates' => ['complaints'], 'material_requisitions' => ['requisition'], 'app_settings' => ['leads']
     ];
     if ($path === 'projects' && (in_array('leads.pending-create-project', $allowed, true) || in_array('quotations.pending-create', $allowed, true))) return true;
     if ($path === 'counters') return count($allowed) > 0;
@@ -307,7 +307,7 @@ if ($action === 'blob') {
     header("Content-Security-Policy: sandbox"); session_write_close(); readfile($privateStorage . '/' . $id); exit;
 }
 $masters = ['firm','customers','vendors','customer-category','customer-subcategory','state','city','lead-category','lead-subcategory','lead-sources','send-mode','users','user-roles','designation','user-document-types','items','uom','gst','machines','materials','stores','delivery-modes','transporters','vehicles'];
-$collections = ['leads','quotations','quote_followups','projects','recce','recce_updates','designs','design_updates','jobs','job_assign','qc','dispatches','wastage','invoices','payments','complaints','complaint_updates','counters','access_requests','work_orders','work_order_versions','material_requisitions','vendor_payments','vendor_allocations','vendor_refunds','finance_events'];
+$collections = ['leads','quotations','quote_followups','projects','recce','recce_updates','designs','design_updates','jobs','job_assign','qc','dispatches','wastage','invoices','payments','complaints','complaint_updates','counters','access_requests','work_orders','work_order_versions','material_requisitions','app_settings','vendor_payments','vendor_allocations','vendor_refunds','finance_events'];
 function validPath(string $p): bool {
     global $collections, $masters;
     return in_array($p, $collections, true) || (preg_match('#^masters/([a-z-]+)/rows$#', $p, $m) && in_array($m[1], $masters, true)) || (bool)preg_match('#^leads/[a-zA-Z0-9_-]{1,96}/followups$#', $p);
