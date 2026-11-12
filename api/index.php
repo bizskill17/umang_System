@@ -471,10 +471,10 @@ if ($action === 'delete') {
     if ($action === 'update' && !$old) { txRollback(); reject('Record no longer exists.', 404); }
     if ($action === 'update') $body = array_merge($old, $body);
     validateOperations($path, $id, $body, $old);
-    if ($path !== 'counters' && $path !== 'masters/users/rows') { // who typed it in, kept apart from who did the work
+    if ($path !== 'counters' && $path !== 'masters/users/rows') { // who typed it in, kept apart from any "Entered By" or "Update By" field on the form
         $now = gmdate('Y-m-d\TH:i:s\Z');
-        if ($old) { $body['entered_by'] = $old['entered_by'] ?? ''; $body['entered_at'] = $old['entered_at'] ?? ''; $body['updated_by'] = $user['id']; $body['updated_at'] = $now; }
-        else { $body['entered_by'] = $user['id']; $body['entered_at'] = $now; }
+        if ($old) { $body['rec_by'] = $old['rec_by'] ?? ''; $body['rec_at'] = $old['rec_at'] ?? ''; $body['upd_by'] = $user['id']; $body['upd_at'] = $now; }
+        else { $body['rec_by'] = $user['id']; $body['rec_at'] = $now; }
     }
     if ($path === 'masters/users/rows') {
         unset($body['has_password'], $body['owner'], $body['id']);

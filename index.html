@@ -3082,7 +3082,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   // The person signed in, as a Users master id ("" for the built-in administrator).
   U.meId = function () { var r = window.UmangAuth && window.UmangAuth.row; return r && r.id && U.mrows("users").some(function (x) { return x.id === r.id; }) ? r.id : ""; };
   // "Done by" pickers (by, prepared_by, checked_by, …) start on the signed-in user; they can still choose someone else.
-  U.meDefaults = function (fields, v) { var me = U.meId(); if (!me || !v) return v; (fields || []).forEach(function (f) { if (f && f.type === "select" && (f.k === "by" || /_by$/.test(f.k || "") || f.me) && !f.noMe && !v[f.k]) v[f.k] = me; }); return v; };
+  U.meDefaults = function (fields, v) { var me = U.meId(); if (!me || !v) return v; (fields || []).forEach(function (f) { if (f && f.type === "select" && (f.k === "by" || /_by$/.test(f.k || "") || f.me) && !f.noMe && !v[f.k]) { var list = []; try { list = typeof f.opts === "function" ? f.opts(v) : f.opts || []; } catch (e) {} if ((list || []).some(function (o) { return o && String(o.id) === me; })) v[f.k] = me; } }); return v; };
   U.modal = function (cfg) {
     U.closeModal();
     M = Object.assign({ v: {}, err: "", saving: false, ret: document.activeElement }, cfg);
@@ -5497,7 +5497,7 @@ document.addEventListener("keydown", function (e) {
 <link rel="stylesheet" href="assets/operations.css?v=20261110wrap">
 <link rel="stylesheet" href="assets/lead-dashboard.css?v=20261112ld6">
 <script src="assets/operations.js?v=20261110tabs0"></script>
-<script src="assets/lead-dashboard.js?v=20261112ld6"></script>
+<script src="assets/lead-dashboard.js?v=20261112ld7"></script>
 
 <link rel="stylesheet" href="assets/mobile.css?v=20261111rem">
 
