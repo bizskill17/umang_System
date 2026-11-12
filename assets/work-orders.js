@@ -236,4 +236,6 @@ U.act('mi-new-mat',function(i){U.modal({title:'New Material',fields:[{k:'name',l
  save:async function(v){var added=await U.add(U.m('materials'),{name:String(v.name).trim(),unit_id:v.unit_id||'',rate:v.rate||'',status:'Active'});
   var sl=document.getElementById('mi_mat_'+i);if(sl){sl.add(new Option(String(v.name).trim(),added.id,true,true));sl.value=added.id;var r=sl.closest('tr');if(r){if(v.unit_id)r.querySelector('.mi-unit').value=U.nm('uom',v.unit_id);if(num(v.rate)>0)r.querySelector('.mi-rate').value=v.rate;}}
   setTimeout(function(){U.render();},0);return'Material added.';}});});
+// Shared with the Outsource Dashboard.
+Object.assign(U.WO,{ready:ready,tasks:tasks,containing:containing,due:due,settled:settled,openTask:openTask,vendorSummary:vendorSummary,vname:vname,DEPTS:DEPTS});
 })();

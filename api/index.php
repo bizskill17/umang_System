@@ -270,7 +270,7 @@ function permittedWrite(string $path): bool {
         'projects' => ['projects'], 'recce' => ['recce','projects'], 'recce_updates' => ['recce'],
         'designs' => ['design','projects'], 'design_updates' => ['design'], 'jobs' => ['projects'],
         'job_assign' => ['projects'], 'qc' => ['projects'], 'dispatches' => ['projects'],
-        'wastage' => ['projects'], 'invoices' => ['invoices'], 'payments' => ['invoices'], 'complaints' => ['complaints'], 'complaint_updates' => ['complaints'], 'material_requisitions' => ['requisition'], 'app_settings' => ['leads']
+        'wastage' => ['projects'], 'invoices' => ['invoices'], 'payments' => ['invoices'], 'complaints' => ['complaints'], 'complaint_updates' => ['complaints'], 'material_requisitions' => ['requisition'], 'app_settings' => ['leads','recce','design','quotations','projects','invoices','complaints','outsource','requisition']
     ];
     if ($path === 'projects' && (in_array('leads.pending-create-project', $allowed, true) || in_array('quotations.pending-create', $allowed, true))) return true;
     if ($path === 'counters') return count($allowed) > 0;
@@ -306,7 +306,7 @@ if ($action === 'blob') {
     header('Content-Disposition: inline; filename="' . addcslashes($file['name'], '"\\') . '"');
     header("Content-Security-Policy: sandbox"); session_write_close(); readfile($privateStorage . '/' . $id); exit;
 }
-$masters = ['firm','customers','vendors','customer-category','customer-subcategory','state','city','lead-category','lead-subcategory','lead-sources','lost-reasons','send-mode','users','user-roles','designation','user-document-types','items','uom','gst','machines','materials','stores','delivery-modes','transporters','vehicles'];
+$masters = ['firm','customers','vendors','customer-category','customer-subcategory','state','city','lead-category','lead-subcategory','lead-sources','lost-reasons','complaint-types','send-mode','users','user-roles','designation','user-document-types','items','uom','gst','machines','materials','stores','delivery-modes','transporters','vehicles'];
 $collections = ['leads','quotations','quote_followups','projects','recce','recce_updates','designs','design_updates','jobs','job_assign','qc','dispatches','wastage','invoices','payments','complaints','complaint_updates','counters','access_requests','work_orders','work_order_versions','material_requisitions','app_settings','vendor_payments','vendor_allocations','vendor_refunds','finance_events'];
 function validPath(string $p): bool {
     global $collections, $masters;
@@ -352,6 +352,20 @@ function seedLostReasons(): void {
     query("INSERT INTO umang_documents(collection_path,id,body) VALUES('_migrations','lost-reasons-v1','{}')");
     txCommit();
 }
+function seedComplaintTypes(): void {
+    if (query("SELECT 1 FROM umang_documents WHERE collection_path='_migrations' AND id='complaint-types-v1'")->fetchColumn()) return;
+    $have = [];
+    foreach (query("SELECT body FROM umang_documents WHERE collection_path='masters/complaint-types/rows'")->fetchAll(PDO::FETCH_ASSOC) as $r) { $b = json_decode($r['body'], true); $have[strtolower(trim((string)($b['name'] ?? '')))] = 1; }
+    $t = gmdate('Y-m-d\TH:i:s\Z');
+    txBegin();
+    foreach (['Installation','Print quality','Damage in transit','Electrical / lighting','Wrong size or design','Material quality','Delay','Other'] as $name) {
+        if (isset($have[strtolower($name)])) continue;
+        query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?)', ['masters/complaint-types/rows', bin2hex(random_bytes(16)), json_encode(['name' => $name, 'status' => 'Active', 'createdAt' => $t, 'updatedAt' => $t], JSON_UNESCAPED_UNICODE)]);
+    }
+    query("INSERT INTO umang_documents(collection_path,id,body) VALUES('_migrations','complaint-types-v1','{}')");
+    txCommit();
+}
+if ($user) { try { seedComplaintTypes(); } catch (Throwable $e) { if (function_exists('txRollback')) { try { txRollback(); } catch (Throwable $e2) {} } } }
 if ($user) { try { seedLostReasons(); } catch (Throwable $e) { if (function_exists('txRollback')) { try { txRollback(); } catch (Throwable $e2) {} } } }
 if ($user) { try { seedStores(); } catch (Throwable $e) { if (function_exists('txRollback')) { try { txRollback(); } catch (Throwable $e2) {} } } }
 // One request (one connection, one query) returns several collections; keeps hosting connection limits low.

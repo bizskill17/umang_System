@@ -1091,7 +1091,8 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["worked", "Recce Worked", "Every site visit logged, with who updated it and when."],
       ["label:Master"],
       ["completed", "Completed Recce", "Surveys with no sites left pending."],
-      ["master", "Recce Master", "Every survey with its full visit history, downloadable as PDF."]
+      ["master", "Recce Master", "Every survey with its full visit history, downloadable as PDF."],
+      ["dashboard-settings", "Dashboard Settings", "Choose which sections the Recce Dashboard shows, and the targets."]
     ]},
     design: { name: "Design", add: ["add", "Add Design", "Raise a design job with the number of designs, due date, designer and whether the client must approve."], start: "in-progress", items: [
       ["dashboard", "Design Dashboard", "Designs assigned, completed, approved and pending at a glance."],
@@ -1100,7 +1101,8 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["worked", "Design Worked", "Every design update, with the designer and remarks."],
       ["label:Master"],
       ["completed", "Completed Designs", "Design jobs with nothing left to do or approve."],
-      ["master", "Design Master", "Every design job with its full worked and approval history."]
+      ["master", "Design Master", "Every design job with its full worked and approval history."],
+      ["dashboard-settings", "Dashboard Settings", "Choose which sections the Design Dashboard shows, and the targets."]
     ]},
     quotations: { name: "Quotations", add: ["add", "Add Quotation", "Create a quotation against a lead or project, with items, rates, GST and terms."], start: "prepare", items: [
       ["dashboard", "Quotation Dashboard", "Quotation pipeline, ageing, value and team workload."],
@@ -1115,7 +1117,8 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["label:Master"],
       ["follow-up-master", "Follow Up Master", "Every quotation follow-up recorded, with who did it and the outcome."],
       ["master", "Quotation Master", "Every prepared quotation with its status and PDF."],
-      ["items-master", "Quotation Items Master", "Every item line across all quotations."]
+      ["items-master", "Quotation Items Master", "Every item line across all quotations."],
+      ["dashboard-settings", "Dashboard Settings", "Choose which sections the Quotation Dashboard shows, and the targets."]
     ]},
     projects: { name: "Projects", add: ["add", "Add Project", "Create a project directly, or from an approved quotation, with its owner, controller and project sheet."], start: "in-progress", items: [
       ["dashboard", "Project Dashboard", "Projects by status and owner at a glance."],
@@ -1160,6 +1163,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["group:proj-master", "Master"],
       ["master", "Project Master", "Every project with its related recce, design and quotation.", 1],
       ["canceled", "Canceled Projects", "Projects that were canceled.", 1],
+      ["dashboard-settings", "Dashboard Settings", "Choose which sections the Project Dashboard shows, and the targets.", 1],
       ["group:proj-masters", "Master Data"],
       ["m-items", "Items", "Items and particulars used in quotations and jobs.", 1],
       ["m-uom", "UOM", "Units of measure. Foot, Inch, cm and Metre are fixed for area.", 1],
@@ -1173,6 +1177,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["m-delivery-modes", "Delivery Modes", "Ways goods are delivered.", 1]
     ]},
     invoices: { name: "Invoices", add: ["add", "Add Invoice", "Raise an invoice for a project, Part or Full, with the invoice PDF and whether payment follow-up is needed."], start: "pending-billing", items: [
+      ["dashboard", "Invoice Dashboard", "Billing, receivables, ageing and collections at a glance."],
       ["label:Invoice"],
       ["pending-billing", "Pending Billing", "Projects fully delivered that don't have a Full invoice yet."],
       ["pending-e-way-bill", "Pending E-Way Bill", "Invoices above \u20b950,000 waiting for the e-way bill number and date."],
@@ -1182,13 +1187,19 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["not-yet-paid", "Invoice Not Yet Paid", "Invoices with no payment received."],
       ["follow-up-again", "Follow Up Again", "Unpaid or part-paid invoices with a payment follow-up due."],
       ["partly-paid", "Partly Paid", "Invoices with some payment received and a balance left."],
-      ["fully-paid", "Fully Paid", "Invoices paid in full."]
+      ["fully-paid", "Fully Paid", "Invoices paid in full."],
+      ["label:Master"],
+      ["dashboard-settings", "Dashboard Settings", "Choose which sections the Invoice Dashboard shows, and the targets."]
     ]},
     complaints: { name: "Complaints", add: ["add", "Add Complaint", "Log a customer complaint against a project, with priority, details and any photo or document."], start: "in-progress", items: [
+      ["dashboard", "Complaint Dashboard", "Open, overdue and resolved complaints, by type, priority and person."],
       ["assign", "Assign Complaint", "New complaints waiting to be assigned to someone with a target date."],
       ["in-progress", "In Progress", "Assigned complaints not yet resolved."],
       ["resolved", "Resolved Complaint", "Complaints closed with a resolution date and remarks."],
-      ["all", "All Complaint", "Every complaint, whatever its status."]
+      ["all", "All Complaint", "Every complaint, whatever its status."],
+      ["label:Master"],
+      ["m-complaint-types", "Complaint Types", "Types chosen when a complaint is logged, such as Installation or Print quality."],
+      ["dashboard-settings", "Dashboard Settings", "Choose which sections the Complaint Dashboard shows, and the targets."]
     ]}
   };
 
@@ -1196,16 +1207,18 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     [["label:Projects"]], MENUS.projects.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; })) };
   /* Outsource item: [key, menu title, description, depth, hidden, page title]. Hidden views stay reachable from buttons and links. */
   MENUS.outsource = { name: "Outsource", start: "make-department", items: [
+    ["dashboard", "Outsource Dashboard", "Work Orders, vendor balances, overdue work and material issued at a glance.", 0, 0, "Outsource Dashboard"],
     ["label:Make Work Orders"], ["make-department", "Departmentwise", "Vendor tasks waiting for a Work Order, one tab per department.", 0, 0, "Make Work Orders – Departmentwise"], ["make-vendor", "Vendorwise", "Vendor tasks waiting for a Work Order, one tab per vendor.", 0, 0, "Make Work Orders – Vendorwise"], ["fill-rate", "Fill Rate", "Work Orders with tasks that have no rate yet. Fill the rates here.", 0, 0, "Fill Rate"],
     ["label:Pending Vendor Invoice"], ["invoice-department", "Departmentwise", "Issued Work Orders waiting for the vendor's invoice, one tab per department.", 0, 1, "Pending Vendor Invoice \u2013 Departmentwise"], ["invoice-vendor", "Vendorwise", "Issued Work Orders waiting for the vendor's invoice, one tab per vendor.", 0, 0, "Pending Vendor Invoice \u2013 Vendorwise"],
     ["label:Track Work Orders"], ["track-department", "Departmentwise", "Tasks on issued Work Orders with progress and payment, one tab per department.", 0, 0, "Track Work Orders – Departmentwise"], ["track-vendor", "Vendorwise", "Tasks on issued Work Orders with progress and payment, one tab per vendor.", 0, 0, "Track Work Orders – Vendorwise"],
     ["label:Vendor Payments"], ["pay-vendors", "Pay Vendors", "Vendor balances. Open a vendor to see the ledger, filter by project and pay."],
     ["label:Material Issue to Vendors"], ["issue-material", "Issue Material", "Give material to a vendor as payment, valued at its rate."], ["material-issue", "Material Issued", "Register of material given to vendors, vendorwise."],
-    ["label:Masters"], ["m-materials", "Material", "Materials issued to vendors, with unit and default rate.", 0, 0, "Material Master"], ["m-stores", "Store", "Stores and godowns material is issued from, by firm.", 0, 0, "Store Master"], ["vendor-payments", "Payments", "All vendor payments, advances and refunds.", 0, 0, "Payments Master"], ["work-orders", "Work Orders", "All Work Orders: drafts, issued, revisions and cancellations.", 0, 0, "Work Orders Master"],
+    ["label:Masters"], ["m-materials", "Material", "Materials issued to vendors, with unit and default rate.", 0, 0, "Material Master"], ["m-stores", "Store", "Stores and godowns material is issued from, by firm.", 0, 0, "Store Master"], ["dashboard-settings", "Dashboard Settings", "Choose which sections the Outsource Dashboard shows, and the targets.", 0, 0, "Dashboard Settings"], ["vendor-payments", "Payments", "All vendor payments, advances and refunds.", 0, 0, "Payments Master"], ["work-orders", "Work Orders", "All Work Orders: drafts, issued, revisions and cancellations.", 0, 0, "Work Orders Master"],
     ["create-work-order", "Create Work Order", "Combine tasks for one vendor into a Work Order.", 0, 1], ["all", "All Outsource Tasks", "Outsourced work across all departments.", 0, 1], ["completed", "Completed Outsource Tasks", "Completed outsourced work.", 0, 1], ["pending", "All Pending Tasks", "Open outsourced work.", 0, 1], ["pending-department", "Pending Tasks – Department-wise", "Open outsourced work, one tab per department.", 0, 1], ["pending-vendor", "Pending Tasks – Vendor-wise", "Open outsourced work, one tab per vendor.", 0, 1], ["pending-work-orders", "Pending Work Order", "Assigned vendor tasks awaiting an issued Work Order.", 0, 1], ["advances", "Available Advances", "Unallocated vendor payments available for adjustment.", 0, 1], ["pending-payments", "Pending Payments", "Issued Work Orders with outstanding amounts.", 0, 1], ["vendor-ledger", "Vendor Ledger (audit)", "Vendor balances, allocations, refunds and audit history.", 0, 1]] };
   MENUS.requisition = { name: "Material Requisition", add: ["raise", "Raise Requisition", "Request material for a project on the Inventory form. It is sent to the Inventory system and gets its number there."], start: "pending", items: [
+    ["dashboard", "Requisition Dashboard", "Requisitions not sent, pending and closed at the Inventory system.", 0, 0, "Requisition Dashboard"],
     ["label:Requisitions"], ["not-sent", "Not Sent to IMS", "Saved here but not yet accepted by the Inventory system. Send them again.", 0, 0], ["pending", "Pending at IMS", "In the Inventory system and not yet fully issued."], ["closed", "Issued / Closed", "Fully issued and closed in the Inventory system."],
-    ["label:Masters"], ["all", "Requisitions", "All material requisitions.", 0, 0, "Requisitions Master"]
+    ["label:Masters"], ["all", "Requisitions", "All material requisitions.", 0, 0, "Requisitions Master"], ["dashboard-settings", "Dashboard Settings", "Choose which sections the Requisition Dashboard shows, and the targets.", 0, 0, "Dashboard Settings"]
   ] };
   /* Access to the reorganised Outsource views follows the views a user already had (old keys) or the new menu items. */
   var OS_ALIAS = (function () {
@@ -1522,7 +1535,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["subcategory_ids", "Sub-Category Name", "multi", 1, { of: "customer-subcategory" }], ["address", "Address", "textarea"],
       ["state_id", "State Name", "select", 0, { of: "state" }], ["city_id", "City Name", "cityselect", 1],
       ["gstin_uin", "GSTIN/UIN", "gstin"], ["pan_no", "PAN No.", "pan"], ["mobile", "Mobile", "mobile", 1], ["email_id", "Email ID", "email"],
-      ["contacts", "Contact Persons", "contacts"]
+      ["contacts", "Contact Persons", "contacts"], ["credit_days", "Credit Days", "number", 0, { hint: "Days the customer gets to pay an invoice. Leave blank for 30." }]
     ], cols: ["name", "category_id", "city_id", "mobile", "email_id"], noStatus: 1 },
     "m-state": { coll: "state", one: "State", many: "States", fields: [["name", "State Name", "text", 1]], cols: ["name"] },
     "m-city": { coll: "city", one: "City", many: "Cities", fields: [["state_id", "State Name", "select", 1, { of: "state" }], ["name", "City Name", "text", 1, { uniqueWith: "state_id" }]], cols: ["name", "state_id"] },
@@ -1531,6 +1544,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     "m-lead-category": { coll: "lead-category", one: "Lead Category", many: "Lead Categories", fields: [["name", "Lead Category", "text", 1]], cols: ["name"] },
     "m-lead-subcategory": { coll: "lead-subcategory", one: "Lead Sub-Category", many: "Lead Sub-Categories", fields: [["lead_category_id", "Lead Category", "select", 1, { of: "lead-category" }], ["name", "Lead Sub-Category Name", "text", 1, { uniqueWith: "lead_category_id" }]], cols: ["name", "lead_category_id"] },
     "m-lead-sources": { coll: "lead-sources", one: "Lead Source", many: "Lead Sources", fields: [["name", "Lead Source", "text", 1]], cols: ["name"] },
+    "m-complaint-types": { coll: "complaint-types", one: "Complaint Type", many: "Complaint Types", fields: [["name", "Complaint Type", "text", 1]], cols: ["name"] },
     "m-lost-reasons": { coll: "lost-reasons", one: "Lost Reason", many: "Lost Reasons", fields: [["name", "Lost Reason", "text", 1]], cols: ["name"] },
     "m-send-mode": { coll: "send-mode", one: "Send Mode", many: "Send Modes", fields: [["name", "Send Mode", "text", 1]], cols: ["name"] },
     "m-users": { coll: "users", one: "User", many: "Users", fields: [
@@ -4857,6 +4871,9 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     { k: "department", label: "Department", type: "select", req: 1, opts: function () { return STAGES.concat(["Design", "Installation", "Store", "Other"]).map(function (s) { return { id: s, name: s }; }); }, first: "Choose a department" },
     { k: "person", label: "Person Responsible", type: "select", req: 1, opts: USERS, first: "Choose a person" },
     { k: "entered_by", label: "Entered By", type: "select", req: 1, opts: USERS, first: "Choose a person" },
+    { k: "qty", label: "Quantity Wasted", type: "number", min: 0, step: "any" },
+    { k: "unit", label: "Unit", type: "select", opts: function () { return U.mact("uom").map(function (u) { return { id: u.name, name: u.name }; }); }, first: "Choose a unit" },
+    { k: "value", label: "Approx. Value (₹)", type: "number", min: 0, step: "any", hint: "Cost of the material and work lost." },
     { k: "photo", label: "Photo", type: "file", accept: ".jpg,.jpeg,.png,.webp,.pdf" },
     { k: "remarks", label: "Remarks", type: "textarea", req: 1, hint: "What was spoiled, how much and why." }]; };
   U.page("projects.wastage-form", function () {
@@ -4895,7 +4912,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function loadThumbs() { document.querySelectorAll("img[data-thumb]:not([src])").forEach(function (im) { var id = im.getAttribute("data-thumb"); if (THUMBS[id]) { im.src = THUMBS[id]; return; } im.setAttribute("src", "data:image/gif;base64,R0lGODlhAQABAAAAACw="); fetch(window.UmangBlobURL(id)).then(function (r) { if (!r.ok) throw 0; return r.blob(); }).then(function (b) { THUMBS[id] = URL.createObjectURL(b); document.querySelectorAll('img[data-thumb="' + id + '"]').forEach(function (x) { x.src = THUMBS[id]; }); }).catch(function () { im.alt = "Photo"; im.classList.add("w-thumb-x"); }); }); }
   new MutationObserver(loadThumbs).observe(document.body, { childList: true, subtree: true });
   U.dispatched = dispatched; U.liveJobs = liveJobs;
-  U.PJ = { sheetPending: sheetPending, approvedFree: approvedFree, jobItemsFlat: jobItemsFlat, avail: avail, qcDue: qcDue, onHold: onHold };
+  U.PJ = { sheetPending: sheetPending, approvedFree: approvedFree, jobItemsFlat: jobItemsFlat, avail: avail, qcDue: qcDue, onHold: onHold, passed: passed, finalOut: finalOut, dispatched: dispatched, deliverable: deliverable, out: out, used: used, STAGES: STAGES, jobDone: jobDone };
 })();
 </script>
 <script>
@@ -4913,6 +4930,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function bal(i) { return U.round2(n(i.after) - n(i.paid)); }
   function needsEway(i) { return n(i.after) > EWAY_LIMIT; }
   function hasFull(pid) { return U.rows("invoices").some(function (i) { return i.project_id === pid && i.bill_type === "Full" && i.status !== "Canceled"; }); }
+  U.INV = { billable: function () { return billable(); }, bal: function (i) { return bal(i); }, needsEway: function (i) { return needsEway(i); } };
   function billable() { return U.rows("projects").filter(function (p) { if (p.status === "Canceled" || hasFull(p.id)) return false; var s = U.projState(p); return s.jobs > 0 && s.pending_delivery <= 0; }); }
 
   /* ================= Invoice form ================= */
@@ -5051,10 +5069,11 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     { k: "project_id", label: "Project", type: "select", req: 1, live: 1, opts: function () { return U.rows("projects").filter(function (p) { return p.status !== "Canceled"; }).sort(function (a, b) { return (b.seq || 0) - (a.seq || 0); }).map(function (p) { return { id: p.id, name: p.no + " · " + cust(p) }; }); }, first: "Choose a project" },
     { k: "cust", label: "Customer", type: "static", value: function (v) { return esc(cust(proj(v.project_id))) || '<span class="dim">Shown after you choose a project</span>'; } },
     { k: "priority", label: "Priority", type: "select", req: 1, opts: PRI, first: "Choose a priority" },
+    { k: "complaint_type_id", label: "Complaint Type", type: "select", req: 1, opts: function () { return U.mact("complaint-types"); }, first: "Choose a type" },
     { k: "docs", label: "Photos or Documents", type: "files", hint: "You can choose several files at once." },
     { k: "details", label: "Complaint Details", type: "textarea", req: 1 }]; };
   U.page("complaints.add", function () {
-    if (!U.base(["complaints"])) return U.loading;
+    if (!U.base(["complaints", U.m("complaint-types")])) return U.loading;
     return U.formPage("complaints.add", { init: function () { return { date: U.today(), priority: "Medium" }; }, title: function () { return "Add Complaint"; }, fields: C_FIELDS,
       save: async function (v) {
         var b = U.pick(v, C_FIELDS()); delete b.cust; b.customer_id = proj(v.project_id).customer_id;
@@ -5142,7 +5161,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   U.page("complaints.in-progress", function () { return clist(function (c) { return c.status === "Assigned"; }, ["no", "date", "proj", "cust", "pri", "det", "who", "target", "doc", "lat", "lby", "lrem"], function (c) { return '<span class="row-acts">' + U.btn("c-resolve", c.id, "Update", true) + U.btn("c-assign", c.id, "Reassign") + "</span>"; }); });
   U.page("complaints.resolved", function () { return clist(function (c) { return c.status === "Resolved"; }, ["no", "date", "proj", "cust", "pri", "who", "res", "rem", "lat", "lby"]); });
   U.page("complaints.all", function () { return clist(function () { return true; }, ["no", "date", "proj", "cust", "pri", "det", "who", "target", "status", "doc", "lat", "lby", "lrem"]); });
-  U.INV = { billable: billable, needsEway: needsEway };
+  U.INV = Object.assign(U.INV || {}, { billable: billable, needsEway: needsEway, bal: bal });
 })();
 </script>
 <script>
@@ -5495,14 +5514,17 @@ document.addEventListener("keydown", function (e) {
 
 
 <link rel="stylesheet" href="assets/operations.css?v=20261110wrap">
-<link rel="stylesheet" href="assets/lead-dashboard.css?v=20261112ld6">
+<link rel="stylesheet" href="assets/lead-dashboard.css?v=20261112dk3">
 <script src="assets/operations.js?v=20261110tabs0"></script>
 <script src="assets/lead-dashboard.js?v=20261112ld7"></script>
+<script src="assets/dash-kit.js?v=20261112dk3"></script>
+<script src="assets/dashboards.js?v=20261112dk3"></script>
+<script src="assets/dashboards2.js?v=20261112dk3"></script>
 
 <link rel="stylesheet" href="assets/mobile.css?v=20261111rem">
 
 <link rel="stylesheet" href="assets/work-orders.css?v=20261111unit">
-<script src="assets/work-orders.js?v=20261111noslip"></script>
+<script src="assets/work-orders.js?v=20261112dk3"></script>
 <script src="assets/requisition.js?v=20261111imsname"></script>
 
 <link rel="stylesheet" href="assets/master-controls.css?v=20261028">
