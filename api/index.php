@@ -306,7 +306,7 @@ if ($action === 'blob') {
     header('Content-Disposition: inline; filename="' . addcslashes($file['name'], '"\\') . '"');
     header("Content-Security-Policy: sandbox"); session_write_close(); readfile($privateStorage . '/' . $id); exit;
 }
-$masters = ['firm','customers','vendors','customer-category','customer-subcategory','state','city','lead-category','lead-subcategory','lead-sources','send-mode','users','user-roles','designation','user-document-types','items','uom','gst','machines','materials','stores','delivery-modes','transporters','vehicles'];
+$masters = ['firm','customers','vendors','customer-category','customer-subcategory','state','city','lead-category','lead-subcategory','lead-sources','lost-reasons','send-mode','users','user-roles','designation','user-document-types','items','uom','gst','machines','materials','stores','delivery-modes','transporters','vehicles'];
 $collections = ['leads','quotations','quote_followups','projects','recce','recce_updates','designs','design_updates','jobs','job_assign','qc','dispatches','wastage','invoices','payments','complaints','complaint_updates','counters','access_requests','work_orders','work_order_versions','material_requisitions','app_settings','vendor_payments','vendor_allocations','vendor_refunds','finance_events'];
 function validPath(string $p): bool {
     global $collections, $masters;
@@ -339,6 +339,20 @@ function seedStores(): void {
     txCommit();
 }
 require __DIR__ . '/ims.php';
+function seedLostReasons(): void {
+    if (query("SELECT 1 FROM umang_documents WHERE collection_path='_migrations' AND id='lost-reasons-v1'")->fetchColumn()) return;
+    $have = [];
+    foreach (query("SELECT body FROM umang_documents WHERE collection_path='masters/lost-reasons/rows'")->fetchAll(PDO::FETCH_ASSOC) as $r) { $b = json_decode($r['body'], true); $have[strtolower(trim((string)($b['name'] ?? '')))] = 1; }
+    $t = gmdate('Y-m-d\TH:i:s\Z');
+    txBegin();
+    foreach (['Price too high','Went with a competitor','Project postponed','Budget not approved','No response from client','Requirement changed','Delivery time not acceptable','Other'] as $name) {
+        if (isset($have[strtolower($name)])) continue;
+        query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?)', ['masters/lost-reasons/rows', bin2hex(random_bytes(16)), json_encode(['name' => $name, 'status' => 'Active', 'createdAt' => $t, 'updatedAt' => $t], JSON_UNESCAPED_UNICODE)]);
+    }
+    query("INSERT INTO umang_documents(collection_path,id,body) VALUES('_migrations','lost-reasons-v1','{}')");
+    txCommit();
+}
+if ($user) { try { seedLostReasons(); } catch (Throwable $e) { if (function_exists('txRollback')) { try { txRollback(); } catch (Throwable $e2) {} } } }
 if ($user) { try { seedStores(); } catch (Throwable $e) { if (function_exists('txRollback')) { try { txRollback(); } catch (Throwable $e2) {} } } }
 // One request (one connection, one query) returns several collections; keeps hosting connection limits low.
 if ($action === 'batch') {
@@ -457,6 +471,11 @@ if ($action === 'delete') {
     if ($action === 'update' && !$old) { txRollback(); reject('Record no longer exists.', 404); }
     if ($action === 'update') $body = array_merge($old, $body);
     validateOperations($path, $id, $body, $old);
+    if ($path !== 'counters' && $path !== 'masters/users/rows') { // who typed it in, kept apart from who did the work
+        $now = gmdate('Y-m-d\TH:i:s\Z');
+        if ($old) { $body['entered_by'] = $old['entered_by'] ?? ''; $body['entered_at'] = $old['entered_at'] ?? ''; $body['updated_by'] = $user['id']; $body['updated_at'] = $now; }
+        else { $body['entered_by'] = $user['id']; $body['entered_at'] = $now; }
+    }
     if ($path === 'masters/users/rows') {
         unset($body['has_password'], $body['owner'], $body['id']);
         if (empty($body['pw_hash']) && $old) { $body['pw_hash'] = $old['pw_hash'] ?? ''; $body['pw_salt'] = $old['pw_salt'] ?? ''; }

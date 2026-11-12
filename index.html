@@ -1077,6 +1077,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["m-lead-category", "Lead Category", "Categories used to classify leads.", 1],
       ["m-lead-subcategory", "Lead Sub-Category", "Sub-categories, each linked to its lead category.", 1],
       ["m-lead-sources", "Lead Sources", "Where leads come from.", 1],
+      ["m-lost-reasons", "Lost Reasons", "Reasons chosen when a lead is canceled or a quotation is rejected.", 1],
       ["m-send-mode", "Send Mode", "Ways a quotation is sent to the client.", 1],
       ["m-users", "Users", "Employees who use the system, with role, designation and screen access.", 1],
       ["m-user-roles", "User Roles", "Roles given to users.", 1],
@@ -1530,6 +1531,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     "m-lead-category": { coll: "lead-category", one: "Lead Category", many: "Lead Categories", fields: [["name", "Lead Category", "text", 1]], cols: ["name"] },
     "m-lead-subcategory": { coll: "lead-subcategory", one: "Lead Sub-Category", many: "Lead Sub-Categories", fields: [["lead_category_id", "Lead Category", "select", 1, { of: "lead-category" }], ["name", "Lead Sub-Category Name", "text", 1, { uniqueWith: "lead_category_id" }]], cols: ["name", "lead_category_id"] },
     "m-lead-sources": { coll: "lead-sources", one: "Lead Source", many: "Lead Sources", fields: [["name", "Lead Source", "text", 1]], cols: ["name"] },
+    "m-lost-reasons": { coll: "lost-reasons", one: "Lost Reason", many: "Lost Reasons", fields: [["name", "Lost Reason", "text", 1]], cols: ["name"] },
     "m-send-mode": { coll: "send-mode", one: "Send Mode", many: "Send Modes", fields: [["name", "Send Mode", "text", 1]], cols: ["name"] },
     "m-users": { coll: "users", one: "User", many: "Users", fields: [
       ["name", "User Name", "text", 1, { unique: true }], ["email", "Email", "email", 1, { unique: true }], ["mobile", "Mobile", "mobile"],
@@ -2320,7 +2322,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
                     : [{ k: "estimate", label: "Estimate Value (\u20b9)", type: "number", req: 1, min: 1, step: "any" }],
         save: async function (v) {
           var now = new Date().toISOString(), upd = { updatedAt: now };
-          if (isA) { upd.assigned_to = v.assigned_to; if (!l.last_fu) upd.last_fu = initialFu(""); } else upd.estimate = Number(v.estimate);
+          if (isA) { upd.assigned_to = v.assigned_to; if (!l.assigned_at) upd.assigned_at = now; if (!l.last_fu) upd.last_fu = initialFu(""); } else upd.estimate = Number(v.estimate);
           await db.collection("leads").doc(l.id).update(upd);
           if (upd.last_fu) await db.collection("leads/" + l.id + "/followups").add(Object.assign({ createdAt: now }, upd.last_fu));
           ui.msg = isA ? "Lead " + l.lead_no + " assigned to " + nm("users", v.assigned_to) + "." : "Estimate saved for " + l.lead_no + "."; rerender();
@@ -2488,6 +2490,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var f = function (id, label, req, inner, wide) { return '<div class="field' + (wide ? " wide" : "") + '"><label for="lf_' + id + '">' + label + (req ? ' <span class="req" aria-hidden="true">*</span>' : "") + "</label>" + inner + '<p class="field-err" id="lf_' + id + '-err" hidden></p></div>'; };
     var s = function (id, list, first) { return '<select id="lf_' + id + '" name="' + id + '">' + opts(list, v[id], first) + "</select>"; };
     h += f("date", "Lead Date", 1, '<input type="date" id="lf_date" name="date" value="' + esc(v.date) + '">');
+    h += f("received_time", "Received At (time)", 0, '<input type="time" id="lf_received_time" name="received_time" value="' + esc(v.received_time || "") + '"><p class="mf-hint">When the call or message came in. Leave blank to use the time of entry.</p>');
     h += f("firm_id", "Firm", 1, s("firm_id", act("firm"), "Select firm"));
     h += f("customer_id", "Customer", 1, s("customer_id", act("customers"), "Select customer") + '<a class="mf-link" href="#leads.m-customers" data-act="new-customer">New customer? Add it here</a>');
     var plus = function (field, label) { return '<button type="button" class="sel-plus" data-act="quick-add" data-id="' + field + '" title="Add new ' + label + '" aria-label="Add new ' + label + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>'; };
@@ -2548,7 +2551,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   }
   function readLeadForm0(fm) {
     var v = Object.assign({}, ui.form);
-    ["date", "firm_id", "customer_id", "lead_category_id", "lead_subcategory_id", "lead_source_id", "owner_id", "priority", "assigned_to", "estimate", "remarks"].forEach(function (k) { var e = fm.elements[k]; if (e) v[k] = String(e.value).trim(); });
+    ["date", "received_time", "firm_id", "customer_id", "lead_category_id", "lead_subcategory_id", "lead_source_id", "owner_id", "priority", "assigned_to", "estimate", "remarks"].forEach(function (k) { var e = fm.elements[k]; if (e) v[k] = String(e.value).trim(); });
     return v;
   }
   async function saveLead() {
@@ -2558,11 +2561,12 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (v.estimate !== "" && !(Number(v.estimate) >= 0)) errs.estimate = "Enter an amount in rupees, 0 or more.";
     if (Object.keys(errs).length) { ui.err = ""; render(); showErrs(errs, "lf_"); return; }
     ui.saving = true; ui.err = ""; render();
-    var body = { date: v.date, firm_id: v.firm_id, customer_id: v.customer_id, lead_category_id: v.lead_category_id, lead_subcategory_id: v.lead_subcategory_id, lead_source_id: v.lead_source_id, owner_id: v.owner_id, priority: v.priority || "", assigned_to: v.assigned_to || "", estimate: v.estimate === "" ? 0 : Number(v.estimate), remarks: v.remarks || "", updatedAt: new Date().toISOString() };
+    var body = { date: v.date, received_time: v.received_time || "", firm_id: v.firm_id, customer_id: v.customer_id, lead_category_id: v.lead_category_id, lead_subcategory_id: v.lead_subcategory_id, lead_source_id: v.lead_source_id, owner_id: v.owner_id, priority: v.priority || "", assigned_to: v.assigned_to || "", estimate: v.estimate === "" ? 0 : Number(v.estimate), remarks: v.remarks || "", updatedAt: new Date().toISOString() };
     try {
       if (ui.editId) {
         var old = leads.find(function (x) { return x.id === ui.editId; });
         if (body.assigned_to && !old.last_fu) body.last_fu = initialFu("");
+        if (body.assigned_to && !old.assigned_at) body.assigned_at = body.updatedAt;
         await db.collection("leads").doc(ui.editId).update(body);
         if (body.last_fu) await db.collection("leads/" + ui.editId + "/followups").add(Object.assign({ createdAt: body.updatedAt }, body.last_fu));
         ui.msg = "Lead " + old.lead_no + " saved.";
@@ -2625,7 +2629,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     try {
       for (var i = 0; i < ids.length; i++) {
         var l = leads.find(function (x) { return x.id === ids[i]; }); if (!l || l.assigned_to) continue;
-        var upd = { assigned_to: ui.sel[ids[i]], updatedAt: now };
+        var upd = { assigned_to: ui.sel[ids[i]], assigned_at: l.assigned_at || now, updatedAt: now };
         if (!l.last_fu) upd.last_fu = initialFu("");
         await db.collection("leads").doc(l.id).update(upd);
         if (upd.last_fu) await db.collection("leads/" + l.id + "/followups").add(Object.assign({ createdAt: now }, upd.last_fu));
@@ -2678,7 +2682,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   /* ---------- follow-up dialog ---------- */
   function openFu(id) {
     var l = leads.find(function (x) { return x.id === id; }); if (!l) return;
-    modal = { id: id, hist: null, v: { date: today(), status: "", by: "", next: "", assign: "", remarks: "" }, err: "", saving: false, ret: document.activeElement };
+    modal = { id: id, hist: null, v: { date: today(), status: "", by: (window.U && window.U.meId ? window.U.meId() : ""), next: "", assign: "", remarks: "" }, err: "", saving: false, ret: document.activeElement };
     var wrap = document.createElement("div"); wrap.className = "fu-modal"; wrap.id = "fu-modal";
     document.body.appendChild(wrap);
     modal.unsub = db.collection("leads/" + id + "/followups").onSnapshot(function (s) { modal && (modal.hist = s.docs.map(doc2obj).sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); })); drawFu(); }, function () {});
@@ -2693,7 +2697,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (q.status === "Pending Approval") return ["Follow Up Again", "Lead Cancel", "Quotation Approved", "Quotation Rejected"];
     return ["Follow Up Again", "Lead Cancel"];
   }
-  function readFu() { var fm = document.getElementById("fu-form"); if (!fm || !modal) return; ["date", "status", "by", "next", "assign", "remarks"].forEach(function (k) { var e = fm.elements[k]; if (e) modal.v[k] = String(e.value).trim(); }); }
+  function readFu() { var fm = document.getElementById("fu-form"); if (!fm || !modal) return; ["date", "status", "by", "next", "assign", "reason", "remarks"].forEach(function (k) { var e = fm.elements[k]; if (e) modal.v[k] = String(e.value).trim(); }); }
   function drawFu(first) {
     var el = document.getElementById("fu-modal"); if (!el || !modal) return;
     if (!first) readFu();
@@ -2705,6 +2709,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     h += '<div class="field"><label for="fu_by">Follow Up By <span class="req">*</span></label><select id="fu_by" name="by">' + opts(users, v.by, "Choose a person") + '</select><p class="field-err" id="fu_by-err" hidden></p></div>';
     h += '<div class="field wide"><label for="fu_status">Status <span class="req">*</span></label><select id="fu_status" name="status">' + opts(fuOptions(l).map(function (s) { return { id: s, name: s }; }), v.status, "Choose a status") + '</select><p class="field-err" id="fu_status-err" hidden></p></div>';
     if (v.status === "Follow Up Again") h += '<div class="field"><label for="fu_next">Next Follow Up Date <span class="req">*</span></label><input type="date" id="fu_next" name="next" min="' + today() + '" value="' + esc(v.next) + '"><p class="field-err" id="fu_next-err" hidden></p></div>';
+    if (v.status === "Lead Cancel" || v.status === "Quotation Rejected") { var LR = window.U ? (window.U.watch(window.U.m("lost-reasons")), window.U.mact("lost-reasons")) : []; h += '<div class="field"><label for="fu_reason">Lost Reason <span class="req">*</span></label><select id="fu_reason" name="reason">' + opts(LR, v.reason, "Choose a reason") + '</select><p class="field-err" id="fu_reason-err" hidden></p></div>'; }
     if (v.status === "Assign Quotation") h += '<div class="field"><label for="fu_assign">Prepare quotation by <span class="req">*</span></label><select id="fu_assign" name="assign">' + opts(users, v.assign, "Choose a person") + '</select><p class="field-err" id="fu_assign-err" hidden></p></div>';
     h += '<div class="field wide"><label for="fu_remarks">Remarks' + (v.status !== "Success" && v.status !== "Quotation Approved" ? ' <span class="req">*</span>' : "") + '</label><textarea id="fu_remarks" name="remarks" rows="3">' + esc(v.remarks) + '</textarea><p class="field-err" id="fu_remarks-err" hidden></p></div>';
     h += "</div>";
@@ -2731,6 +2736,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (v.status === "Assign Quotation" && !v.assign) errs.assign = "Choose who prepares the quotation.";
     if (v.status !== "Success" && v.status !== "Quotation Approved" && !v.remarks) errs.remarks = "Enter remarks for this follow-up.";
     if (v.status === "Quotation Rejected" && !v.remarks) errs.remarks = "Say why the quotation was rejected.";
+    if ((v.status === "Lead Cancel" || v.status === "Quotation Rejected") && !v.reason) errs.reason = "Choose the lost reason.";
     if (v.status && fuOptions(l).indexOf(v.status) === -1) errs.status = "This status isn\u2019t available at the current quotation stage.";
     modal.err = v.status === "Assign Quotation" && !l.assigned_to ? "Assign this lead to someone before assigning a quotation." : "";
     if (Object.keys(errs).length || modal.err) { drawFu(); showErrs(errs, "fu_"); return; }
@@ -2738,23 +2744,25 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var now = new Date().toISOString();
     try {
       var rec = { date: v.date, by: v.by, status: v.status, next_date: v.status === "Follow Up Again" ? v.next : "", remarks: v.remarks, createdAt: now };
+      var lost = v.status === "Lead Cancel" || v.status === "Quotation Rejected"; if (lost) rec.lost_reason_id = v.reason;
       if (v.status === "Assign Quotation") {
         if (qOf(l).length) throw { code: "dup" };
-        var q = await db.collection("quotations").add({ lead_id: l.id, lead_no: l.lead_no, firm_id: l.firm_id, customer_id: l.customer_id, assigned_to: v.assign, status: "Pending Prepare Quotation", assigned_date: v.date, createdAt: now, updatedAt: now });
+        var q = await db.collection("quotations").add({ lead_id: l.id, lead_no: l.lead_no, firm_id: l.firm_id, customer_id: l.customer_id, assigned_to: v.assign, status: "Pending Prepare Quotation", assigned_date: v.date, assigned_at: now, assigned_by: v.by, history: [{ status: "Pending Prepare Quotation", at: now, date: v.date, by: v.by }], createdAt: now, updatedAt: now });
         rec.quotation_id = q.id; rec.assigned_to = v.assign;
       }
       var lq = latestQ(l), decided = v.status === "Quotation Approved" || v.status === "Quotation Rejected";
       if (decided) {
         if (!lq || lq.status !== "Pending Approval") throw { code: "notsent" };
         rec.quotation_id = lq.id;
-        var qu = v.status === "Quotation Approved" ? { status: "Approved", approved_at: v.date, next_fu: "" } : { status: "Rejected", rejected_at: v.date, reject_reason: v.remarks, next_fu: "" };
-        qu.last_fu = { date: v.date, status: v.status, by: v.by }; qu.updatedAt = now;
+        var qu = v.status === "Quotation Approved" ? { status: "Approved", approved_at: v.date, approved_time: now, approved_by: v.by, next_fu: "" } : { status: "Rejected", rejected_at: v.date, rejected_time: now, rejected_by: v.by, reject_reason: v.remarks, reject_reason_id: v.reason, next_fu: "" };
+        qu.last_fu = { date: v.date, status: v.status, by: v.by }; qu.updatedAt = now; qu.history = (lq.history || []).concat([{ status: qu.status, at: now, date: v.date, by: v.by }]);
         await db.collection("quotations").doc(lq.id).update(qu);
         await db.collection("quote_followups").add({ quotation_id: lq.id, lead_id: l.id, date: v.date, by: v.by, status: v.status, next_date: "", remarks: v.remarks || "", createdAt: now, updatedAt: now });
       } else if (lq && v.status === "Follow Up Again") rec.quotation_id = lq.id;
       await db.collection("leads/" + l.id + "/followups").add(rec);
       var upd = { last_fu: { status: v.status, date: v.date, next_date: rec.next_date, remarks: v.remarks, by: v.by, auto: false }, updatedAt: now };
-      if (v.status === "Lead Cancel") { upd.status = "Canceled"; upd.cancel_reason = v.remarks; upd.canceled_at = v.date; }
+      if (!l.first_contact_at) { upd.first_contact_at = now; upd.first_contact_by = v.by; }
+      if (v.status === "Lead Cancel") { upd.status = "Canceled"; upd.cancel_reason = v.remarks; upd.cancel_reason_id = v.reason; upd.canceled_at = v.date; upd.canceled_time = now; upd.canceled_by = v.by; }
       if (v.status === "Quotation Approved") { upd.status = "Completed"; upd.completed_at = v.date; }
       await db.collection("leads").doc(l.id).update(upd);
       ui.msg = v.status === "Lead Cancel" ? "Lead " + l.lead_no + " canceled." : v.status === "Assign Quotation" ? "Quotation assigned for " + l.lead_no + ". It is now in Pending Prepare Quotation." : v.status === "Quotation Approved" ? "Quotation approved for " + l.lead_no + ". The lead is now completed." : v.status === "Quotation Rejected" ? "Quotation for " + l.lead_no + " marked as rejected." : "Follow-up saved for " + l.lead_no + ".";
@@ -3071,9 +3079,14 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 
   /* ---------- dialog ---------- */
   var M = null;
+  // The person signed in, as a Users master id ("" for the built-in administrator).
+  U.meId = function () { var r = window.UmangAuth && window.UmangAuth.row; return r && r.id && U.mrows("users").some(function (x) { return x.id === r.id; }) ? r.id : ""; };
+  // "Done by" pickers (by, prepared_by, checked_by, …) start on the signed-in user; they can still choose someone else.
+  U.meDefaults = function (fields, v) { var me = U.meId(); if (!me || !v) return v; (fields || []).forEach(function (f) { if (f && f.type === "select" && (f.k === "by" || /_by$/.test(f.k || "") || f.me) && !f.noMe && !v[f.k]) v[f.k] = me; }); return v; };
   U.modal = function (cfg) {
     U.closeModal();
     M = Object.assign({ v: {}, err: "", saving: false, ret: document.activeElement }, cfg);
+    U.meDefaults(fsOf(), M.v);
     var wrap = document.createElement("div"); wrap.className = "fu-modal"; wrap.id = "u-modal";
     document.body.appendChild(wrap);
     drawModal(true);
@@ -3202,7 +3215,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 
   /* ---------- form page ---------- */
   U.formPage = function (key, cfg) {
-    var st = P.forms[key] = P.forms[key] || { v: cfg.init(), err: "", saving: false };
+    var st = P.forms[key] = P.forms[key] || (function () { var v0 = cfg.init(); try { U.meDefaults(typeof cfg.fields === "function" ? cfg.fields(v0) : cfg.fields, v0); } catch (e) {} return { v: v0, err: "", saving: false }; })();
     var fs = cfg.fields(st.v);
     var h = '<form class="mv-form" id="u-pform" data-key="' + key + '" novalidate>' + (cfg.title(st.v) ? "<h2>" + esc(cfg.title(st.v)) + "</h2>" : "");
     if (cfg.intro) h += cfg.intro(st.v);
@@ -3737,7 +3750,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       { k: "cust", label: "Customer", type: "static", value: function (v) { return esc(U.nm("customers", U.srcCustomer(v.src))) || '<span class="dim">Shown after you choose a lead or project</span>'; } },
       { k: "firm_id", label: "Firm", type: "select", req: 1, live: 1, opts: function () { return U.mact("firm"); }, first: "Choose a firm", hint: "The firm’s short name starts the quotation number." },
       { k: "sales_person", label: "Sales Person", type: "select", req: 1, opts: function () { return U.mact("users"); }, first: "Choose a person" },
-      { k: "made_by", label: "Made By", type: "select", req: 1, opts: function () { return U.mact("users"); }, first: "Choose a person" },
+      { k: "made_by", label: "Prepared By", type: "select", req: 1, opts: function () { return U.mact("users"); }, first: "Choose a person" },
       { k: "expiry", label: "Expiry Date", type: "date", req: 1 }
     ]);
   }
@@ -3774,6 +3787,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
           var key = "quote-" + body.firm_id + "-" + U.fy(v.date), n = await U.seq(key, U.maxSeq("quotations", "seq", function (r) { return r.firm_id === body.firm_id && r.fy === U.fy(v.date); }));
           body.fy = U.fy(v.date); body.seq = n; body.no = short + "-" + fy + "-" + String(n).padStart(4, "0"); body.status = q && q.status !== "Pending Prepare Quotation" && q.status !== "Rejected" ? q.status : "Pending Checking";
         }
+        if (body.status === "Pending Checking" && (!q || q.status !== "Pending Checking")) { var nowP = new Date().toISOString(); body.prepared_at = nowP; body.prepared_by = v.made_by || ""; body.history = ((q && q.history) || []).concat([{ status: "Pending Checking", at: nowP, date: v.date, by: v.made_by || "", revision: body.revision || 0 }]); }
         if (q) { await U.upd("quotations", q.id, body); body.no = body.no || q.no; }
         else { body.assigned_to = v.made_by; await U.add("quotations", body); }
         return { go: "quotations." + (body.status === "Pending Checking" ? "checking" : body.status === "Pending Sending" ? "sending" : "master"), msg: "Quotation " + body.no + " saved" + (body.status === "Pending Checking" ? ". It’s now in Pending Checking." : ".") };
@@ -3783,7 +3797,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   U.title("quotations.add", function () { var st = P.forms["quotations.add"]; if (!st || !st.v._id) return "Add Quotation"; var q = U.get("quotations", st.v._id); return q && q.no ? (q.status === "Rejected" ? "Revise Quotation" : "Edit Quotation") : "Prepare Quotation"; });
   function openForm(q) {
     var l = U.get("leads", q.lead_id) || {}, t = U.today();
-    var v = Object.assign({ date: t, expiry: addDays(t, 15), made_by: q.assigned_to || "", sales_person: l.owner_id || "", firm_id: l.firm_id || "", items: [{}] }, q, { src: U.srcOf(q), _id: q.id, _fixedSrc: 1 });
+    var v = Object.assign({ date: t, expiry: addDays(t, 15), made_by: U.meId() || q.assigned_to || "", sales_person: l.owner_id || "", firm_id: l.firm_id || "", items: [{}] }, q, { src: U.srcOf(q), _id: q.id, _fixedSrc: 1 });
     if (!q.no) { v.date = t; v.expiry = addDays(t, 15); }
     P.forms["quotations.add"] = { v: v, err: "", saving: false }; P.keepForm = true; location.hash = "quotations.add";
   }
@@ -3949,40 +3963,44 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   }
 
   /* ---------- stage actions ---------- */
+  // Each status change is kept on the quotation with the time it was recorded and who did the work.
+  function qlog(q, status, by, date) { return (q.history || []).concat([{ status: status, at: new Date().toISOString(), date: date || U.today(), by: by || "" }]); }
   var BY = { k: "by", label: "Update By", type: "select", req: 1, opts: function () { return U.mact("users"); }, first: "Choose a person" };
   U.act("q-check", function (id) {
     var q = U.get("quotations", id); if (!q) return;
     U.modal({ mod: "quotations", title: "Check Quotation " + q.no, sub: esc(qCust(q)) + " · " + money(q.total), fields: [BY, { k: "remarks", label: "Remarks", type: "textarea" }], submit: "Mark as checked",
       intro: function () { return '<p class="mf-hint">Open the quotation with <b>View</b> first. If something needs fixing, close this and use <b>Edit</b>.</p>'; },
-      save: async function (v) { await U.upd("quotations", id, { status: "Pending Sending", checked: { by: v.by, date: U.today(), remarks: v.remarks || "" } }); return "Quotation " + q.no + " checked. It’s now in Pending Sending."; } });
+      save: async function (v) { await U.upd("quotations", id, { status: "Pending Sending", checked: { by: v.by, date: U.today(), at: new Date().toISOString(), remarks: v.remarks || "" }, history: qlog(q, "Pending Sending", v.by) }); return "Quotation " + q.no + " checked. It’s now in Pending Sending."; } });
   });
   U.act("q-send", function (id) {
     var q = U.get("quotations", id); if (!q) return;
-    U.modal({ mod: "quotations", title: "Send Quotation " + q.no, sub: esc(qCust(q)) + " · " + money(q.total), v: { date: U.today(), by: q.sales_person || "" }, submit: "Mark as sent",
+    U.modal({ mod: "quotations", title: "Send Quotation " + q.no, sub: esc(qCust(q)) + " · " + money(q.total), v: { date: U.today() }, submit: "Mark as sent",
       fields: [{ k: "date", label: "Sent Date", type: "date", req: 1 }, { k: "mode", label: "Send Mode", type: "select", req: 1, opts: function () { return U.mact("send-mode"); }, first: "Choose a send mode" }, BY,
         { k: "proof", label: "Sending screenshot", type: "file", req: 1, accept: ".jpg,.jpeg,.png,.webp" }, { k: "remarks", label: "Remarks", type: "textarea" }],
       save: async function (v) {
         v.next = v.date;
         await U.add("quote_followups", { quotation_id: id, lead_id: q.lead_id || "", date: v.date, by: v.by, status: "Quotation Sent", mode: U.nm("send-mode", v.mode), next_date: v.next, remarks: v.remarks || "", doc: v.proof || null });
-        await U.upd("quotations", id, { status: "Pending Approval", sent: { date: v.date, mode: v.mode, by: v.by, proof: v.proof || null, remarks: v.remarks || "" }, next_fu: v.next });
+        await U.upd("quotations", id, { status: "Pending Approval", sent: { date: v.date, at: new Date().toISOString(), mode: v.mode, by: v.by, proof: v.proof || null, remarks: v.remarks || "" }, next_fu: v.next, history: qlog(q, "Pending Approval", v.by, v.date) });
         return "Quotation " + q.no + " marked as sent. It’s now in Pending Client Approval and Pending Follow Ups.";
       } });
   });
   var OUT = ["Follow Up Again", "Lead Cancel", "Quotation Approved", "Quotation Rejected"];
   U.act("q-outcome", function (id) {
-    var q = U.get("quotations", id); if (!q) return;
-    U.modal({ mod: "quotations", title: "Follow up on " + q.no, sub: esc(qCust(q)) + " · " + money(q.total) + (q.next_fu ? " · due " + U.dmy(q.next_fu) : ""), v: { date: U.today(), by: q.sales_person || "" },
+    var q = U.get("quotations", id); if (!q) return; U.watch(U.m("lost-reasons"));
+    U.modal({ mod: "quotations", title: "Follow up on " + q.no, sub: esc(qCust(q)) + " · " + money(q.total) + (q.next_fu ? " · due " + U.dmy(q.next_fu) : ""), v: { date: U.today() },
       fields: function (v) { return [{ k: "date", label: "Date", type: "date", req: 1 }, BY, { k: "status", label: "Status", type: "select", req: 1, live: 1, opts: function () { return OUT.filter(function (s) { return s !== "Lead Cancel" || q.lead_id; }).map(function (s) { return { id: s, name: s }; }); }, first: "Choose a status" },
         { k: "next", label: "Next Follow Up Date", type: "date", req: 1, show: function (v) { return v.status === "Follow Up Again"; } },
+        { k: "reason", label: "Lost Reason", type: "select", req: 1, opts: function () { return U.mact("lost-reasons"); }, first: "Choose a reason", show: function (v) { return v.status === "Quotation Rejected" || v.status === "Lead Cancel"; } },
         { k: "remarks", label: "Remarks", type: "textarea", req: v.status !== "Success" && v.status !== "Quotation Approved" ? 1 : 0 }]; },
       after: function () { return histHtml(id); },
       validate: function (v) { if (v.status === "Follow Up Again" && v.next < U.today()) return "The next follow-up date can’t be in the past."; return null; },
       save: async function (v) {
-        await U.add("quote_followups", { quotation_id: id, lead_id: q.lead_id || "", date: v.date, by: v.by, status: v.status, next_date: v.status === "Follow Up Again" ? v.next : "", remarks: v.remarks || "" });
+        await U.add("quote_followups", { quotation_id: id, lead_id: q.lead_id || "", date: v.date, by: v.by, status: v.status, next_date: v.status === "Follow Up Again" ? v.next : "", remarks: v.remarks || "", lost_reason_id: v.status === "Quotation Rejected" || v.status === "Lead Cancel" ? v.reason || "" : "" });
         var up = { last_fu: { date: v.date, status: v.status, by: v.by } };
         if (v.status === "Follow Up Again") up.next_fu = v.next;
-        if (v.status === "Quotation Approved") { up.status = "Approved"; up.approved_at = v.date; up.next_fu = ""; }
-        if (v.status === "Quotation Rejected") { up.status = "Rejected"; up.rejected_at = v.date; up.reject_reason = v.remarks; up.next_fu = ""; }
+        if (v.status === "Quotation Approved") { up.status = "Approved"; up.approved_at = v.date; up.approved_time = new Date().toISOString(); up.approved_by = v.by; up.next_fu = ""; }
+        if (v.status === "Quotation Rejected") { up.status = "Rejected"; up.rejected_at = v.date; up.rejected_time = new Date().toISOString(); up.rejected_by = v.by; up.reject_reason = v.remarks; up.reject_reason_id = v.reason; up.next_fu = ""; }
+        if (up.status) up.history = qlog(q, up.status, v.by, v.date);
         if (v.status === "Lead Cancel") up.next_fu = "";
         await U.upd("quotations", id, up);
         var l = q.lead_id && U.get("leads", q.lead_id);
@@ -3991,7 +4009,8 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
           await U.add("leads/" + l.id + "/followups", { date: v.date, by: v.by, status: v.status, next_date: nd, remarks: v.remarks || "", quotation_id: id });
           var lu = { last_fu: { status: v.status, date: v.date, next_date: nd, remarks: v.remarks || "", by: v.by, auto: false } };
           if (up.status === "Approved" && U.isOpen(l)) { lu.status = "Completed"; lu.completed_at = v.date; }
-          if (v.status === "Lead Cancel" && U.isOpen(l)) { lu.status = "Canceled"; lu.cancel_reason = v.remarks; lu.canceled_at = v.date; }
+          if (v.status === "Lead Cancel" && U.isOpen(l)) { lu.status = "Canceled"; lu.cancel_reason = v.remarks; lu.cancel_reason_id = v.reason; lu.canceled_at = v.date; lu.canceled_time = new Date().toISOString(); lu.canceled_by = v.by; }
+          if (!l.first_contact_at) { lu.first_contact_at = new Date().toISOString(); lu.first_contact_by = v.by; }
           await U.upd("leads", l.id, lu);
         }
         return { "Follow Up Again": "Next follow-up for " + q.no + " set for " + U.dmy(v.next) + ".", "Quotation Approved": "Quotation " + q.no + " approved. It’s now in Pending Create Project.", "Quotation Rejected": "Quotation " + q.no + " marked as rejected. Revise or cancel it from Pending Client Approval.", "Lead Cancel": "Lead " + (q.lead_no || "") + " canceled." }[v.status];
@@ -4007,7 +4026,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     U.modal({ mod: "quotations", title: "Cancel " + (q.no ? "Quotation " + q.no : "quotation for Lead " + (q.lead_no || "")), sub: esc(qCust(q)), submit: "Cancel quotation",
       intro: function () { return '<p class="mf-hint">The quotation and its items stay on record with Canceled status.</p>'; },
       fields: [BY, { k: "remarks", label: "Reason", type: "textarea", req: 1 }],
-      save: async function (v) { await U.upd("quotations", id, { status: "Canceled", cancel_reason: v.remarks, canceled_by: v.by, canceled_at: U.today() }); return (q.no ? "Quotation " + q.no : "Quotation") + " canceled."; } });
+      save: async function (v) { await U.upd("quotations", id, { status: "Canceled", cancel_reason: v.remarks, canceled_by: v.by, canceled_at: U.today(), canceled_time: new Date().toISOString(), history: qlog(q, "Canceled", v.by) }); return (q.no ? "Quotation " + q.no : "Quotation") + " canceled."; } });
   });
   U.act("q-edit", function (id) { var q = U.get("quotations", id); if (q) openForm(q); });
 
@@ -5476,9 +5495,9 @@ document.addEventListener("keydown", function (e) {
 
 
 <link rel="stylesheet" href="assets/operations.css?v=20261110wrap">
-<link rel="stylesheet" href="assets/lead-dashboard.css?v=20261112ld5">
+<link rel="stylesheet" href="assets/lead-dashboard.css?v=20261112ld6">
 <script src="assets/operations.js?v=20261110tabs0"></script>
-<script src="assets/lead-dashboard.js?v=20261112ld5"></script>
+<script src="assets/lead-dashboard.js?v=20261112ld6"></script>
 
 <link rel="stylesheet" href="assets/mobile.css?v=20261111rem">
 
