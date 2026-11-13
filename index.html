@@ -1118,7 +1118,8 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["follow-up-master", "Follow Up Master", "Every quotation follow-up recorded, with who did it and the outcome."],
       ["master", "Quotation Master", "Every prepared quotation with its status and PDF."],
       ["items-master", "Quotation Items Master", "Every item line across all quotations."],
-      ["dashboard-settings", "Dashboard Settings", "Choose which sections the Quotation Dashboard shows, and the targets."]
+      ["dashboard-settings", "Dashboard Settings", "Choose which sections the Quotation Dashboard shows, and the targets."],
+      ["quotation-settings", "Quotation Settings", "Choose how quotations are made: in the app, by uploading a file, or both."]
     ]},
     projects: { name: "Projects", add: ["add", "Add Project", "Create a project directly, or from an approved quotation, with its owner, controller and project sheet."], start: "in-progress", items: [
       ["dashboard", "Project Dashboard", "Projects by status and owner at a glance."],
@@ -3644,7 +3645,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 /* ---------- Quotations ---------- */
 (function () {
   var U = window.U, esc = U.esc, P = U.P;
-  var QB = ["quotations", "quote_followups", U.m("firm"), U.m("items"), U.m("uom"), U.m("gst"), U.m("send-mode")];
+  var QB = ["quotations", "quote_followups", "app_settings", U.m("firm"), U.m("items"), U.m("uom"), U.m("gst"), U.m("send-mode")];
   function qBase() { return U.base(QB); }
   var AREA = { foot: 1, inch: 1 / 144, cm: 1 / 900, metre: 10.7639 };
   function calc(it) {
@@ -3668,6 +3669,37 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   U.money = money;
   function qCust(q) { return U.nm("customers", q.customer_id); }
   function qNo(q) { return q.no || '<span class="dim">Not prepared</span>'; }
+
+  /* ---------- quotation type: made in the app, or uploaded as a file ---------- */
+  var QMODES = { app: "Make in app", upload: "Upload quotation" };
+  function qSetting() { return U.rows("app_settings").find(function (r) { return r.key === "quotation"; }) || null; }
+  function qModeSetting() { var s = qSetting(); return s && (s.mode === "app" || s.mode === "upload" || s.mode === "both") ? s.mode : "app"; }
+  U.qMode = function (q) { return q && q.mode === "upload" ? "upload" : "app"; };
+  function qAllowed(v) {
+    var m = qModeSetting(), list = m === "both" ? ["app", "upload"] : [m];
+    var q = v && v._id && U.get("quotations", v._id);
+    if (q && q.no && q.status !== "Rejected" && list.indexOf(U.qMode(q)) === -1) list.push(U.qMode(q));
+    return list;
+  }
+  function qFixMode(v) { var a = qAllowed(v); if (a.indexOf(v.mode) === -1) v.mode = a[0]; return a; }
+  function upAfter(v) { return "<b>" + money(U.round2((parseFloat(v.amt_before) || 0) + (parseFloat(v.amt_gst) || 0))) + "</b>"; }
+  U.act("q-up-calc", function () { var f = document.getElementById("u-pform"), o = document.getElementById("up_amt_after"); if (f && o && f.elements.amt_before) o.innerHTML = upAfter({ amt_before: f.elements.amt_before.value, amt_gst: f.elements.amt_gst ? f.elements.amt_gst.value : 0 }); });
+  U.page("quotations.quotation-settings", function () {
+    if (!U.base(["app_settings"])) return U.loading;
+    var s = qSetting(), cur = qModeSetting(), dis = U.ro() ? " disabled" : "";
+    var opt = function (k, t, d) { return '<li><label class="ds-row"><input type="radio" name="qs_mode" value="' + k + '"' + (cur === k ? " checked" : "") + dis + "><span><b>" + t + "</b><small>" + d + "</small></span></label></li>"; };
+    return '<div class="ldx"><section class="ldx-panel ds-card"><div class="ldx-ph"><div><h2>How quotations are made</h2><p>This applies to everyone who prepares or revises a quotation. Quotations already saved keep their type.</p></div></div><ul class="ds-list">' +
+      opt("app", "Make in app only", "Items, rates and GST are entered line by line, and the app makes the PDF. Jobs pick their items from the quotation.") +
+      opt("upload", "Upload quotation only", "Enter the amount and GST, and upload the quotation file. Jobs pick their items from the Items master.") +
+      opt("both", "Both", "Whoever prepares the quotation chooses Make in app or Upload quotation each time.") +
+      "</ul>" + (U.ro() ? "" : '<p class="ds-acts">' + U.btn("qs-save", "", "Save", true) + "</p>") +
+      (s && s.updatedAt ? '<p class="muted sm">Last changed ' + U.dmy(String(s.updatedAt).slice(0, 10)) + (s.by ? " by " + esc(U.user(s.by)) : "") + ".</p>" : "") + "</section></div>";
+  });
+  U.act("qs-save", async function () {
+    var r = document.querySelector('input[name="qs_mode"]:checked'); if (!r) { U.flash("Choose an option."); return; }
+    var s = qSetting(), body = { key: "quotation", mode: r.value, by: U.meId() };
+    try { if (s) await U.upd("app_settings", s.id, body); else await U.add("app_settings", body); U.flash("Quotation settings saved."); } catch (e) { U.flash((e && (e.msg || e.message)) || "Could not save the settings."); }
+  });
 
   /* ---------- items editor (table, same columns as the plugin) ---------- */
   var IF = [["item_id", "Particulars", "sel"], ["description", "Description", "text"], ["width", "Width", "num"], ["height", "Height", "num"],
@@ -3712,6 +3744,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     box.querySelector('.qi-photo-name').textContent = input.files[0].name;
   });
   function itemsHtml(v) {
+    if (v.mode === "upload") return '<p class="mf-hint">Uploaded quotation: no item lines. Jobs for this quotation pick their items from the Items master.</p>';
     var items = v.items && v.items.length ? v.items : [{}];
     var opts = {}; ["item_id", "uom", "gst_pct"].forEach(function (k) { opts[k] = selOpts(k); });
     var F = {}; IF.forEach(function (f) { F[f[0]] = f; });
@@ -3732,6 +3765,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     return h;
   }
   function readItems(fm, v) {
+    if (v.mode === "upload" || !fm.querySelector("#qi-wrap")) return;
     var rows = fm.querySelectorAll(".qi-tr"), items = [];
     rows.forEach(function (r) { var i = r.getAttribute("data-i"), old = (v.items || [])[+i] || {}, it = Object.assign({}, old); IF.forEach(function (f) { var e = fm.elements["qi_" + f[0] + "_" + i]; it[f[0]] = e ? String(e.value).trim() : ""; }); var ph = fm.elements["qi_photo_" + i]; if (ph && ph.files && ph.files[0]) it.__photo = ph.files[0]; items.push(it); });
     v.items = items; var ro = fm.elements.qt_round_off; v.round_off = ro ? String(ro.value).trim() : "";
@@ -3758,7 +3792,10 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   /* ---------- add / prepare / edit ---------- */
   function qFields(v) {
     if (v.firm_id && v._termsFirm !== v.firm_id) { var f = U.mrows("firm").find(function (x) { return x.id === v.firm_id; }); if (f && !v.terms) v.terms = f.terms_conditions || ""; v._termsFirm = v.firm_id; }
-    var fs = [{ k: "date", label: "Date", type: "date", req: 1 }];
+    var allowed = qFixMode(v), up = v.mode === "upload";
+    var fs = [];
+    if (allowed.length > 1) fs.push({ k: "mode", label: "Quotation Type", type: "select", req: 1, live: 1, opts: function () { return allowed.map(function (k) { return { id: k, name: QMODES[k] }; }); }, first: "Choose", wide: 1, hint: "Make in app: enter items, rates and GST. Upload quotation: enter the amount and upload the file." });
+    fs.push({ k: "date", label: "Date", type: "date", req: 1 });
     if (v._fixedSrc) fs.push({ k: "srcv", label: "Lead or Project", type: "static", value: function (v) { return esc(srcLabel(v.src)); } });
     else fs.push({ k: "src", label: "Lead or Project", type: "select", req: 1, live: 1, opts: U.srcOpts, first: "Choose a lead or project" });
     return fs.concat([
@@ -3767,7 +3804,12 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       { k: "sales_person", label: "Sales Person", type: "select", req: 1, opts: function () { return U.mact("users"); }, first: "Choose a person" },
       { k: "made_by", label: "Prepared By", type: "select", req: 1, opts: function () { return U.mact("users"); }, first: "Choose a person" },
       { k: "expiry", label: "Expiry Date", type: "date", req: 1 }
-    ]);
+    ]).concat(up ? [
+      { k: "amt_before", label: "Amount Before GST", type: "number", req: 1, min: 0, step: "any", oninput: "q-up-calc" },
+      { k: "amt_gst", label: "GST Amount", type: "number", min: 0, step: "any", oninput: "q-up-calc" },
+      { k: "amt_after", label: "Total After GST", type: "static", value: upAfter },
+      { k: "file", label: "Quotation File", type: "file", req: 1, accept: ".pdf,.jpg,.jpeg,.png,.webp", hint: "The quotation sent to the client. The app’s quotation number is shown after you save; use it on the file." }
+    ] : []);
   }
   function srcLabel(src) { var o = U.srcOpts().find(function (x) { return x.id === src; }); if (o) return o.name; var id = (src || "").slice(2); return src && src[0] === "P" ? "Project " + U.projNo(id) : "Lead " + U.leadNo(id); }
   U.page("quotations.add", function () {
@@ -3777,6 +3819,13 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       title: function (v) { var q = v._id && U.get("quotations", v._id); return q ? (q.no ? (q.status === "Rejected" ? "Revise Quotation " : "Edit Quotation ") + q.no : "Prepare Quotation for Lead " + (q.lead_no || U.leadNo(q.lead_id))) : "Add Quotation"; },
       fields: qFields, extra: itemsHtml, readExtra: readItems,
       validate: function (v) {
+        if (qAllowed(v).indexOf(v.mode) === -1) return "This quotation type is switched off in Quotation Settings.";
+        if (v.mode === "upload") {
+          if (!(parseFloat(v.amt_before) > 0)) return "Amount Before GST must be above 0.";
+          if (v.amt_gst !== "" && v.amt_gst != null && parseFloat(v.amt_gst) < 0) return "GST Amount can’t be below 0.";
+          if (v.expiry < v.date) return "The expiry date can’t be before the quotation date.";
+          return null;
+        }
         var items = (v.items || []).filter(function (it) { return it.item_id || it.description || it.qty || it.rate; });
         if (!items.length) return "Add at least one item.";
         for (var i = 0; i < items.length; i++) {
@@ -3790,9 +3839,14 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         return null;
       },
       save: async function (v) {
+        if (v.mode === "upload") v.items = [];
         for (var pi = 0; pi < v.items.length; pi++) { var line = v.items[pi]; if (line.__photo) { line.photo = await U.upload(line.__photo); delete line.__photo; } if (!line.photo) line.photo = (U.get(U.m("items"), line.item_id) || {}).photo || null; }
         var items = v.items.filter(function (it) { return it.item_id || it.description || it.qty || it.rate; }).map(function (it) { return Object.assign({}, it, calc(it)); });
         var body = Object.assign(U.pick(v, qFields(v)), U.srcFields(v), totals(items, v.round_off), { items: items, terms: v.terms || "" });
+        body.mode = v.mode === "upload" ? "upload" : "app";
+        if (body.mode === "upload") { var ub = U.round2(parseFloat(v.amt_before) || 0), ug = U.round2(parseFloat(v.amt_gst) || 0); Object.assign(body, { subtotal: ub, discount: 0, gst: ug, round_off: 0, total: U.round2(ub + ug), file: v.file || null }); }
+        else body.file = null;
+        delete body.amt_before; delete body.amt_gst; delete body.amt_after;
         body.source_locked = !!(v.source_locked || v._fixedSrc); delete body.src; delete body.srcv; delete body.cust;
         var lead = U.get("leads", body.lead_id); if (lead) body.lead_no = lead.lead_no;
         var q = v._id ? U.get("quotations", v._id) : null;
@@ -3814,6 +3868,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var l = U.get("leads", q.lead_id) || {}, t = U.today();
     var v = Object.assign({ date: t, expiry: addDays(t, 15), made_by: U.meId() || q.assigned_to || "", sales_person: l.owner_id || "", firm_id: l.firm_id || "", items: [{}] }, q, { src: U.srcOf(q), _id: q.id, _fixedSrc: 1 });
     if (!q.no) { v.date = t; v.expiry = addDays(t, 15); }
+    if (q.mode === "upload") { v.amt_before = q.subtotal; v.amt_gst = q.gst; }
     P.forms["quotations.add"] = { v: v, err: "", saving: false }; P.keepForm = true; location.hash = "quotations.add";
   }
   U.act("q-prepare", function (id) { var q = U.get("quotations", id); if (q) openForm(q); });
@@ -3822,6 +3877,11 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function viewHtml(q) {
     var firm = U.mrows("firm").find(function (f) { return f.id === q.firm_id; }) || {};
     var h = '<dl class="q-meta"><div><dt>Firm</dt><dd>' + esc(firm.name) + "</dd></div><div><dt>Customer</dt><dd>" + esc(qCust(q)) + "</dd></div><div><dt>Date</dt><dd>" + U.dmy(q.date) + "</dd></div><div><dt>Expiry</dt><dd>" + U.dmy(q.expiry) + "</dd></div><div><dt>Lead</dt><dd>" + esc(U.leadNo(q.lead_id)) + "</dd></div><div><dt>Sales Person</dt><dd>" + esc(U.user(q.sales_person)) + "</dd></div><div><dt>Made By</dt><dd>" + esc(U.user(q.made_by)) + "</dd></div><div><dt>Status</dt><dd>" + esc(q.status) + "</dd></div></dl>";
+    if (q.mode === "upload") {
+      h += '<p class="mv-note">Uploaded quotation: no item lines. ' + (q.file && q.file.id ? "Open the file to see the items. " + U.fileLink(q.file, "Open quotation file") : "No file attached.") + "</p>";
+      h += '<div class="qi-totals view"><div><span>Before GST</span><b>' + money(q.subtotal) + "</b></div><div><span>GST</span><b>" + money(q.gst) + '</b></div><div class="grand"><span>Total after GST</span><b>' + money(q.total) + "</b></div></div>";
+      return h;
+    }
     h += '<div class="mv-table-wrap"><table class="mv-table"><thead><tr><th>#</th><th>Item</th><th>Location</th><th>Size</th><th class="numcell">Qty</th><th class="numcell">Area</th><th class="numcell">Rate</th><th class="numcell">Disc %</th><th class="numcell">GST %</th><th class="numcell">Amount</th></tr></thead><tbody>';
     (q.items || []).forEach(function (it, i) {
       h += "<tr><td>" + (i + 1) + "</td><td><b>" + esc(U.nm("items", it.item_id)) + "</b>" + (it.description ? "<br>" + esc(it.description) : "") + "</td><td>" + esc(it.location) + "</td><td class='nowrap'>" + (it.width ? esc(it.width + " × " + it.height) : "") + "</td><td class='numcell'>" + esc(it.qty) + " " + esc(it.uom) + "</td><td class='numcell'>" + (it.area === "" || it.area == null ? "" : U.num(it.area)) + "</td><td class='numcell'>" + U.num(it.rate) + "</td><td class='numcell'>" + esc(it.disc_pct) + "</td><td class='numcell'>" + esc(it.gst_pct) + "</td><td class='numcell'>" + money(it.amount) + "</td></tr>";
@@ -3878,6 +3938,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   };
   async function pdf(id, btn) {
     var q = U.get("quotations", id); if (!q) return;
+    if (q.mode === "upload") { if (!(q.file && q.file.id)) { U.flash("No file is attached to quotation " + (q.no || "") + "."); return; } var tmp = document.createElement("div"); tmp.hidden = true; tmp.innerHTML = U.fileLink(q.file, "Quotation"); document.body.appendChild(tmp); var a = tmp.querySelector("a"); if (a) a.click(); tmp.remove(); return; }
     if (btn) { btn.disabled = true; btn.dataset.lbl = btn.textContent; btn.textContent = "Making PDF…"; }
     try {
       var bytes = await quotationPdf(q);
@@ -4437,6 +4498,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         if ((p.sheet_documents || []).length) sheet += '<div class="ld-field"><span>Documents (' + p.sheet_documents.length + ')</span><b>' + U.fileLinks(p.sheet_documents) + '</b></div>';
         if (sheet) h += '<section class="ld-card"><div class="ld-card-title"><span>Project Sheet</span></div><div class="ld-grid">' + sheet + "</div></section>";
         var jobsOf = liveJobs().filter(function (j) { return j.project_id === p.id; });
+        if (q.mode === "upload") h += '<section class="ld-card"><div class="ld-card-title"><span>Quotation Details' + (q.no ? " - " + esc(q.no) : "") + '</span></div><p class="mf-hint">Uploaded quotation · ' + U.money(q.total) + " after GST · " + (q.file && q.file.id ? U.fileLink(q.file, "Open quotation file") : "no file attached") + "</p></section>";
         h += pTable("Quotation Details" + (q.no ? " - " + q.no : ""), ["Particulars", "Description", "Width", "Height", "Quantity", "Unit", "Job Qty"], (q.items || []).map(function (it, i) {
           var src = q.id + ":" + i, jq = 0; jobsOf.forEach(function (j) { (j.items || []).forEach(function (x) { if (x.src === src) jq += n(x.qty); }); });
           return [esc(U.nm("items", it.item_id)), esc(it.description), esc(it.width), esc(it.height), U.num(it.qty), esc(it.uom), jq ? U.num(jq) : ""]; }));
@@ -4489,12 +4551,13 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (!v.project_id) return '<p class="mf-hint">Choose a project to see its quotation items.</p>';
     var hasQ = projQuotes(v.project_id).length > 0;
     if (hasQ && !v.quotation_id) return '<p class="mf-hint">Choose a quotation to see its items.</p>';
-    var lines = jiLines(v), uoms = U.mact("uom"), others = hasQ ? [] : U.mact("items");
+    var selQ = v.quotation_id && U.get("quotations", v.quotation_id), upQ = !!(selQ && (selQ.mode === "upload" || !(selQ.items || []).length));
+    var lines = jiLines(v), uoms = U.mact("uom"), others = hasQ && !upQ ? [] : U.mact("items");
     var h = '<div class="qi-wrap" id="ji-wrap"><div class="qi-head"><span class="mf-legend">Jobs <span class="req" aria-hidden="true">*</span></span><button type="button" class="mv-btn ghost sm" data-a="ji-add">＋ Add Job</button></div>';
     h += '<div class="mv-table-wrap qi-table-wrap"><table class="mv-table qi-table ji-table"><thead><tr><th>Particular <span class="req">*</span></th><th>Width</th><th>Height</th><th>Location</th><th>Qtn Qty</th><th>Job Qty</th><th>Quantity <span class="req">*</span></th><th>Unit <span class="req">*</span></th><th>Area (Sq. Ft)</th><th>Applicable Steps <span class="req">*</span></th><th>Action</th></tr></thead><tbody>';
     v.jitems.forEach(function (it, i) {
       var sel = jiSel(it), manual = !it.src, a = U.qCalc({ width: it.width, height: it.height, qty: it.qty, uom: it.uom }).area, lab = function (t) { return ' aria-label="' + esc(t + " for job " + (i + 1)) + '"'; };
-      var o = '<option value="">Select Quotation Item</option>';
+      var o = '<option value="">' + (lines.length ? "Select Quotation Item" : "Select Item") + "</option>";
       if (lines.length) o += lines.map(function (l) { return '<option value="' + esc(l.src) + '"' + (l.src === sel ? " selected" : "") + ">" + esc(itemName(l) || "Item") + (l.width ? " (" + esc(l.width + "×" + l.height) + ")" : "") + "</option>"; }).join("");
       if (others.length) o += others.map(function (x) { return '<option value="I:' + esc(x.id) + '"' + ("I:" + x.id === sel ? " selected" : "") + ">" + esc(x.name) + "</option>"; }).join("");
       var dim = function (k) { return manual ? '<input type="number" name="ji_' + k + "_" + i + '" min="0" step="any" inputmode="decimal" value="' + esc(it[k]) + '"' + lab(k === "width" ? "Width" : "Height") + ' data-oninput="ji-calc">' : '<input type="text" class="erp-ro" value="' + esc(it[k]) + '" readonly tabindex="-1"' + lab(k === "width" ? "Width" : "Height") + ">"; };
