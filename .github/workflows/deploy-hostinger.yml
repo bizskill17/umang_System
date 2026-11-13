@@ -83,6 +83,7 @@ jobs:
           node tests/work_order_ui_test.cjs
           node tests/quotation_mode_test.cjs
           node tests/migration_ui_test.cjs
+          node tests/pager_test.cjs
       - name: Test database backend with disposable MySQL
         env:
           UMANG_TEST_DB_HOST: 127.0.0.1
