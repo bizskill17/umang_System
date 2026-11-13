@@ -48,6 +48,7 @@
     } catch (e) { subs.forEach(function (s) { if (subscriptions.has(s)) s.fail(e); }); }
     finally { polling = false; if (pollAgain) { pollAgain = false; schedule(50); } else schedule(POLL_MS); }
   }
+  server.msg = function(payload) { return request('msg', payload); };
   server.ims = async function(payload) { var r = await request('ims', payload); if (payload && payload.cmd !== 'masters') schedule(0); return r; };
   server.vendorFinance = async function(payload) { var result = await request('workorder',payload); schedule(0); return result; };
   server.pollNow = pollNow;

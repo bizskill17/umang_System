@@ -12,6 +12,7 @@ on:
       - tests/check-js.cjs
       - tests/operations_test.cjs
       - tests/adapter_test.cjs
+      - tests/messaging_backend_test.py
       - .github/workflows/deploy-hostinger.yml
   pull_request:
     branches: [main]
@@ -53,11 +54,13 @@ jobs:
         run: |
           php -l api/index.php
           php -l api/vendor-finance.php
+          php -l api/messaging.php
           php -l config/database.example.php
           node tests/check-js.cjs
           node tests/adapter_test.cjs
           python3 tests/operations_backend_test.py
           python3 tests/work_order_backend_test.py
+          python3 tests/messaging_backend_test.py
       - name: Test application workflows in Chromium
         timeout-minutes: 3
         env:

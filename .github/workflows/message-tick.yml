@@ -1,0 +1,18 @@
+name: WhatsApp message scheduler
+
+# Calls the server every 10 minutes during the working day so daily summaries go out on time
+# and any waiting messages are sent. The server sends each summary only once a day.
+on:
+  schedule:
+    - cron: '*/10 2-16 * * *'   # 07:30–22:30 India time
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Run due messages
+        run: curl -fsS --max-time 120 "https://system.umangcommunications.com/api/index.php?action=msgtick" || echo "Tick failed; the next run will try again."

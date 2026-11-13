@@ -101,7 +101,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
 $action = (string)($_GET['action'] ?? 'session');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-$readActions = ['session', 'list', 'get', 'blob', 'batch'];
+$readActions = ['session', 'list', 'get', 'blob', 'batch', 'msgtick'];
 if (($method === 'GET' && !in_array($action, $readActions, true)) || !in_array($method, ['GET', 'POST'], true)) reject('Method not allowed.', 405);
 $input = [];
 if ($method === 'POST') {
@@ -339,6 +339,7 @@ function seedStores(): void {
     txCommit();
 }
 require __DIR__ . '/ims.php';
+require __DIR__ . '/messaging.php';
 function seedLostReasons(): void {
     if (query("SELECT 1 FROM umang_documents WHERE collection_path='_migrations' AND id='lost-reasons-v1'")->fetchColumn()) return;
     $have = [];
@@ -392,6 +393,7 @@ if ($action === 'get') {
     $body = document($path, $id); if ($path === 'masters/users/rows' && $body) { $body = safeUser($body); if (!canManageUsers()) $body = array_intersect_key($body, array_flip(['name','status','designation_id','signature'])); }
     reply(['id' => $id, 'exists' => $body !== null, 'data' => $body]);
 }
+if (in_array($path, ['message_log','message_queue','message_runs'], true)) reject('Messages are written by the server only.', 403);
 if (in_array($path, ['work_orders','work_order_versions','vendor_payments','vendor_allocations','vendor_refunds','finance_events'], true)) reject('Use the transactional vendor finance actions to change these records.', 403);
 if (!permittedWrite($path)) reject('You do not have permission to save here. Contact the administrator.', 403);
 if (!in_array($action, ['acquire','set','update','delete'], true)) reject('Unknown action.');
@@ -502,4 +504,6 @@ if ($action === 'delete') {
     query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?) ON DUPLICATE KEY UPDATE body=VALUES(body)', [$path, $id, json_encode($body, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]);
     if ($path === 'counters') query('UPDATE umang_leases SET expires_at=0 WHERE lease_key=?', [$path . '/' . $id]);
 }
-txCommit(); reply(['ok' => true, 'id' => $id]);
+txCommit();
+if ($action !== 'delete') { try { msgOnWrite($path, $id, $old, $body); } catch (Throwable $e) { error_log('Umang messaging queue: ' . get_class($e)); } }
+reply(['ok' => true, 'id' => $id]);
