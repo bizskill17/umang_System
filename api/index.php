@@ -241,6 +241,8 @@ if ($action === 'login') {
     reply(['user' => actor(), 'csrf' => $_SESSION['csrf']]);
 }
 if ($action === 'logout') { $_SESSION = []; session_destroy(); setcookie(session_name(), '', ['expires' => time()-3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict']); reply(['ok' => true]); }
+// The message scheduler runs without a sign-in; it only sends what is already due (api/messaging.php).
+if ($action === 'msgtick') { define('UMANG_VENDOR_FINANCE', true); require __DIR__ . '/messaging.php'; }
 if (!$user) reject('Please sign in again.', 401, 'unauthenticated');
 function canManageUsers(): bool {
     global $user;

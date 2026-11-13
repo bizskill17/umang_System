@@ -80,6 +80,9 @@ def main():
                 assert len(qp) == 1 and qp[0]['status'] == 'sent' and 'Acme Retail - (Assign Dt: *12/11/2026*)' in qp[0]['text'], qp
                 (root/'config/umang-whatsapp.tick').unlink(missing_ok=True)
                 assert c.call('msgtick')['ran'] == []
+                (root/'config/umang-whatsapp.tick').unlink(missing_ok=True)
+                anon = Client(c.base); assert anon.call('msgtick')['ok'] is True  # the scheduler needs no sign-in
+                anon.call('msg', {'cmd': 'status'}, expected=403)
                 assert '*Quotations to Prepare*' in msg('preview', event='q_prepare')['text']
                 # Test message, log, and protections
                 assert msg('test', to='120363000000001@g.us', type='group')['ok']
