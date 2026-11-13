@@ -61,7 +61,7 @@ def main():
                 assert len(SENT) == 3, SENT
                 assert any('*New Lead*' in t and '*Customer:* Acme Retail' in t and '₹1,25,000' not in t and '₹125,000' in t for t in texts), texts
                 assert sum('*Lead Assigned*' in t for t in texts) == 2
-                assert any(s['body'].get('receiverMobileNo') == '919123456780' for s in SENT)
+                assert any(s['body'].get('receiverMobileNo') == '9123456780' for s in SENT)
                 assert all(s['auth'].startswith('Basic ') for s in SENT)
                 # Estimate change is switched off → nothing sent
                 SENT.clear(); upd('leads', 'l1', {'estimate': 150000}); time.sleep(.2); assert SENT == [], SENT

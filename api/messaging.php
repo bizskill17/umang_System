@@ -88,7 +88,8 @@ function msgQuiet(array $s): bool {
 }
 function msgSend(array $acc, string $type, string $to, string $text): array {
     $mobile = $to;
-    if ($type === 'mobile') { $cc = preg_replace('/\D/', '', (string)($acc['country_code'] ?? '91')); if (strlen($to) === 10 && $cc !== '') $mobile = $cc . $to; }
+    // MessageAutoSender takes a plain 10-digit mobile number, without the country code.
+    if ($type === 'mobile') { $mobile = preg_replace('/\D/', '', $to); if (strlen($mobile) > 10) $mobile = substr($mobile, -10); }
     $payload = $type === 'group' ? ['recipientIds' => [$to], 'message' => [$text]] : ['receiverMobileNo' => $mobile, 'message' => [$text]];
     $ch = curl_init((string)($acc['api_url'] ?? MSG_API)); // api_url only for tests, set in the private file
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_TIMEOUT => 25, CURLOPT_CONNECTTIMEOUT => 10,
