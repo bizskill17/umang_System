@@ -11,13 +11,14 @@ let browser;try{for(let i=0;i<100;i++){try{await fetch(url+'/api/index.php?actio
  await page.evaluate(async()=>{await U.db.collection(U.m('vendors')).doc('v-old').set({name:'Old Vendor',status:'Active'});});
  await page.evaluate(()=>location.hash='masters.data-migration');await page.waitForSelector('[data-a=mig-backup]');
  const pkg={kind:'umang-master-import',clear:['vendors','state'],keep_users:['Pankaj Jain','Amit Jain'],rows:{state:[{id:'s1',name:'Assam',legacy_ids:['Assam'],status:'Active'}],vendors:[{id:'v1',name:'Graphic India',category:'Recce',legacy_ids:['9b93ec22'],status:'Active'}]}};
- const f=path.join(temp,'umang-masters-import.json');fs.writeFileSync(f,JSON.stringify(pkg));await page.setInputFiles('#mig-file',f);await page.waitForSelector('[data-a=mig-run]');
- assert((await page.innerText('#mod-live')).includes('Cleared, then imported'));
- await page.click('[data-a=mig-run]');await page.waitForTimeout(200);assert((await page.innerText('body')).includes('Type CLEAR'));
- await page.fill('#mig-confirm','CLEAR');await page.click('[data-a=mig-run]');await page.waitForTimeout(200);assert((await page.innerText('body')).includes('Download the backup first'));
+ const f=path.join(temp,'umang-masters-import.json');fs.writeFileSync(f,JSON.stringify(pkg));await page.setInputFiles('#mig-file',f);await page.waitForSelector('[data-a=mig-one][data-id=vendors]');
+ await page.click('[data-a=mig-one][data-id=vendors]');await page.waitForTimeout(200);assert((await page.innerText('body')).includes('Type CLEAR'));
+ await page.fill('#mig-confirm','CLEAR');await page.click('[data-a=mig-one][data-id=vendors]');await page.waitForTimeout(200);assert((await page.innerText('body')).includes('Download the backup first'));
  const dl=page.waitForEvent('download');await page.click('[data-a=mig-backup]');const d=await dl;const bk=JSON.parse(fs.readFileSync(await d.path(),'utf8'));assert.equal(bk.kind,'umang-master-backup');
- await page.fill('#mig-confirm','CLEAR');await page.click('[data-a=mig-run]');await page.waitForSelector('text=Import finished');
- const t=await page.innerText('#mod-live');assert(/Vendors\s+1\s+1\s+0/.test(t),t);
+ await page.click('[data-a=mig-one][data-id=state]');await page.waitForSelector('text=States imported.');
+ await page.click('[data-a=mig-one][data-id=vendors]');await page.waitForSelector('text=Vendors imported.');
+ const t=await page.innerText('#mod-live');assert(t.includes('cleared 1, added 1'),t);
+ const vs=await page.evaluate(async()=>(await window.UmangServer.migrate({cmd:'status'})).masters);assert.equal(vs.vendors,1);assert.equal(vs.state,1);
  await page.screenshot({path:'/tmp/umang-migration.png',fullPage:true});
  assert.deepEqual(errors,[]);console.log('Data Migration UI passed against real PHP API: backup download, CLEAR confirmation, import result.');
  }catch(e){console.error(logs.slice(-1800));throw e;}finally{if(browser)await browser.close();php.kill();}
