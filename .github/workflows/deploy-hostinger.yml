@@ -62,7 +62,11 @@ jobs:
           python3 tests/work_order_backend_test.py
           python3 tests/messaging_backend_test.py
           php -l api/migrate.php
+          php -l api/migrate_lib.php
+          php -l api/automigrate.php
           python3 tests/migration_backend_test.py
+          python3 -m pip install --quiet cryptography
+          python3 tests/automigrate_backend_test.py
       - name: Test application workflows in Chromium
         timeout-minutes: 3
         env:

@@ -15,6 +15,8 @@ U.page('masters.data-migration',function(){
  if(S.err)return'<div class="ldx"><p class="mv-note warn">'+E(S.err)+'</p></div>';
  if(!S.status)return U.loading;
  var st=S.status,P=S.pkg,h='<div class="ldx">';
+ if(st.auto){var ar=st.auto.result||{};h+='<section class="ldx-panel ds-card"><div class="ldx-ph"><div><h2>Masters migrated automatically</h2><p>On '+E(new Date(st.auto.at).toLocaleString('en-IN'))+'. A backup of the old masters was saved on the server ('+E(st.auto.backup||'')+').</p></div><span class="ldx-pill ok">Done</span></div><div class="ldx-tw"><table class="ldx-t narrow"><thead><tr><th>Master</th><th class="num">Cleared</th><th class="num">Added</th><th class="num">Kept</th><th class="num">In the app now</th></tr></thead><tbody>'+
+  Object.keys(Object.assign({},ar.cleared,ar.added,ar.kept)).map(function(k){return'<tr><td>'+E(nm(k))+'</td><td class="num">'+((ar.cleared||{})[k]||0)+'</td><td class="num">'+((ar.added||{})[k]||0)+'</td><td class="num">'+((ar.kept||{})[k]||0)+'</td><td class="num">'+(st.masters[k]||0)+'</td></tr>';}).join('')+'</tbody></table></div></section>';}
  h+='<section class="ldx-panel ds-card"><div class="ldx-ph"><div><h2>1. Back up the current masters</h2><p>Download a copy of every master as it is now, before anything is cleared.</p></div></div>'+
   '<p class="ds-acts">'+U.btn('mig-backup','','Download backup',!S.backedUp)+(S.backedUp?' <span class="ldx-pill ok">Backup downloaded</span>':'')+'</p>';
  var recs=Object.keys(REC).filter(function(k){return st.records[k];});

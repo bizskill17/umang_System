@@ -101,7 +101,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
 $action = (string)($_GET['action'] ?? 'session');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-$readActions = ['session', 'list', 'get', 'blob', 'batch', 'msgtick', 'pubfile'];
+$readActions = ['session', 'list', 'get', 'blob', 'batch', 'msgtick', 'pubfile', 'migkey', 'automigrate'];
 if (($method === 'GET' && !in_array($action, $readActions, true)) || !in_array($method, ['GET', 'POST'], true)) reject('Method not allowed.', 405);
 $input = [];
 if ($method === 'POST') {
@@ -243,6 +243,8 @@ if ($action === 'login') {
 if ($action === 'logout') { $_SESSION = []; session_destroy(); setcookie(session_name(), '', ['expires' => time()-3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict']); reply(['ok' => true]); }
 // The message scheduler runs without a sign-in; it only sends what is already due (api/messaging.php).
 if ($action === 'msgtick') { define('UMANG_VENDOR_FINANCE', true); require __DIR__ . '/messaging.php'; }
+// One-time automatic master migration (api/automigrate.php): public key, then the encrypted import, once.
+if ($action === 'migkey' || $action === 'automigrate') { define('UMANG_VENDOR_FINANCE', true); require __DIR__ . '/automigrate.php'; }
 // A file attached to a WhatsApp message: needs a valid signature made by the server and expires after 7 days.
 if ($action === 'pubfile') {
     $id = (string)($_GET['id'] ?? ''); $exp = (int)($_GET['exp'] ?? 0); $sig = (string)($_GET['sig'] ?? '');
