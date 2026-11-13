@@ -110,7 +110,7 @@ if ($method === 'POST') {
     if ($origin !== '' && parse_url($origin, PHP_URL_HOST) !== preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? '')) reject('Cross-origin requests are not allowed.', 403);
     if ($action !== 'upload') {
         $raw = file_get_contents('php://input');
-        if (strlen($raw) > 2 * 1024 * 1024) reject('The record is too large.', 413, 'too_large');
+        if (strlen($raw) > ($action === 'migrate' ? 20 : 2) * 1024 * 1024) reject('The record is too large.', 413, 'too_large');
         try { $input = json_decode($raw, true, 64, JSON_THROW_ON_ERROR); } catch (JsonException $e) { reject('Invalid JSON.'); }
         if (!is_array($input)) reject('Invalid request.');
     }
@@ -354,6 +354,7 @@ function seedStores(): void {
     txCommit();
 }
 require __DIR__ . '/ims.php';
+require __DIR__ . '/migrate.php';
 require __DIR__ . '/messaging.php';
 function seedLostReasons(): void {
     if (query("SELECT 1 FROM umang_documents WHERE collection_path='_migrations' AND id='lost-reasons-v1'")->fetchColumn()) return;

@@ -61,6 +61,8 @@ jobs:
           python3 tests/operations_backend_test.py
           python3 tests/work_order_backend_test.py
           python3 tests/messaging_backend_test.py
+          php -l api/migrate.php
+          python3 tests/migration_backend_test.py
       - name: Test application workflows in Chromium
         timeout-minutes: 3
         env:
@@ -76,6 +78,7 @@ jobs:
           node tests/mobile_test.cjs
           node tests/work_order_ui_test.cjs
           node tests/quotation_mode_test.cjs
+          node tests/migration_ui_test.cjs
       - name: Test database backend with disposable MySQL
         env:
           UMANG_TEST_DB_HOST: 127.0.0.1

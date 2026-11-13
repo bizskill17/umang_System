@@ -1040,7 +1040,7 @@ body.in-module .side .nav-sec.grp > ul > li > .nav-group { color: var(--sa); fon
   <div class="scrim" id="scrim" hidden></div>
 </main>
 
-<script src="assets/hostinger.js?v=2026-11-13msg1"></script>
+<script src="assets/hostinger.js?v=2026-11-13mig1"></script>
 <script>
 window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangServer.blobURL(id) : "/_blob/" + id; };
 </script>
@@ -1206,7 +1206,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 
   MENUS.masters = { name: "Master Data", start: "m-firm", items: [["label:Leads"]].concat(MENUS.leads.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; }),
     [["label:Projects"]], MENUS.projects.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; }),
-    [["label:WhatsApp Messages"], ["message-settings", "Message Settings", "WhatsApp account, department groups, and which messages and daily summaries are sent."], ["message-log", "Message Log", "Every WhatsApp message the system sent or tried to send."]]) };
+    [["label:WhatsApp Messages"], ["message-settings", "Message Settings", "WhatsApp account, department groups, and which messages and daily summaries are sent."], ["message-log", "Message Log", "Every WhatsApp message the system sent or tried to send."], ["label:Data"], ["data-migration", "Data Migration", "Back up the masters and import master data from the old sheets."]]) };
   /* Outsource item: [key, menu title, description, depth, hidden, page title]. Hidden views stay reachable from buttons and links. */
   MENUS.outsource = { name: "Outsource", start: "make-department", items: [
     ["dashboard", "Outsource Dashboard", "Work Orders, vendor balances, overdue work and material issued at a glance.", 0, 0, "Outsource Dashboard"],
@@ -1566,9 +1566,9 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     "m-gst": { coll: "gst", one: "GST %", many: "GST rates", fields: [["name", "GST %", "number", 1]], cols: ["name"] },
     "m-machines": { coll: "machines", one: "Machine", many: "Machines", fields: [["name", "Machine Name", "text", 1], ["job_step", "Machine Category", "stage", 1]], cols: ["name", "job_step"] },
     "m-vendors": { coll: "vendors", one: "Vendor", many: "Vendors", fields: [
-      ["name", "Vendor Name", "text", 1], ["contact_person", "Contact Person", "text"], ["mobile", "Mobile", "mobile"],
+      ["name", "Vendor Name", "text", 1], ["category", "Category", "text"], ["contact_person", "Contact Person", "text"], ["mobile", "Mobile", "mobile"],
       ["email", "Email", "email"], ["gstin", "GSTIN", "gstin"], ["address", "Address", "textarea"]
-    ], cols: ["name", "contact_person", "mobile", "gstin"] },
+    ], cols: ["name", "category", "contact_person", "mobile", "gstin"] },
     "m-transporters": { coll: "transporters", one: "Transporter/Courier", many: "Transporters/Courier", fields: [["name", "Transporter / Courier", "text", 1], ["mobile", "Mobile", "mobile"]], cols: ["name", "mobile"] },
     "m-vehicles": { coll: "vehicles", one: "Vehicle", many: "Vehicles", fields: [["name", "Vehicle Name / Number", "text", 1]], cols: ["name"] },
     "m-delivery-modes": { coll: "delivery-modes", one: "Delivery Mode", many: "Delivery Modes", fields: [["name", "Delivery Mode", "text", 1]], cols: ["name"] }
@@ -5585,6 +5585,7 @@ document.addEventListener("keydown", function (e) {
 <script src="assets/dashboards.js?v=20261112dk3"></script>
 <script src="assets/dashboards2.js?v=20261112dk3"></script>
 <script src="assets/messaging.js?v=20261113b2"></script>
+<script src="assets/migration.js?v=20261113m1"></script>
 
 <link rel="stylesheet" href="assets/mobile.css?v=20261111rem">
 
