@@ -89,6 +89,14 @@ def main():
                 msg('test', 502, to='120363FAILGROUP@g.us', type='group')
                 put('message_log', 'x', {'status': 'sent'}, 400)
                 emp = Client(c.base); emp.login('Ravi Kumar', 'Password12345'); emp.call('msg', {'cmd': 'status'}, expected=403)
+                # A user with the Admin role, or given the Message Settings view, can open and edit it
+                put('masters/user-roles/rows', 'ra', {'name': 'Admin'})
+                put('masters/users/rows', 'u2', {'name': 'Priya Admin', 'email': 'p@example.invalid', 'role_id': 'ra', 'pw_salt': salt, 'pw_hash': hashlib.pbkdf2_hmac('sha256', b'Password12345', salt.encode(), 120000).hex(), 'allowed_views': ['leads.master']})
+                adm = Client(c.base); adm.login('Priya Admin', 'Password12345'); assert adm.call('msg', {'cmd': 'status'})['can_account'] is True
+                put('masters/users/rows', 'u3', {'name': 'Setter', 'email': 's@example.invalid', 'pw_salt': salt, 'pw_hash': hashlib.pbkdf2_hmac('sha256', b'Password12345', salt.encode(), 120000).hex(), 'allowed_views': ['masters.message-settings']})
+                st3 = Client(c.base); st3.login('Setter', 'Password12345'); r3 = st3.call('msg', {'cmd': 'status'}); assert r3['can_account'] is False
+                st3.call('msg', {'cmd': 'account', 'username': 'x', 'password': 'y'}, expected=403)
+                st3.call('update', {'path': 'app_settings', 'id': 'ms', 'data': {'quiet': {'off': True}}})
                 assert 'secret-pass' not in json.dumps(msg('log'))
                 print('Messaging backend passed: account kept private, instant group and personal messages, switched-off events, retries and failure log, resend, daily summary once per day, test sends, write protection.')
             finally:

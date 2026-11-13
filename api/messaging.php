@@ -280,9 +280,10 @@ if ($user && $action !== 'msg') msgMaybeTick();
 if ($action !== 'msg') return;
 if (!$user) reject('Sign in first.', 401, 'unauthenticated');
 $cmd = (string)($input['cmd'] ?? '');
-$isAdmin = !empty($user['owner']);
+// Administrators: the built-in admin login, users with full access (no view list), or users whose role name contains "Admin".
+$isAdmin = !empty($user['owner']) || !is_array($user['allowed_views'] ?? null) || preg_match('/admin/i', mName('user-roles', (string)($user['role_id'] ?? ''))) === 1;
 $canSettings = $isAdmin || in_array('masters.message-settings', (array)($user['allowed_views'] ?? []), true);
-if (!$canSettings) reject('Only the administrator can change message settings.', 403);
+if (!$canSettings) reject('You do not have permission for message settings. Ask the administrator to give you the Message Settings view.', 403);
 if ($cmd === 'status') {
     $a = msgAccount();
     reply(['connected' => !empty($a['username']) && !empty($a['password']), 'username' => (string)($a['username'] ?? ''), 'country_code' => (string)($a['country_code'] ?? '91'), 'events' => array_map(fn($m) => ['kind' => $m[0], 'title' => $m[1], 'person' => $m[2]], MSG_EVENTS), 'can_account' => $isAdmin]);

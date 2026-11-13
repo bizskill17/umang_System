@@ -272,7 +272,7 @@ function permittedWrite(string $path): bool {
         'projects' => ['projects'], 'recce' => ['recce','projects'], 'recce_updates' => ['recce'],
         'designs' => ['design','projects'], 'design_updates' => ['design'], 'jobs' => ['projects'],
         'job_assign' => ['projects'], 'qc' => ['projects'], 'dispatches' => ['projects'],
-        'wastage' => ['projects'], 'invoices' => ['invoices'], 'payments' => ['invoices'], 'complaints' => ['complaints'], 'complaint_updates' => ['complaints'], 'material_requisitions' => ['requisition'], 'app_settings' => ['leads','recce','design','quotations','projects','invoices','complaints','outsource','requisition']
+        'wastage' => ['projects'], 'invoices' => ['invoices'], 'payments' => ['invoices'], 'complaints' => ['complaints'], 'complaint_updates' => ['complaints'], 'material_requisitions' => ['requisition'], 'app_settings' => ['leads','recce','design','quotations','projects','invoices','complaints','outsource','requisition','masters']
     ];
     if ($path === 'projects' && (in_array('leads.pending-create-project', $allowed, true) || in_array('quotations.pending-create', $allowed, true))) return true;
     if ($path === 'counters') return count($allowed) > 0;
