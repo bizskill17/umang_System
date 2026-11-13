@@ -371,7 +371,8 @@ if ($cmd === 'test') {
     $a = msgAccount(); if (empty($a['username']) || empty($a['password'])) reject('Save the MessageAutoSender account first.');
     $to = trim((string)($input['to'] ?? '')); $type = ($input['type'] ?? 'group') === 'mobile' ? 'mobile' : 'group';
     if ($to === '') reject($type === 'group' ? 'Enter the group ID.' : 'Enter the mobile number.');
-    $text = "*Test message*\n\nFrom the Umang system, sent by " . ($user['name'] ?? 'Administrator') . ' at ' . msgNow()->format('d/m/Y h:i A') . '. If you can read this, this ' . ($type === 'group' ? 'group' : 'number') . ' is set up correctly.';
+    $sample = trim((string)($input['text'] ?? ''));
+    $text = $sample !== '' ? "🧪 *TEST – sample message, not a real record*\n\n" . mb_substr($sample, 0, 3000) : "*Test message*\n\nFrom the Umang system, sent by " . ($user['name'] ?? 'Administrator') . ' at ' . msgNow()->format('d/m/Y h:i A') . '. If you can read this, this ' . ($type === 'group' ? 'group' : 'number') . ' is set up correctly.';
     [$ok, $resp] = msgSend($a, $type, $type === 'mobile' ? preg_replace('/\D/', '', $to) : $to, $text);
     $id = gmdate('YmdHis') . '-' . bin2hex(random_bytes(5));
     query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?)', ['message_log', $id, json_encode(['event' => 'test', 'title' => 'Test message', 'to_type' => $type, 'to' => $to, 'to_name' => (string)($input['name'] ?? ''), 'text' => $text, 'status' => $ok ? 'sent' : 'failed', 'attempts' => 1, 'response' => $resp, 'created_at' => gmdate('Y-m-d\TH:i:s\Z'), 'sent_at' => $ok ? gmdate('Y-m-d\TH:i:s\Z') : ''], JSON_UNESCAPED_UNICODE)]);
@@ -386,6 +387,17 @@ if ($cmd === 'run') {
     $text = msgSummary($ev); if ($text === '') reply(['ok' => true, 'empty' => true]);
     $c = msgEventCfg(msgSettings(), $ev); if (!$c['groups']) reject('Choose a group for this summary first.');
     msgQueue($ev, $text, null, 'summary'); msgProcess(10); reply(['ok' => true]);
+}
+if ($cmd === 'stats') {
+    // Per message: sent today, sent in the last 7 days, failed in the last 7 days.
+    $now = msgNow(); $today = $now->format('Y-m-d'); $from = (clone $now)->modify('-6 days')->format('Y-m-d'); $out = [];
+    foreach (query("SELECT body FROM umang_documents WHERE collection_path='message_log' AND id >= ? ORDER BY id DESC LIMIT 5000", [gmdate('Ymd', strtotime('-8 days'))])->fetchAll(PDO::FETCH_COLUMN) as $raw) {
+        $b = json_decode((string)$raw, true); if (!is_array($b)) continue; $ev = (string)($b['event'] ?? ''); $d = msgDay((string)($b['created_at'] ?? '')); if ($d < $from) continue;
+        $o = $out[$ev] ?? ['today' => 0, 'week' => 0, 'failed' => 0];
+        if (($b['status'] ?? '') === 'sent') { $o['week']++; if ($d === $today) $o['today']++; } elseif (($b['status'] ?? '') === 'failed') $o['failed']++;
+        $out[$ev] = $o;
+    }
+    reply(['stats' => $out]);
 }
 if ($cmd === 'log') {
     $rows = [];
