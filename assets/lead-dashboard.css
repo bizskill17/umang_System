@@ -164,3 +164,14 @@
 .msx .ldx-pill.ok{background:var(--good-bg);color:var(--good-text)}.msx .ldx-pill.bad{background:var(--crit-bg);color:var(--crit-text)}.msx .ldx-pill.warn{background:var(--warn-bg);color:var(--warn-text)}
 .msx .ldx-tw{overflow-x:auto}.msx .ldx-t{border-collapse:collapse;width:100%}.msx .ldx-t th{font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:#52514e;font-weight:600;text-align:left;padding:7px 10px;border-bottom:1px solid #c3c2b7;white-space:nowrap}.msx .ldx-t td{padding:9px 10px;border-bottom:1px solid #e1e0d9;vertical-align:middle}
 .msx .muted{color:#898781}.msx .sm{font-size:12px}
+.msx-grid th,.msx-grid td{border-right:1px solid #ecebe5}
+.msx-grid th:last-child,.msx-grid td:last-child{border-right:0}
+.msx-grid .msx-gtop{text-align:center;border-bottom:1px solid #e1e0d9}
+.msx-grid .msx-gh{text-align:center;white-space:normal;min-width:72px;font-size:11px}
+.msx-grid .msx-cell{text-align:center;vertical-align:middle}
+.msx-grid .msx-cell input{width:18px;height:18px;cursor:pointer;accent-color:#2a78d6}
+.msx-grid .msx-name{min-width:200px}
+.msx-grid tbody tr:hover td{background:#f4f8fd}
+.msx-grid .msx-days{display:flex;gap:2px;flex-wrap:nowrap;margin:0}
+.msx-grid .msx-days label{display:inline-flex;flex-direction:column;align-items:center;gap:1px;font-size:11px;width:22px}
+.msx-grid td.act .mv-btn{display:block;width:100%;margin:2px 0;padding:4px 8px;font-size:12px}
