@@ -36,7 +36,7 @@ def main():
                 put = lambda p, i, d, s=200: c.call('set', {'path': p, 'id': i, 'data': d}, expected=s)
                 upd = lambda p, i, d, s=200: c.call('update', {'path': p, 'id': i, 'data': d}, expected=s)
                 msg = lambda cmd, s=200, **kw: c.call('msg', dict(cmd=cmd, **kw), expected=s)
-                st = msg('status'); assert st['connected'] is False and len(st['events']) == 24
+                st = msg('status'); assert st['connected'] is False and len(st['events']) == 38
                 msg('account', 400, username='')
                 msg('account', username='umang', password='secret-pass', country_code='91')
                 assert msg('status')['connected'] is True and 'password' not in json.dumps(msg('status'))
@@ -98,6 +98,26 @@ def main():
                 st3.call('msg', {'cmd': 'account', 'username': 'x', 'password': 'y'}, expected=403)
                 st3.call('update', {'path': 'app_settings', 'id': 'ms', 'data': {'quiet': {'off': True}}})
                 assert 'secret-pass' not in json.dumps(msg('log'))
+                # Attachments: complaint photo goes as a signed link that works without signing in; jobs route by department
+                import base64, urllib.request, urllib.error
+                photo = c.upload(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j4o0AAAAASUVORK5CYII='), 'issue.png', 'image/png')
+                groups.append({'key': 'g3', 'name': 'Printing', 'gid': '120363PRINT@g.us', 'active': True})
+                ev.update({'complaint_assigned': {'on': True, 'groups': ['g1'], 'person': True, 'attach': 'all'}, 'job_created': {'on': True, 'groups': ['g1']}, 'job_printing': {'on': True, 'groups': ['g3']}, 'job_laser': {'on': True, 'groups': ['g3']}})
+                upd('app_settings', 'ms', {'groups': groups, 'events': ev})
+                put('projects', 'p1', {'no': '26-27/9', 'customer_id': 'c1', 'controller': 'u1', 'status': 'In Progress', 'date': '2026-11-10'})
+                put('complaints', 'cp1', {'no': 'CMP-1', 'project_id': 'p1', 'customer_id': 'c1', 'details': 'Light not working', 'docs': [{'id': photo['id'], 'name': 'issue.png', 'type': 'image/png'}], 'status': 'New'})
+                SENT.clear(); upd('complaints', 'cp1', {'assigned_to': 'u1', 'status': 'Assigned', 'assigned_at': '2026-11-13'}); time.sleep(.3)
+                ca = [x for x in SENT if '*Complaint Assign*' in x['body']['message'][0]]
+                assert len(ca) == 2 and all('filePathUrl' in x['body'] for x in ca), SENT
+                link = ca[0]['body']['filePathUrl'][0]; assert 'action=pubfile' in link
+                local = f'http://127.0.0.1:{port}/api/index.php?' + link.split('?', 1)[1]
+                assert urllib.request.urlopen(local, timeout=10).read()[:4] == b'\x89PNG'
+                try: urllib.request.urlopen(local.replace('sig=', 'sig=0'), timeout=10); raise AssertionError('tampered link worked')
+                except urllib.error.HTTPError as e: assert e.code == 404
+                SENT.clear(); put('jobs', 'j1', {'no': '26-27 - 1', 'project_id': 'p1', 'customer_id': 'c1', 'date': '2026-11-13', 'items': [{'lid': 'L1', 'description': 'Glow sign', 'qty': 2, 'steps': ['Printing']}]}); time.sleep(.3)
+                to = sorted((x['body'].get('recipientIds') or [x['body'].get('receiverMobileNo')])[0] for x in SENT)
+                assert to == ['120363000000001@g.us', '120363PRINT@g.us', '9123456780'], to
+                assert '*Job Created*' in SENT[0]['body']['message'][0] and 'Glow sign × 2 (Printing)' in SENT[0]['body']['message'][0]
                 print('Messaging backend passed: account kept private, instant group and personal messages, switched-off events, retries and failure log, resend, daily summary once per day, test sends, write protection.')
             finally:
                 proc.terminate(); proc.wait(5); fake.shutdown()

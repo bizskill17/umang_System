@@ -175,3 +175,19 @@
 .msx-grid .msx-days{display:flex;gap:2px;flex-wrap:nowrap;margin:0}
 .msx-grid .msx-days label{display:inline-flex;flex-direction:column;align-items:center;gap:1px;font-size:11px;width:22px}
 .msx-grid td.act .mv-btn{display:block;width:100%;margin:2px 0;padding:4px 8px;font-size:12px}
+.msx-grid tr.msx-sec td{background:#eef2f7;font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:#334155;padding:6px 10px}
+.msx-grid tbody tr.msx-sec:hover td{background:#eef2f7}
+.msx-pl{display:inline-flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:#52514e;cursor:pointer}
+.msx-attach{font-size:12px;padding:3px 4px;max-width:150px}
+.msx-grid .msx-gh{min-width:54px;max-width:70px;padding:6px 4px;font-size:10.5px;letter-spacing:.02em;line-height:1.2}
+.msx-grid .msx-cell{padding:6px 4px}
+.msx-grid td:nth-child(1),.msx-grid thead tr:first-child th:nth-child(1){position:sticky;left:0;z-index:2;background:#fcfcfb;min-width:58px}
+.msx-grid td:nth-child(2),.msx-grid thead tr:first-child th:nth-child(2){position:sticky;left:58px;z-index:2;background:#fcfcfb;box-shadow:2px 0 0 #e1e0d9}
+.msx-grid tbody tr:hover td:nth-child(1),.msx-grid tbody tr:hover td:nth-child(2){background:#f4f8fd}
+.msx-grid tr.msx-sec td{position:sticky;left:0}
+.msx-grid .msx-name{min-width:190px;max-width:230px}
+.msx .msx-grid th.msx-gh{white-space:normal;overflow-wrap:anywhere;text-transform:none;font-size:11px;letter-spacing:0;vertical-align:bottom}
+.msx .msx-grid th.msx-gh{min-width:34px;max-width:40px;width:36px;height:104px;padding:6px 2px;vertical-align:bottom;text-align:center}
+.msx .msx-grid th.msx-gh span{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;display:inline-block;font-size:11.5px;text-transform:none;letter-spacing:0;font-weight:600}
+.msx .msx-grid th.msx-h2{white-space:normal;text-align:center;min-width:80px;font-size:10.5px}
+.msx-grid td.msx-cell{padding:6px 2px}

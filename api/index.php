@@ -101,7 +101,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
 $action = (string)($_GET['action'] ?? 'session');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-$readActions = ['session', 'list', 'get', 'blob', 'batch', 'msgtick'];
+$readActions = ['session', 'list', 'get', 'blob', 'batch', 'msgtick', 'pubfile'];
 if (($method === 'GET' && !in_array($action, $readActions, true)) || !in_array($method, ['GET', 'POST'], true)) reject('Method not allowed.', 405);
 $input = [];
 if ($method === 'POST') {
@@ -243,6 +243,19 @@ if ($action === 'login') {
 if ($action === 'logout') { $_SESSION = []; session_destroy(); setcookie(session_name(), '', ['expires' => time()-3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict']); reply(['ok' => true]); }
 // The message scheduler runs without a sign-in; it only sends what is already due (api/messaging.php).
 if ($action === 'msgtick') { define('UMANG_VENDOR_FINANCE', true); require __DIR__ . '/messaging.php'; }
+// A file attached to a WhatsApp message: needs a valid signature made by the server and expires after 7 days.
+if ($action === 'pubfile') {
+    $id = (string)($_GET['id'] ?? ''); $exp = (int)($_GET['exp'] ?? 0); $sig = (string)($_GET['sig'] ?? '');
+    $acc = json_decode((string)@file_get_contents(dirname(__DIR__, 2) . '/config/umang-whatsapp.json'), true);
+    $secret = is_array($acc) ? (string)($acc['link_secret'] ?? '') : '';
+    if ($secret === '' || !preg_match('/^[a-f0-9]{32}$/', $id) || $exp < time() || !hash_equals(hash_hmac('sha256', $id . '|' . $exp, $secret), $sig)) reject('This link has expired or is not valid.', 404);
+    $file = query('SELECT * FROM umang_files WHERE id=?', [$id])->fetch(PDO::FETCH_ASSOC);
+    $store = dirname(__DIR__, 2) . '/config/umang-uploads';
+    if (!$file || !is_file($store . '/' . $id)) reject('File not found.', 404);
+    header('Content-Type: ' . $file['mime']); header('Content-Length: ' . $file['size']);
+    header('Content-Disposition: inline; filename="' . addcslashes($file['name'], '"\\') . '"');
+    header('Content-Security-Policy: sandbox'); header('X-Robots-Tag: noindex'); session_write_close(); readfile($store . '/' . $id); exit;
+}
 if (!$user) reject('Please sign in again.', 401, 'unauthenticated');
 function canManageUsers(): bool {
     global $user;

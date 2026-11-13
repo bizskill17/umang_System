@@ -17,6 +17,12 @@ const MSG_EVENTS = [
     'quotation_made' => ['instant', 'Quotation Made', false], 'quotation_checked' => ['instant', 'Quotation Checked', false],
     'quotation_sent' => ['instant', 'Quotation Sent', false], 'quotation_status' => ['instant', 'Quotation Status Updated', false],
     'follow_up' => ['instant', 'Follow Up Done', false], 'lead_canceled' => ['instant', 'Lead Canceled', false],
+    'project_created' => ['instant', 'New Project', true], 'project_canceled' => ['instant', 'Project Canceled', true], 'project_completed' => ['instant', 'Project Completed', true, 'all'],
+    'job_created' => ['instant', 'Job Created', true], 'job_printing' => ['instant', 'Job Created – Printing', false], 'job_laser' => ['instant', 'Job Created – Laser', false],
+    'job_fabrication' => ['instant', 'Job Created – Fabrication', false], 'job_cutting' => ['instant', 'Job Created – Cutting / CNC', false],
+    'delivery_created' => ['instant', 'Delivery Challan', false], 'installation_done' => ['instant', 'Installation Completed', false, 'all'],
+    'invoice_created' => ['instant', 'Invoice Created', true, 'person'],
+    'complaint_logged' => ['instant', 'Complaint Logged', false, 'all'], 'complaint_assigned' => ['instant', 'Complaint Assigned', true, 'all'], 'complaint_updated' => ['instant', 'Complaint Updated', false, 'all'],
     'daily_outcomes' => ['summary', 'Leads Won / Lost / Cancelled Today', false], 'not_assigned' => ['summary', 'Leads Not Assigned', false],
     'no_action' => ['summary', 'No Action Taken', false], 'recce_progress' => ['summary', 'Recce in Progress', false],
     'design_progress' => ['summary', 'Design in Progress', false], 'q_prepare' => ['summary', 'Quotations to Prepare', false],
@@ -36,7 +42,8 @@ function msgEventCfg(array $s, string $ev): array {
     $c = $s['events'][$ev] ?? [];
     return ['on' => !array_key_exists('on', $c) || !empty($c['on']), 'groups' => array_values(array_filter((array)($c['groups'] ?? []), 'is_string')),
         'person' => array_key_exists('person', $c) ? !empty($c['person']) : MSG_EVENTS[$ev][2], 'time' => preg_match('/^\d\d:\d\d$/', (string)($c['time'] ?? '')) ? $c['time'] : '09:30',
-        'days' => is_array($c['days'] ?? null) ? array_map('intval', $c['days']) : [1, 2, 3, 4, 5, 6]];
+        'days' => is_array($c['days'] ?? null) ? array_map('intval', $c['days']) : [1, 2, 3, 4, 5, 6],
+        'attach' => in_array($c['attach'] ?? '', ['none', 'person', 'all'], true) ? $c['attach'] : (MSG_EVENTS[$ev][3] ?? 'none')];
 }
 function msgNow(): DateTime { return new DateTime('now', new DateTimeZone(MSG_TZ)); }
 function msgToday(): string { return msgNow()->format('Y-m-d'); }
@@ -64,19 +71,32 @@ function mLeadRows(array $l): array {
 }
 function mLeadOf(array $r): array { $id = (string)($r['lead_id'] ?? ''); return $id !== '' ? (document('leads', $id) ?? []) : []; }
 
+/* ---------- private file links for attachments ---------- */
+// A signed link to one uploaded file that works without signing in, for 7 days only.
+function msgLinkSecret(): string { $a = msgAccount(); if (empty($a['link_secret'])) { $a['link_secret'] = bin2hex(random_bytes(32)); @file_put_contents(msgConfigFile(), json_encode($a), LOCK_EX); @chmod(msgConfigFile(), 0600); } return (string)$a['link_secret']; }
+function msgFileUrl($file): string {
+    $id = is_array($file) ? (string)($file['id'] ?? '') : ''; if (!preg_match('/^[a-f0-9]{32}$/', $id)) return '';
+    $exp = time() + 7 * 86400; $sig = hash_hmac('sha256', $id . '|' . $exp, msgLinkSecret());
+    $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'system.umangcommunications.com'));
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || !str_starts_with($host, '127.') ;
+    return ($https ? 'https://' : 'http://') . $host . '/api/index.php?action=pubfile&id=' . $id . '&exp=' . $exp . '&sig=' . $sig;
+}
+function msgFirstFile($v) { if (is_array($v) && isset($v['id'])) return $v; if (is_array($v)) foreach ($v as $f) if (is_array($f) && isset($f['id'])) return $f; return null; }
+
 /* ---------- queue ---------- */
 $MSG_PENDING = false;
-function msgQueue(string $ev, string $text, ?string $personId = null, string $ref = ''): void {
+function msgQueue(string $ev, string $text, ?string $personId = null, string $ref = '', $file = null): void {
     global $MSG_PENDING;
     $s = msgSettings(); $c = msgEventCfg($s, $ev); if (!$c['on']) return;
     $groups = [];
     foreach ((array)($s['groups'] ?? []) as $g) if (in_array($g['key'] ?? '', $c['groups'], true) && !empty($g['gid']) && (!isset($g['active']) || $g['active'])) $groups[] = $g;
-    $targets = array_map(fn($g) => ['type' => 'group', 'to' => (string)$g['gid'], 'name' => (string)($g['name'] ?? '')], $groups);
-    if ($c['person'] && $personId) { $m = mMobile($personId); if ($m !== '') $targets[] = ['type' => 'mobile', 'to' => $m, 'name' => mName('users', $personId)]; }
+    $url = $file && $c['attach'] !== 'none' ? msgFileUrl($file) : '';
+    $targets = array_map(fn($g) => ['type' => 'group', 'to' => (string)$g['gid'], 'name' => (string)($g['name'] ?? ''), 'file' => $c['attach'] === 'all' ? $url : ''], $groups);
+    if ($c['person'] && $personId) { $m = mMobile($personId); if ($m !== '') $targets[] = ['type' => 'mobile', 'to' => $m, 'name' => mName('users', $personId), 'file' => $url]; }
     $at = gmdate('Y-m-d\TH:i:s\Z');
     foreach ($targets as $t) {
         $id = gmdate('YmdHis') . '-' . bin2hex(random_bytes(5));
-        $doc = ['event' => $ev, 'title' => MSG_EVENTS[$ev][1], 'ref' => $ref, 'to_type' => $t['type'], 'to' => $t['to'], 'to_name' => $t['name'], 'text' => $text, 'status' => 'queued', 'attempts' => 0, 'created_at' => $at];
+        $doc = ['event' => $ev, 'title' => MSG_EVENTS[$ev][1], 'ref' => $ref, 'to_type' => $t['type'], 'to' => $t['to'], 'to_name' => $t['name'], 'text' => $text, 'file_url' => $t['file'], 'file_name' => $t['file'] ? (string)($file['name'] ?? 'file') : '', 'status' => 'queued', 'attempts' => 0, 'created_at' => $at];
         query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?)', ['message_log', $id, json_encode($doc, JSON_UNESCAPED_UNICODE)]);
         query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?)', ['message_queue', $id, '{}']);
         $MSG_PENDING = true;
@@ -86,11 +106,12 @@ function msgQuiet(array $s): bool {
     $q = $s['quiet'] ?? ['from' => '21:00', 'to' => '08:00']; if (empty($q['from']) || empty($q['to']) || !empty($q['off'])) return false;
     $n = msgNow()->format('H:i'); return $q['from'] > $q['to'] ? ($n >= $q['from'] || $n < $q['to']) : ($n >= $q['from'] && $n < $q['to']);
 }
-function msgSend(array $acc, string $type, string $to, string $text): array {
+function msgSend(array $acc, string $type, string $to, string $text, string $fileUrl = ''): array {
     $mobile = $to;
     // MessageAutoSender takes a plain 10-digit mobile number, without the country code.
     if ($type === 'mobile') { $mobile = preg_replace('/\D/', '', $to); if (strlen($mobile) > 10) $mobile = substr($mobile, -10); }
     $payload = $type === 'group' ? ['recipientIds' => [$to], 'message' => [$text]] : ['receiverMobileNo' => $mobile, 'message' => [$text]];
+    if ($fileUrl !== '') $payload['filePathUrl'] = [$fileUrl];
     $ch = curl_init((string)($acc['api_url'] ?? MSG_API)); // api_url only for tests, set in the private file
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_TIMEOUT => 25, CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/json', 'Authorization: Basic ' . base64_encode((string)($acc['username'] ?? '') . ':' . (string)($acc['password'] ?? ''))],
@@ -112,7 +133,7 @@ function msgProcess(int $limit = 25): void {
         if (!$doc || ($doc['status'] ?? '') !== 'queued') { query("DELETE FROM umang_documents WHERE collection_path='message_queue' AND id=?", [$id]); continue; }
         // Claim it first so two runs never send the same message.
         $st = query("DELETE FROM umang_documents WHERE collection_path='message_queue' AND id=?", [$id]); if ($st->rowCount() < 1) continue;
-        [$ok, $resp] = msgSend($acc, (string)$doc['to_type'], (string)$doc['to'], (string)$doc['text']);
+        [$ok, $resp] = msgSend($acc, (string)$doc['to_type'], (string)$doc['to'], (string)$doc['text'], (string)($doc['file_url'] ?? ''));
         $doc['attempts'] = (int)($doc['attempts'] ?? 0) + 1; $doc['response'] = $resp; $doc['tried_at'] = gmdate('Y-m-d\TH:i:s\Z');
         if ($ok) { $doc['status'] = 'sent'; $doc['sent_at'] = $doc['tried_at']; }
         elseif ($doc['attempts'] < 3) { $doc['status'] = 'queued'; query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?)', ['message_queue', $id, '{}']); }
@@ -178,6 +199,53 @@ function msgOnWrite(string $path, string $id, ?array $old, array $new): void {
             $fb = $st === 'Rejected' ? trim(mName('lost-reasons', $q['reject_reason_id'] ?? '') . (!empty($q['reject_reason']) ? ' – ' . $q['reject_reason'] : ''), ' –') : (string)($q['last_fu']['remarks'] ?? '');
             msgQueue('quotation_status', mLines('Quotation Status Updated', $rows + $qno + ['Quotation Status' => $st, 'Amount' => mMoney($q['total'] ?? 0), 'Update Date' => msgDmy($st === 'Approved' ? ($q['approved_at'] ?? '') : ($q['rejected_at'] ?? '')), 'Updated By' => mName('users', $q[$st === 'Approved' ? 'approved_by' : 'rejected_by'] ?? ''), ($st === 'Rejected' ? 'Lost Reason' : 'Client Feedback') => $fb]), null, "quotations/$id");
         }
+        return;
+    }
+    if ($path === 'projects') {
+        $p = $new; $st = $p['status'] ?? ''; $was = $o['status'] ?? '';
+        $rows = ['Project No' => $p['no'] ?? '', 'Customer' => mName('customers', $p['customer_id'] ?? ''), 'Firm Name' => mName('firm', $p['firm_id'] ?? ''), 'Category' => mName('lead-category', $p['lead_category_id'] ?? ''), 'Project Name' => $p['billing_name'] ?? ''];
+        if (!$old) msgQueue('project_created', mLines('New Project', ['Date' => msgDmy($p['date'] ?? '')] + $rows + ['Project Controller' => mName('users', $p['controller'] ?? ''), 'Project Owner' => mName('users', $p['owner'] ?? ''), 'Target Date' => msgDmy($p['due'] ?? '')]), $p['controller'] ?? null, "projects/$id");
+        elseif ($st === 'Canceled' && $was !== 'Canceled') { $c = $p['cancel'] ?? []; msgQueue('project_canceled', mLines('Project Canceled', $rows + ['Cancel Date' => msgDmy($c['date'] ?? msgToday()), 'Cancel By' => mName('users', $c['by'] ?? ''), 'Cancel Reason' => $c['reason'] ?? '']), $p['controller'] ?? null, "projects/$id"); }
+        elseif ($st === 'Completed' && $was !== 'Completed') { $c = $p['completion'] ?? []; msgQueue('project_completed', mLines('Project Completed', $rows + ['Project Date' => msgDmy($p['date'] ?? ''), 'Complete Date' => msgDmy($c['date'] ?? msgToday()), 'Complete By' => mName('users', $c['by'] ?? ''), 'Remarks' => $c['remarks'] ?? '']), $p['controller'] ?? null, "projects/$id", msgFirstFile($c['cert'] ?? null)); }
+        return;
+    }
+    if ($path === 'jobs' && !$old) {
+        global $user;
+        $j = $new; $p = document('projects', (string)($j['project_id'] ?? '')) ?? []; $steps = [];
+        $lines = [];
+        foreach ((array)($j['items'] ?? []) as $i => $it) { foreach ((array)($it['steps'] ?? []) as $s) $steps[$s] = 1; $lines[] = ($i + 1) . '. ' . trim(($it['description'] ?? '') ?: mName('items', $it['item_id'] ?? '')) . ' × ' . ($it['qty'] ?? '') . (!empty($it['steps']) ? ' (' . implode(', ', (array)$it['steps']) . ')' : ''); }
+        $text = mLines('Job Created', ['Job Date' => msgDmy($j['date'] ?? ''), 'Job No.' => $j['no'] ?? '', 'Customer' => mName('customers', $j['customer_id'] ?? ''), 'Prepared By' => mName('users', $user['id'] ?? ''), 'Project No.' => $p['no'] ?? '', 'Work' => implode(', ', array_keys($steps))]) . ($lines ? "\n\n*Items:*\n" . implode("\n", $lines) : '');
+        msgQueue('job_created', $text, $p['controller'] ?? null, "jobs/$id");
+        foreach (['Printing' => 'job_printing', 'Laser' => 'job_laser', 'Fabrication' => 'job_fabrication', 'Cutting' => 'job_cutting'] as $s => $ev) if (!empty($steps[$s])) msgQueue($ev, $text, null, "jobs/$id");
+        return;
+    }
+    if ($path === 'dispatches') {
+        $d = $new; $p = document('projects', (string)($d['project_id'] ?? '')) ?? [];
+        if (!$old) {
+            $lines = []; $tot = 0;
+            foreach ((array)($d['items'] ?? []) as $it) { $q = (float)($it['qty'] ?? 0); if ($q <= 0) continue; $tot += $q; $jb = document('jobs', (string)($it['job_id'] ?? '')) ?? []; $desc = ''; foreach ((array)($jb['items'] ?? []) as $ji) if (($ji['lid'] ?? '') === ($it['lid'] ?? '')) $desc = trim(($ji['description'] ?? '') ?: mName('items', $ji['item_id'] ?? '')); $lines[] = ($desc ?: 'Item') . ' × ' . $q; }
+            msgQueue('delivery_created', mLines('Delivery Challan', ['Challan Date' => msgDmy($d['date'] ?? ''), 'Challan No.' => $d['no'] ?? '', 'Customer' => mName('customers', $d['customer_id'] ?? ($p['customer_id'] ?? '')), 'Project' => $p['no'] ?? '', 'Qty Delivered' => (string)$tot, 'Delivered By' => mName('users', $d['delivered_by'] ?? ''), 'Delivery Mode' => $d['mode_type'] ?? '', 'Vehicle' => mName('vehicles', $d['vehicle'] ?? ''), 'Transporter' => mName('transporters', $d['transporter'] ?? ''), 'Installation' => !empty($d['installation']) ? 'Required' : '']) . ($lines ? "\n\n*Item Details:*\n" . implode("\n", array_map(fn($x, $i) => ($i + 1) . '. ' . $x, $lines, array_keys($lines))) : ''), null, "dispatches/$id");
+        } elseif (!empty($d['install_cert']) && empty($o['install_cert'])) {
+            msgQueue('installation_done', mLines('Installation Completed', ['Challan No.' => $d['no'] ?? '', 'Customer' => mName('customers', $d['customer_id'] ?? ($p['customer_id'] ?? '')), 'Project' => $p['no'] ?? '', 'Installation Date' => msgDmy($d['install_date'] ?? msgToday()), 'Installed By' => mName('users', $d['install_by'] ?? '')]), $p['controller'] ?? null, "dispatches/$id", msgFirstFile($d['install_cert']));
+        }
+        return;
+    }
+    if ($path === 'invoices' && !$old) {
+        global $user;
+        $i = $new; $p = document('projects', (string)($i['project_id'] ?? '')) ?? [];
+        msgQueue('invoice_created', mLines('Invoice Created', ['Customer' => mName('customers', $i['customer_id'] ?? ($p['customer_id'] ?? '')), 'Project' => $p['no'] ?? '', 'Invoice Date' => msgDmy($i['date'] ?? ''), 'Invoice Number' => $i['no'] ?? '', 'Bill Type' => $i['bill_type'] ?? '', 'Invoice Remarks' => $i['notes'] ?? '', 'Created By' => mName('users', $user['id'] ?? '')]), $p['controller'] ?? null, "invoices/$id", msgFirstFile($i['pdf'] ?? null));
+        return;
+    }
+    if ($path === 'complaints') {
+        $c = $new; $p = document('projects', (string)($c['project_id'] ?? '')) ?? [];
+        $base = ['Customer' => mName('customers', $c['customer_id'] ?? ($p['customer_id'] ?? '')), 'Project Name' => trim(($p['no'] ?? '') . (!empty($p['billing_name']) ? ' – ' . $p['billing_name'] : ''), ' –'), 'Project Controller' => mName('users', $p['controller'] ?? '')];
+        if (!$old) msgQueue('complaint_logged', mLines('Complaint Logged', ['Complaint No' => $c['no'] ?? '', 'Date' => msgDmy($c['date'] ?? ''), 'Type' => mName('complaint-types', $c['complaint_type_id'] ?? ''), 'Priority' => $c['priority'] ?? '', 'Issue' => $c['details'] ?? ''] + $base), null, "complaints/$id", msgFirstFile($c['docs'] ?? null));
+        if (!empty($c['assigned_to']) && $chg('assigned_to')) msgQueue('complaint_assigned', mLines('Complaint Assign', ['Assign Date' => msgDmy($c['assigned_at'] ?? msgToday()), 'Complaint No' => $c['no'] ?? '', 'Issue' => $c['details'] ?? ''] + $base + ['Assign To' => mName('users', $c['assigned_to']), 'Target Date' => msgDmy($c['target'] ?? '')]), $c['assigned_to'], "complaints/$id", msgFirstFile($c['docs'] ?? null));
+        return;
+    }
+    if ($path === 'complaint_updates' && !$old) {
+        $u = $new; $c = document('complaints', (string)($u['complaint_id'] ?? '')) ?? []; $p = document('projects', (string)($c['project_id'] ?? '')) ?? [];
+        msgQueue('complaint_updated', mLines('Complaint Updated', ['Action Date' => msgDmy($u['date'] ?? msgToday()), 'Complaint No' => $c['no'] ?? '', 'Issue' => $c['details'] ?? '', 'Customer' => mName('customers', $c['customer_id'] ?? ''), 'Project Name' => $p['no'] ?? '', 'Update Status' => $u['status'] ?? '', 'Update Remark' => $u['remarks'] ?? '', 'Update By' => mName('users', $u['by'] ?? '')]), null, "complaints/" . ($u['complaint_id'] ?? ''), msgFirstFile($u['photos'] ?? null));
         return;
     }
     $leadFu = preg_match('#^leads/([^/]+)/followups$#', $path, $m);
