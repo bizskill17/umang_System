@@ -1,10 +1,11 @@
 const assert = require('node:assert/strict');
+const res=(v)=>({ok:true,status:200,headers:{get:()=>null},json:async()=>v,text:async()=>JSON.stringify(v)});
 const fs = require('node:fs');
 const vm = require('node:vm');
 const crypto = require('node:crypto').webcrypto;
 const code = fs.readFileSync('assets/hostinger.js', 'utf8');
 const calls = [], timers = new Map(); let nextTimer = 0, docs = [], snapshots = [], failure = false;
-const context = { URL, FormData, Blob, crypto, Set, Promise, console,
+const context = { URL, FormData, Blob, crypto, Set, Promise, console, performance,
   location: { hash: '#projects.pending-sheet', reload() {} },
   document: { baseURI: 'https://example.test/', hidden: false, addEventListener() {} },
   addEventListener() {},
@@ -13,19 +14,19 @@ const context = { URL, FormData, Blob, crypto, Set, Promise, console,
   async fetch(url, opts) {
     const u = new URL(url), action = u.searchParams.get('action');
     calls.push({action, opts, url: String(url)});
-    if (action === 'session') return {ok:true, json:async()=>({csrf:'test-token',user:{id:'owner',owner:true}})};
+    if (action === 'session') return res(({csrf:'test-token',user:{id:'owner',owner:true}}));
     if (action === 'list') {
       if (failure) throw new Error('offline');
-      return {ok:true, json:async()=>({docs: structuredClone(docs)})};
+      return res(({docs: structuredClone(docs)}));
     }
     if (action === 'batch') {
       if (failure) throw new Error('offline');
       const lists = {}; for (const p of u.searchParams.get('paths').split(',')) lists[p] = structuredClone(docs);
-      return {ok:true, json:async()=>({lists})};
+      return res(({lists}));
     }
-    if (action === 'acquire') return {ok:true, json:async()=>({acquired:true})};
+    if (action === 'acquire') return res(({acquired:true}));
     if (action === 'set') { const data=JSON.parse(opts.body); docs=[{id:data.id,data:data.data}]; }
-    return {ok:true, json:async()=>({ok:true})};
+    return res(({ok:true}));
   }
 };
 context.window=context;
