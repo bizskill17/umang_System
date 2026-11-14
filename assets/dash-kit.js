@@ -90,7 +90,6 @@ DK.define=function(slug,cfg){DK.defs[slug]=cfg;
   var html='<div class="ldx"><header class="ldx-top"><div><div class="ldx-eyebrow">'+E(cfg.eyebrow||'')+'</div><h1>'+E(cfg.title)+'</h1><div class="ldx-sub">'+E(new Date().toLocaleString('en-IN',{weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit'}))+(cfg.subline?' · '+E(cfg.subline):'')+'</div></div>'+DK.seg('dk-period',st.period,DK.PERIODS,'Reporting period')+'</header>';
   var f=cfg.filters?cfg.filters(st):[];html+='<div class="ldx-filters">'+U.bar(st,f,false)+'</div>';
   var body='';try{body=cfg.render(ctx);}catch(e){console.error(e);body='<p class="mv-note">Part of this dashboard could not be drawn. Reload the page; if it stays, tell the admin.</p>';}
-  if(!(cfg.sections||[]).some(function(s){return ctx.on(s[0]);}))body+='<p class="mv-note">All sections are switched off. Turn them on in <a href="#'+slug+'.dashboard-settings">Dashboard Settings</a>.</p>';
   return html+body+'</div>';});
  U.page(slug+'.dashboard-settings',function(){
   if(!U.base(['app_settings']))return U.loading;
