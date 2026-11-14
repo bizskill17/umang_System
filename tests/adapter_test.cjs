@@ -39,7 +39,7 @@ const flush = async () => { for (let i = 0; i < 5; i++) { const fns=[...timers.v
   const db=await context.claude.use('db');
   let errors=0;
   const unsubscribe=db.collection('projects').onSnapshot(s=>snapshots.push(s.docs.map(d=>d.data())),()=>errors++);
-  await flush(); assert.deepEqual(snapshots[0],[]);
+  await flush(); assert.equal(JSON.stringify(snapshots[0]),"[]");
   const row=await db.collection('projects').add({name:'Project one'});
   await flush(); assert.equal(snapshots.at(-1)[0].name,'Project one');
   // All lists are fetched in one combined request, never one request per list.
