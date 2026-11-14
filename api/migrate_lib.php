@@ -73,7 +73,7 @@ function migImport(array $pkg, bool $doClear, string $me): array {
 
 // Records import (leads, quotations, projects, jobs …). Master links are given as "@ref:<master>:<old sheet id>"
 // or "@name:<master>:<name>" and are looked up here from the legacy_ids / names already in the app.
-const MIG_DATA_PATH = '/^(leads|quotations|quote_followups|projects|recce|recce_updates|designs|design_updates|jobs|job_assign|qc|dispatches|wastage|invoices|payments|complaints|complaint_updates|leads\/[A-Za-z0-9_-]{1,96}\/followups|masters\/customers\/rows)$/';
+const MIG_DATA_PATH = '/^(leads|quotations|quote_followups|projects|recce|recce_updates|designs|design_updates|jobs|job_assign|qc|dispatches|wastage|invoices|payments|complaints|complaint_updates|leads\/[A-Za-z0-9_-]{1,96}\/followups|masters\/customers\/rows|masters\/users\/rows)$/';
 const MIG_DATA_CLEAR = ['leads','leads/%/followups','quotations','quote_followups','projects','recce','recce_updates','designs','design_updates','jobs','job_assign','qc','dispatches','wastage','invoices','payments','complaints','complaint_updates'];
 function migDataBackup(array $pkg, string $file): void {
     $out = [];
@@ -121,6 +121,14 @@ function migData(array $pkg): array {
             foreach ((array)$rows as $row) {
                 if (!is_array($row) || !preg_match('/^[a-zA-Z0-9_-]{1,96}$/', (string)($row['id'] ?? ''))) continue;
                 $id = (string)$row['id']; unset($row['id']);
+                if ($p === 'masters/users/rows') {
+                    // New people only: an existing user (same old ID, name or email) is never changed, so passwords and roles stay as they are.
+                    $ux = $index('users'); $seen = $id !== '' && document($p, $id) !== null;
+                    foreach ((array)($row['legacy_ids'] ?? []) as $l) if (isset($ux['ref'][(string)$l])) $seen = true;
+                    foreach ([(string)($row['name'] ?? ''), (string)($row['email'] ?? '')] as $nk) { $nk = strtolower(preg_replace('/\s+/', ' ', trim($nk))); if ($nk !== '' && isset($ux['name'][$nk])) $seen = true; }
+                    if ($seen) { $result['skipped'][$p] = ($result['skipped'][$p] ?? 0) + 1; continue; }
+                    $row = array_intersect_key($row, array_flip(['name', 'email', 'mobile', 'designation_id', 'legacy_ids', 'status']));
+                }
                 $row = $resolve($row); $row['imported_at'] = $now;
                 query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?) ON DUPLICATE KEY UPDATE body=VALUES(body)', [$p, $id, json_encode($row, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]);
                 $n++;
