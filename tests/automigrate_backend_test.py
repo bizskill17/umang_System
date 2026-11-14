@@ -56,6 +56,14 @@ def main():
             assert list((root/'config').glob('umang-data-backup-1-leads-*.json'))
             assert get('automigrate')['runs']['1-leads']['already'] is True
             st = c.call('migrate', {'cmd': 'status'}); assert st['masters']['vendors'] == 1 and st['auto']['result']['added']['vendors'] == 1
-            print('Automatic migration checks passed: key kept private, sealed file, backup saved, runs once.')
+            # Delta sync: lists are sent only when they changed since the version the app already holds.
+            b1 = c.call('batch&paths=leads,quotations'); assert set(b1['lists']) == {'leads', 'quotations'} and len(b1['lists']['leads']) == 1, b1
+            vv = ','.join(b1['vers'][p] for p in ['leads', 'quotations'])
+            b2 = c.call('batch&paths=leads,quotations&vers=' + vv); assert b2['lists'] == {} or not b2['lists'], b2
+            c.call('set', {'path': 'leads', 'id': 'L2', 'data': {'lead_no': '25-26/2'}})
+            b3 = c.call('batch&paths=leads,quotations&vers=' + vv); assert list(b3['lists']) == ['leads'] and len(b3['lists']['leads']) == 2, b3
+            c.call('delete', {'path': 'leads', 'id': 'L2'})
+            b4 = c.call('batch&paths=leads,quotations&vers=' + ','.join(b3['vers'][p] for p in ['leads', 'quotations'])); assert list(b4['lists']) == ['leads'] and len(b4['lists']['leads']) == 1, b4
+            print('Automatic migration checks passed: key kept private, sealed file, backup saved, runs once, changed-only sync.')
         finally: proc.terminate(); proc.wait(5)
 main()

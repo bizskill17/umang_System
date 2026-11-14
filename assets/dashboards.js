@@ -25,7 +25,7 @@ function qStage(q){var s=q.status;
  if(s==='Pending Sending')return{k:'send',since:(q.checked||{}).date||q.date,at:(q.checked||{}).at};
  if(s==='Pending Approval')return{k:'client',since:(q.sent||{}).date||q.date,at:(q.sent||{}).at};
  if(s==='Rejected')return{k:'rejected',since:q.rejected_at||q.date,at:q.rejected_time};
- if(s==='Approved'){var hasP=q.project_id||U.rows('projects').some(function(p){return p.quotation_id===q.id;});return{k:hasP?'won':'project',since:q.approved_at,at:q.approved_time};}
+ if(s==='Approved'){var hasP=q.project_id||U.by('projects','quotation_id',q.id).some(function(p){return p.quotation_id===q.id;});return{k:hasP?'won':'project',since:q.approved_at,at:q.approved_time};}
  return{k:'other',since:q.date};}
 function qRows(ctx){var st=ctx.st,t=ctx.t;return U.rows('quotations').filter(function(q){return q.status!=='Canceled'&&(!st.firm||q.firm_id===st.firm)&&(!st.sp||q.sales_person===st.sp)&&(!st.prep||(q.made_by||q.assigned_to)===st.prep)&&(!st.cust||q.customer_id===st.cust)&&U.match({q:st.q},[q.no,q.lead_no,cust(q.customer_id)].join(' '),'');}).map(function(q){
  var sg=qStage(q),h=sg.at?DK.hrs(sg.at):null,exact=h!=null,age=exact?h/24:DK.days(sg.since,t),d=QBY[sg.k],tg=d?ctx.T(sg.k):0,over=tg?Math.max(0,age-tg):0,fu=sg.k==='client'&&q.next_fu&&q.next_fu<t?DK.days(q.next_fu,t):0;
@@ -78,7 +78,7 @@ function pStage(p,J,D){var js=J[p.id]||[];if(U.PJ.sheetPending(p))return'sheet';
  var qc=false,dl=false,pend=false;js.forEach(function(j){(j.items||[]).forEach(function(it){if(U.PJ.qcDue(j,it)>0)qc=true;if(U.PJ.deliverable(j,it)>0)dl=true;if(n(it.qty)-U.PJ.dispatched(j.id,it.lid)>1e-6)pend=true;});});
  if(qc)return'qc';if(dl)return'deliver';if(pend)return'production';
  if((D[p.id]||[]).some(function(d){return d.installation&&!d.install_cert;}))return'install';
- if(!U.rows('invoices').some(function(i){return i.project_id===p.id&&i.bill_type==='Full'&&i.status!=='Canceled';}))return'billing';return'close';}
+ if(!U.by('invoices','project_id',p.id).some(function(i){return i.project_id===p.id&&i.bill_type==='Full'&&i.status!=='Canceled';}))return'billing';return'close';}
 DK.define('projects',{title:'Project Dashboard',eyebrow:'Projects · sheet → jobs → production → QC → delivery → billing',subline:'overdue means past the project target date',
  need:['projects','jobs','job_assign','qc','dispatches','invoices','wastage','quotations',U.m('firm'),U.m('machines')],
  targets:[{k:'assign',name:'Production assignment',note:'Used when an assignment has no target date',def:3}],

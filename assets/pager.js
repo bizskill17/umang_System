@@ -9,7 +9,7 @@ var css='.pgr{display:flex;align-items:center;justify-content:space-between;gap:
  '.pgr-size{display:flex;align-items:center;gap:8px}.pgr-size span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#7a8396;font-weight:700}.pgr select{height:34px;border:1px solid #d7deea;border-radius:9px;padding:0 8px;font:inherit;background:#fff}'+
  'tr.pgr-hide{display:none!important}@media(max-width:640px){.pgr{justify-content:center}.pgr-info{width:100%;text-align:center}}';
 var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
-function skip(t){return !t.tBodies[0]||t.closest('form,#u-modal,.u-modal,dialog,[data-nopage]')||/\b(qi-table|ji-table|wo-lines|mi-table|rji-table|wo-ctable|msx-gt)\b/.test(t.className);}
+function skip(t){return !t.tBodies[0]||t.hasAttribute('data-pgd')||t.closest('form,#u-modal,.u-modal,dialog,[data-nopage]')||/\b(qi-table|ji-table|wo-lines|mi-table|rji-table|wo-ctable|msx-gt)\b/.test(t.className);}
 function sizeFor(key){try{var v=+localStorage.getItem('pgr:'+key);if(SIZES.indexOf(v)>=0)return v;}catch(e){}return DEF;}
 function filterSig(t){var root=t.closest('#master-view,#mod-live,main')||document;return Array.prototype.map.call(root.querySelectorAll('input[type=search],[data-uf],[data-f]'),function(i){return i.value;}).join('|');}
 function rowsOf(t){return Array.prototype.filter.call(t.tBodies[0].rows,function(r){return !(r.cells.length===1&&r.cells[0].colSpan>1);});}
@@ -32,12 +32,22 @@ function apply(t,idx){
  var anchor=t.closest('.mv-table-wrap,.ldx-tw,.ops-table')||t;if(anchor.nextSibling!==bar)anchor.parentNode.insertBefore(bar,anchor.nextSibling);
 }
 function run(){busy=true;try{var i=0,live=[];document.querySelectorAll('table.mv-table,table.ldx-t').forEach(function(t){if(skip(t)||!t.offsetParent)return;apply(t,i++);if(t.__pgr)live.push(t.__pgr);});
- document.querySelectorAll('.pgr').forEach(function(b){if(live.indexOf(b)<0){if(b.__t)b.__t.__pgr=null;b.remove();}});}finally{busy=false;}}
+ document.querySelectorAll('.pgr:not([data-pgkey])').forEach(function(b){if(live.indexOf(b)<0){if(b.__t)b.__t.__pgr=null;b.remove();}});}finally{busy=false;}}
 var queued=false;function soon(){if(queued)return;queued=true;requestAnimationFrame(function(){queued=false;run();});}
 new MutationObserver(function(ms){if(busy)return;for(var i=0;i<ms.length;i++){var n=ms[i].target;if(n.closest&&n.closest('.pgr'))continue;soon();return;}}).observe(document.body,{childList:true,subtree:true});
-document.addEventListener('click',function(e){var b=e.target.closest('.pgr [data-pg]');if(!b||b.disabled)return;var bar=b.closest('.pgr'),s=state[bar.__key];s.page=+b.dataset.pg;run();var t=bar.__t;if(t){var r=t.getBoundingClientRect();if(r.top<0)t.scrollIntoView({block:'start'});}});
-document.addEventListener('change',function(e){var sel=e.target.closest('.pgr select');if(!sel)return;var bar=sel.closest('.pgr'),s=state[bar.__key];s.size=+sel.value;s.page=1;try{localStorage.setItem('pgr:'+bar.__view,s.size);}catch(x){}
+document.addEventListener('click',function(e){var b=e.target.closest('.pgr [data-pg]');if(!b||b.disabled)return;var bar=b.closest('.pgr');if(bar.dataset.pgkey){var ds=state[bar.dataset.pgkey];if(ds){ds.page=+b.dataset.pg;if(ds.rp)ds.rp();else if(window.U&&U.paint)U.paint();var top=document.querySelector('[data-pgkey="'+bar.dataset.pgkey+'"]');var tb=top&&top.previousElementSibling;if(tb&&tb.getBoundingClientRect().top<0)tb.scrollIntoView({block:'start'});}return;}var s=state[bar.__key];s.page=+b.dataset.pg;run();var t=bar.__t;if(t){var r=t.getBoundingClientRect();if(r.top<0)t.scrollIntoView({block:'start'});}});
+document.addEventListener('change',function(e){var sel=e.target.closest('.pgr select');if(!sel)return;var bar=sel.closest('.pgr');if(bar.dataset.pgkey){var ds=state[bar.dataset.pgkey];if(ds){ds.size=+sel.value;ds.page=1;try{localStorage.setItem('pgr:'+ds.view,ds.size);}catch(x){}Object.keys(state).forEach(function(k){if(state[k].view===ds.view||k.indexOf(ds.view+'#')===0){state[k].size=ds.size;state[k].page=1;}});if(ds.rp)ds.rp();else if(window.U&&U.paint)U.paint();}return;}var s=state[bar.__key];s.size=+sel.value;s.page=1;try{localStorage.setItem('pgr:'+bar.__view,s.size);}catch(x){}
  Object.keys(state).forEach(function(k){if(k.indexOf(bar.__view+'#')===0)state[k].size=s.size;});run();});
 window.addEventListener('hashchange',soon);
-window.UmangPager={run:run};
+// Data mode: U.table asks which slice to build and gets the bar to show under it.
+function barHtml(a,b,total,p,pages,size,key){var nums=[];[1,p-2,p-1,p,p+1,p+2,pages].forEach(function(n){if(n>=1&&n<=pages&&nums.indexOf(n)<0)nums.push(n);});nums.sort(function(x,y){return x-y;});
+ var btn='';nums.forEach(function(n,i){if(i&&n-nums[i-1]>1)btn+='<span class="pgr-dots">…</span>';btn+='<button type="button" data-pg="'+n+'"'+(n===p?' aria-current="page"':'')+' aria-label="Page '+n+'">'+n+'</button>';});
+ return '<div class="pgr" data-pgkey="'+key+'"><span class="pgr-info">Showing <b>'+(total?(a+1).toLocaleString('en-IN'):0)+'–'+b.toLocaleString('en-IN')+'</b> of <b>'+total.toLocaleString('en-IN')+'</b></span>'+
+  '<span class="pgr-pages"><button type="button" data-pg="'+(p-1)+'"'+(p<=1?' disabled':'')+'>‹ Prev</button>'+btn+'<button type="button" data-pg="'+(p+1)+'"'+(p>=pages?' disabled':'')+'>Next ›</button></span>'+
+  '<label class="pgr-size"><span>Rows</span><select aria-label="Rows per page">'+SIZES.map(function(z){return'<option'+(z===size?' selected':'')+'>'+z+'</option>';}).join('')+'</select></label></div>';}
+function slice(view,idx,total,sig,rp){var key=view+'#d'+idx,s=state[key]||(state[key]={page:1,size:sizeFor(view)});s.rp=rp||null;
+ if(s.dsig!==undefined&&s.dsig!==sig)s.page=1;s.dsig=sig;s.view=view;
+ var pages=Math.max(1,Math.ceil(total/s.size));if(s.page>pages)s.page=pages;var a=(s.page-1)*s.size,b=Math.min(total,a+s.size);
+ return {a:a,b:b,html:(total>DEF||s.size<DEF)?barHtml(a,b,total,s.page,pages,s.size,key):''};}
+window.UmangPager={run:run,slice:slice,min:10,full:{}};
 })();

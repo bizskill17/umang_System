@@ -19,7 +19,7 @@ function grp(list,keyFn,valFn){var G={};list.forEach(function(x){var k=keyFn(x)|
 var IS=[{k:'billing',name:'Delivered, to bill',note:'Accounts',def:2,route:'pending-billing'},{k:'eway',name:'E-way bill pending',note:'Over ₹50,000',def:1,route:'pending-e-way-bill'},{k:'notsent',name:'Made, not sent',note:'Accounts',def:1,route:'not-sent'},{k:'unpaid',name:'Sent, not paid',note:'Overdue after credit days',route:'not-yet-paid'},{k:'partly',name:'Partly paid',note:'Overdue after credit days',route:'partly-paid'}];
 var IBY=by(IS);
 function creditDays(cid){var c=U.get(U.m('customers'),cid)||{};var d=Number(c.credit_days);return d>0?d:30;}
-function lastDispatch(pid){return U.rows('dispatches').filter(function(d){return d.project_id===pid;}).map(function(d){return d.date;}).sort().pop()||'';}
+function lastDispatch(pid){return U.by('dispatches','project_id',pid).filter(function(d){return d.project_id===pid;}).map(function(d){return d.date;}).sort().pop()||'';}
 DK.define('invoices',{title:'Invoice Dashboard',eyebrow:'Invoices · billing → e-way bill → send → payment',subline:'payment due date = invoice date + the customer’s credit days (30 if not set)',
  need:['invoices','payments','projects','jobs','dispatches','job_assign','qc','quotations',U.m('firm')],
  targets:IS.filter(function(s){return s.def;}).map(function(s){return{k:s.k,name:s.name,note:s.note,def:s.def};}),

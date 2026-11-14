@@ -1040,7 +1040,7 @@ body.in-module .side .nav-sec.grp > ul > li > .nav-group { color: var(--sa); fon
   <div class="scrim" id="scrim" hidden></div>
 </main>
 
-<script src="assets/hostinger.js?v=2026-11-13mig1"></script>
+<script src="assets/hostinger.js?v=2026-11-14vers1"></script>
 <script>
 window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangServer.blobURL(id) : "/_blob/" + id; };
 </script>
@@ -1584,9 +1584,13 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function rows(coll) { return data[coll] || []; }
-  function nameOf(coll, id) { var r = rows(coll).find(function (x) { return x.id === id; }); return r ? r.name : ""; }
+  var MIX = new WeakMap();
+  function nameOf(coll, id) { if (!id) return ""; var a = rows(coll), m = MIX.get(a); if (!m) { m = new Map(); a.forEach(function (x) { m.set(x.id, x); }); MIX.set(a, m); } var r = m.get(id); return r ? r.name : ""; }
+  var SORTED = new WeakMap();
+  function sortedRows(coll) { var a = rows(coll), s = SORTED.get(a); if (!s) { s = a.slice().sort(byName); SORTED.set(a, s); } return s; }
   function active(coll) { return rows(coll).filter(function (r) { return r.status !== "Inactive"; }).sort(byName); }
-  function byName(a, b) { return String(a.name || "").localeCompare(String(b.name || ""), "en", { numeric: true, sensitivity: "base" }); }
+  var COLL_NAME = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+  function byName(a, b) { return COLL_NAME.compare(String(a.name || ""), String(b.name || "")); }
 
   function watch(coll) {
     if (!db || subs[coll]) return;
@@ -1766,7 +1770,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function rerender() { if (editing && cur && document.getElementById("mv-form")) editing.vals = readForm(MASTERS[cur]); render(); }
   function render() {
     if (!cur) return;
-    var def = MASTERS[cur], coll = def.coll, list = rows(coll).slice().sort(byName);
+    var def = MASTERS[cur], coll = def.coll, list = sortedRows(coll);
     var ql = q.trim().toLowerCase();
     var shown = list.filter(function (r) {
       if (statusF && !def.noStatus && (r.status || "Active") !== statusF) return false;
@@ -1801,15 +1805,11 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       def.cols.forEach(function (c) { h += '<th scope="col">' + esc(def.fields.find(function (f) { return f[0] === c; })[1]) + "</th>"; });
       h += (def.noStatus ? "" : '<th scope="col">Status</th>') + (ro ? "" : '<th scope="col" class="master-actions-head act">Actions</th>') + "</tr></thead><tbody>";
       if (!shown.length) h += '<tr><td colspan="' + (def.cols.length + 3) + '" class="mv-nomatch">No entries match this search.</td></tr>';
-      shown.forEach(function (r, i) {
-        var st = r.status || "Active";
-        h += "<tr><td class='num'>" + (i + 1) + "</td>";
-        def.cols.forEach(function (c, ci) { h += "<td" + (ci === 0 ? " class='strong'" : "") + ">" + (display(def, c, r) || '<span class="dim">—</span>') + "</td>"; });
-        if (!def.noStatus) h += '<td><span class="pill ' + (st === "Active" ? "on" : "off") + '">' + st + "</span></td>";
-        if (!ro) h += '<td class="act master-actions">' + masterActions(r) + '</td>';
-        h += "</tr>";
-      });
-      h += "</tbody></table></div>";
+      var PG = window.UmangPager, pg = null, off = 0, vis = shown;
+      if (PG && PG.slice && shown.length <= PG.min) PG.slice("master:" + cur, 1, shown.length, JSON.stringify([q, statusF, colF]));
+      if (PG && PG.slice && shown.length > PG.min) { pg = PG.slice("master:" + cur, 1, shown.length, JSON.stringify([q, statusF, colF]), function () { render(); }); off = pg.a; vis = shown.slice(pg.a, pg.b); var hd = h.slice(h.lastIndexOf('<div class="mv-table-wrap">')), fdef = def, frows = shown, fro = ro; PG.full["master"] = function () { return hd + frows.map(function (r, i) { return mRow(fdef, r, i, fro); }).join("") + "</tbody></table></div>"; }; h = h.replace('<table class="mv-table"><thead>', '<table class="mv-table" data-pgd="1" data-pgfull="master"><thead>'); }
+      vis.forEach(function (r, k) { h += mRow(def, r, off + k, ro); });
+      h += "</tbody></table></div>" + (pg ? pg.html : "");
       h += '<p class="mv-count">' + shown.length + " of " + list.length + " " + esc(list.length === 1 ? def.one.toLowerCase() : def.many.toLowerCase()) + "</p>";
     }
     }
@@ -1820,6 +1820,13 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (focusId) { var el = document.getElementById(focusId); if (el) { el.focus(); if (caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret); } }
   }
 
+  function mRow(def, r, i, ro) {
+    var st = r.status || "Active", h = "<tr><td class='num'>" + (i + 1) + "</td>";
+    def.cols.forEach(function (c, ci) { h += "<td" + (ci === 0 ? " class='strong'" : "") + ">" + (display(def, c, r) || '<span class="dim">—</span>') + "</td>"; });
+    if (!def.noStatus) h += '<td><span class="pill ' + (st === "Active" ? "on" : "off") + '">' + st + "</span></td>";
+    if (!ro) h += '<td class="act master-actions">' + masterActions(r) + '</td>';
+    return h + "</tr>";
+  }
   function formHtml(def) {
     var r = editing.row, vals = editing.vals, isNew = !r.id;
     var h = '<form class="mv-form" id="mv-form" novalidate><h2>' + (isNew ? "Add " : "Edit ") + esc(def.one) + '</h2><div class="mv-grid">';
@@ -2075,10 +2082,14 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function inr(n) { n = Number(n); return n > 0 ? "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : ""; }
   function fyOf(iso) { var y = +iso.slice(0, 4), m = +iso.slice(5, 7), s = m >= 4 ? y : y - 1; return String(s).slice(-2) + "-" + String(s + 1).slice(-2); }
   function rowsOf(c) { return M[c] || []; }
-  function nm(c, id) { var r = rowsOf(c).find(function (x) { return x.id === id; }); return r ? r.name : ""; }
+  var LIX = new WeakMap();
+  function lix(arr, f) { var m = LIX.get(arr); if (!m) { m = {}; LIX.set(arr, m); } if (!m[f]) { var x = new Map(); arr.forEach(function (r) { var k = r[f]; var l = x.get(k); if (l) l.push(r); else x.set(k, [r]); }); m[f] = x; } return m[f]; }
+  function byId(c, id) { if (!id) return null; var l = lix(rowsOf(c), "id").get(id); return l ? l[0] : null; }
+  function nm(c, id) { var r = byId(c, id); return r ? r.name : ""; }
   function act(c) { return rowsOf(c).filter(function (r) { return r.status !== "Inactive"; }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name), "en", { sensitivity: "base" }); }); }
   function isActive(l) { return l.status !== "Completed" && l.status !== "Canceled"; }
-  function qOf(l) { return (quotes || []).filter(function (q) { return q.lead_id === l.id && q.status !== "Canceled"; }); }
+  function qAll(l) { return quotes ? (lix(quotes, "lead_id").get(l.id) || []) : []; }
+  function qOf(l) { return qAll(l).filter(function (q) { return q.status !== "Canceled"; }); }
   function statuses(l) {
     if (!isActive(l)) return [l.status];
     var s = [], add = function (x) { if (s.indexOf(x) === -1) s.push(x); };
@@ -2177,17 +2188,20 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     });
   }
   function fuMatch(l) { var s = fuState(l); return s === "upcoming" ? "Upcoming" : s === "due" ? "Due" : s === "overdue" ? "Over Due" : "Done Today"; }
-  function table(cols, list, rowCls) {
+  function table(cols, list, rowCls, noPage) {
     var h = '<div class="mv-table-wrap"><table class="mv-table lead-table"><thead><tr>';
     cols.forEach(function (c) { h += '<th scope="col"' + (c[2] ? ' class="' + c[2] + '"' : "") + ">" + c[0] + "</th>"; });
     h += "</tr></thead><tbody>";
     if (!list.length) h += '<tr><td colspan="' + cols.length + '" class="mv-nomatch">No leads match.</td></tr>';
-    list.forEach(function (l, i) {
+    var PG = window.UmangPager, pg = null, off = 0, all = list;
+    if (!noPage && PG && PG.slice && list.length <= PG.min) PG.slice("lead:" + (page || ""), (ui._tblIdx = (ui._tblIdx || 0) + 1), list.length, JSON.stringify(ui.f));
+    if (!noPage && PG && PG.slice && list.length > PG.min) { var fk = "lead:" + (page || "") + ":" + ((ui._tblIdx || 0) + 1); pg = PG.slice("lead:" + (page || ""), (ui._tblIdx = (ui._tblIdx || 0) + 1), list.length, JSON.stringify(ui.f), function () { render(); }); off = pg.a; PG.full[fk] = function () { return table(cols, all, rowCls, true); }; list = list.slice(pg.a, pg.b); h = h.replace('<table class="mv-table lead-table">', '<table class="mv-table lead-table" data-pgd="1" data-pgfull="' + fk + '">'); }
+    list.forEach(function (l, k) { var i = off + k;
       h += "<tr" + (rowCls ? ' class="' + rowCls(l) + ' click-row"' : ' class="click-row"') + ' data-lid="' + esc(l.id) + '">';
       cols.forEach(function (c) { var v = c[1](l, i); h += "<td" + (c[2] ? ' class="' + c[2] + '"' : "") + ">" + (v === "" || v == null ? '<span class="dim">—</span>' : v) + "</td>"; });
       h += "</tr>";
     });
-    return h + "</tbody></table></div>";
+    return h + "</tbody></table></div>" + (pg ? pg.html : "");
   }
   function statusPills(l) { return statuses(l).map(function (s) { var cls = s === "Completed" ? "on" : s === "Canceled" ? "off" : "warn"; return '<span class="pill ' + cls + '">' + esc(s) + "</span>"; }).join(" "); }
   var C_NO = ["Lead No.", function (l) { return '<button type="button" class="link-no" data-act="view" data-id="' + esc(l.id) + '" title="Open lead details">' + esc(l.lead_no) + "</button>"; }];
@@ -2202,7 +2216,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   var C_PRI = ["Priority", function (l) { return esc(l.priority); }];
   var C_EST = ["Estimate Value", function (l) { return '<span class="nowrap">' + inr(l.estimate) + "</span>"; }, "numcell"];
   var C_ST = ["Status", function (l) { return statusPills(l); }];
-  function custOf(l) { return ((M.customers || []).find(function (c) { return c.id === l.customer_id; })) || {}; }
+  function custOf(l) { return byId("customers", l.customer_id) || {}; }
   function contact1(l) { var c = custOf(l); return (c.contacts || []).find(function (x) { return x && (x.name || x.mobile || x.email); }) || {}; }
   function extU() { var U = window.U; if (!U || !U.db) return null; U.watch("recce"); U.watch("designs"); if (!subs.uchg) { subs.uchg = 1; U.onChange(function () { if (page) rerender(); if (LD) drawLD(); }); } return U; }
   var C_CCAT = ["Customer Category", function (l) { return esc(nm("customer-category", custOf(l).category_id)); }];
@@ -2215,14 +2229,14 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   var C_MAIL = ["Email ID", function (l) { return esc(contact1(l).email || custOf(l).email_id); }];
   function workCell(coll, l, total, done) {
     var U = extU(); if (!U) return "";
-    var list = U.rows(coll).filter(function (x) { return x.lead_id === l.id && x.status !== "Canceled"; });
+    var list = (U.by ? U.by(coll, "lead_id", l.id) : U.rows(coll).filter(function (x) { return x.lead_id === l.id; })).filter(function (x) { return x.status !== "Canceled"; });
     if (!list.length) return "";
     var t = 0, d = 0; list.forEach(function (x) { t += Number(x[total]) || 0; d += done(x); });
     return '<span class="nowrap">' + d + " / " + t + "</span>" + (d >= t ? ' <span class="pill on">Done</span>' : "");
   }
   var C_RECCE = ["Recce", function (l) { return workCell("recce", l, "units", function (x) { var k = x.done || {}; return (Number(k.completed) || 0) + (Number(k.denied) || 0) + (Number(k.cancel) || 0); }); }];
   var C_DESIGN = ["Design", function (l) { return workCell("designs", l, "count", function (x) { var k = x.done || {}; return (Number(k.completed) || 0) + (Number(k.cancel) || 0); }); }];
-  var C_QUOTE = ["Quotation", function (l) { return (quotes || []).filter(function (q) { return q.lead_id === l.id; }).map(function (q) { return '<span class="nowrap">' + (q.no ? "<b>" + esc(q.no) + "</b> · " : "") + esc(q.status) + "</span>"; }).join("<br>"); }];
+  var C_QUOTE = ["Quotation", function (l) { return qAll(l).map(function (q) { return '<span class="nowrap">' + (q.no ? "<b>" + esc(q.no) + "</b> · " : "") + esc(q.status) + "</span>"; }).join("<br>"); }];
   var C_FUD = ["Follow Up Date", function (l) { var f = l.last_fu || {}; return '<span class="nowrap">' + (f.auto ? "" : dmy(f.date)) + "</span>"; }];
   var C_FUR = ["Follow Up Remark", function (l) { var f = l.last_fu || {}; return f.auto ? "" : '<span class="cell-wrap">' + esc(f.remarks || "") + "</span>"; }];
   var C_NEXT = ["Next Follow Up", function (l) { var f = l.last_fu || {}; return '<span class="nowrap">' + (f.auto ? "" : dmy(f.next_date)) + "</span>"; }];
@@ -2275,20 +2289,20 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ldVal("Lead Owner", nm("users", l.owner_id)) + ldVal("Assigned To", nm("users", l.assigned_to)) + ldVal("Priority", l.priority) + ldVal("Estimate Value", Number(l.estimate) > 0 ? inr(l.estimate) : "") + ldVal("Lead Remarks", l.remarks) +
       (l.status === "Canceled" ? ldVal("Cancel Reason", l.cancel_reason) : "") + "</div></section>";
     if (U) {
-      var rec = U.rows("recce").filter(function (x) { return x.lead_id === l.id; });
+      var rec = U.by("recce", "lead_id", l.id).filter(function (x) { return x.lead_id === l.id; });
       h += ldTable("Related Recce", ["Recce No.", "Assignee", "Units Assigned", "Units Completed", "Units Denied", "Cancel", "Pending", "Assignment Date", "Target Date", "Remarks", "PPT"], rec.map(function (x) {
         var d = x.done || {}, p = Math.max(0, num(x.units) - num(d.completed) - num(d.denied) - num(d.cancel));
         return ["<b>" + esc(x.no) + "</b>", esc(x.assigned_to ? nm("users", x.assigned_to) : U.nm("vendors", x.vendor_id)), num(x.units), num(d.completed), num(d.denied), num(d.cancel), "<b>" + p + "</b>", dmy(x.date), dmy(x.target), esc(x.remarks), U.fileLink(x.ppt, "PPT")]; }));
-      var des = U.rows("designs").filter(function (x) { return x.lead_id === l.id; });
+      var des = U.by("designs", "lead_id", l.id).filter(function (x) { return x.lead_id === l.id; });
       h += ldTable("Related Design", ["Design No.", "Assignee", "Assignment Date", "Design Assigned", "Designs Completed", "Designs Canceled", "Designs Approved", "Pending Completion", "Pending Approval", "Remarks"], des.map(function (x) {
         var d = x.done || {}, pc = Math.max(0, num(x.count) - num(d.completed) - num(d.cancel)), pa = x.approval_required ? Math.max(0, num(d.completed) - num(d.approved)) : 0;
         return ["<b>" + esc(x.no) + "</b>", esc(x.designer ? nm("users", x.designer) : U.nm("vendors", x.vendor_id)), dmy(x.date), num(x.count), num(d.completed), num(d.cancel), num(d.approved), "<b>" + pc + "</b>", pa, esc(x.remarks)]; }));
     }
-    var qs = (quotes || []).filter(function (q) { return q.lead_id === l.id; });
+    var qs = qAll(l).slice();
     h += ldTable("Quotation", ["Quotation No.", "Assignment Date", "Quotation Amount", "Status", "Quotation PDF"], qs.map(function (q) {
       return [q.no ? "<b>" + esc(q.no) + "</b>" : "", dmy(q.assigned_date), q.total ? inr(q.total) : "", esc(q.status), q.no && window.U && U.downloads ? '<button type="button" class="mv-btn ghost sm" data-qpdf="' + esc(q.id) + '">PDF</button>' : ""]; }));
     var fus = (LD.fu || []).filter(function (f) { return !f.auto; }).map(function (f) { return { date: f.date, q: "", status: f.status, remarks: f.remarks, next: f.next_date, by: f.by, at: f.createdAt }; });
-    if (U) U.rows("quote_followups").filter(function (f) { return f.lead_id === l.id; }).forEach(function (f) { var q = U.get("quotations", f.quotation_id) || {}; fus.push({ date: f.date, q: q.no, status: f.status, remarks: f.remarks, next: f.next_date, by: f.by, at: f.createdAt }); });
+    if (U) U.by("quote_followups", "lead_id", l.id).filter(function (f) { return f.lead_id === l.id; }).forEach(function (f) { var q = U.get("quotations", f.quotation_id) || {}; fus.push({ date: f.date, q: q.no, status: f.status, remarks: f.remarks, next: f.next_date, by: f.by, at: f.createdAt }); });
     var HIDE = ['Quotation Approved', 'Quotation Sent', 'Assign Quotation'], seen = {};
     fus = fus.filter(function (f) { if (HIDE.indexOf(f.status) !== -1) return false; var k = [f.date, f.status, f.remarks, f.next, f.by].join('|'); if (seen[k]) return false; seen[k] = 1; return true; });
     fus.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(b.at).localeCompare(String(a.at)); });
@@ -2801,6 +2815,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function rerender() { if (page === "add" && document.getElementById("lead-form")) ui.form = readLeadForm(); render(); if (modal) drawFu(); }
   function render() {
     if (!page) return;
+    ui._tblIdx = 0;
     var h = notes();
     if (dbState === "ready" && !ready()) h += '<p class="mv-note">Loading leads…</p>';
     else if (dbState === "ready") {
@@ -2892,13 +2907,15 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (!all[name]) { var m = new Map(); a.forEach(function (r) { var k = keyFn(r); if (k == null) return; var l = m.get(k); if (!l) m.set(k, l = []); l.push(r); }); all[name] = m; }
     return all[name];
   };
+  U.by = function (p, field, v) { return U.idx(p, "f:" + field, function (r) { return r[field]; }).get(v) || []; };
   U.get = function (p, id) { if (!id) return null; var l = U.idx(p, "id", function (r) { return r.id; }).get(id); return l ? l[0] : null; };
   U.m = function (c) { return "masters/" + c + "/rows"; };
   U.mrows = function (c) { return U.rows(U.m(c)); };
   U.mact = function (c) { return U.mrows(c).filter(function (r) { return r.status !== "Inactive"; }).sort(byName); };
   U.nm = function (c, id) { var r = id && U.mrows(c).find(function (x) { return x.id === id; }); return r ? r.name : ""; };
   U.user = function (id) { return U.nm("users", id); };
-  function byName(a, b) { return String(a.name || "").localeCompare(String(b.name || ""), "en", { numeric: true, sensitivity: "base" }); }
+  var COLL_NAME = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+  function byName(a, b) { return COLL_NAME.compare(String(a.name || ""), String(b.name || "")); }
   U.byName = byName;
 
   /* formatting */
@@ -3181,12 +3198,17 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     cols.forEach(function (c) { h += '<th scope="col"' + (c[2] ? ' class="' + c[2] + '"' : "") + ">" + c[0] + "</th>"; });
     h += "</tr></thead><tbody>";
     if (!rows.length) h += '<tr><td colspan="' + cols.length + '" class="mv-nomatch">' + U.esc(empty || "Nothing to show.") + "</td></tr>";
-    rows.forEach(function (r, i) {
+    // Long lists build only the rows of the page on screen (the Excel download still takes every row).
+    var PG = window.UmangPager, pg = null, off = 0, list = rows;
+    if (PG && PG.slice && rows.length <= PG.min) PG.slice((location.hash || "#").split("?")[0], (U._tblIdx = (U._tblIdx || 0) + 1), rows.length, cst ? JSON.stringify(cst) : "");
+    if (PG && PG.slice && rows.length > PG.min) { pg = PG.slice((location.hash || "#").split("?")[0], (U._tblIdx = (U._tblIdx || 0) + 1), rows.length, cst ? JSON.stringify(cst) : ""); off = pg.a; list = rows.slice(pg.a, pg.b); h = h.replace('<table class="mv-table lead-table">', '<table class="mv-table lead-table" data-pgd="1">'); }
+    list.forEach(function (r, k) {
+      var i = off + k;
       h += "<tr" + (rowCls ? ' class="' + rowCls(r) + '"' : "") + ">";
       cols.forEach(function (c) { var v = c[1](r, i); h += "<td" + (c[2] ? ' class="' + c[2] + '"' : "") + ">" + (v === "" || v == null ? '<span class="dim">—</span>' : v) + "</td>"; });
       h += "</tr>";
     });
-    return h + "</tbody></table></div>";
+    return h + "</tbody></table></div>" + (pg ? pg.html : "");
   };
   U.count = function (n, one, many) { if (U._onlyN != null) { n = U._onlyN; U._onlyN = null; } return '<p class="mv-count">' + n + " " + (n === 1 ? one : (many || one + "s")) + "</p>"; };
   U.empty = function (title, sub) { return '<div class="mv-empty"><p><b>' + U.esc(title) + "</b></p>" + (sub ? "<p>" + sub + "</p>" : "") + "</div>"; };
@@ -3283,7 +3305,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function render() {
     if (!P.cur) return;
     var h = U.notes();
-    U._tblDone = false; U._onlyN = null;
+    U._tblDone = false; U._onlyN = null; U._tblIdx = 0;
     if (U.state === "ready") { try { h += P.pages[P.cur](); } catch (e) { console.error(e); h += '<p class="mv-note warn">Something went wrong showing this screen.</p>'; } }
     var focusId = document.activeElement && box.contains(document.activeElement) ? document.activeElement.id : null;
     var caret = focusId === "uf-q" ? document.activeElement.selectionStart : null;
@@ -3431,7 +3453,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   });
   U.act("recce-history", function (id) {
     var r = U.get("recce", id); if (!r) return;
-    var ups = U.rows("recce_updates").filter(function (u) { return u.recce_id === id; }).sort(function (a, b) { return String(a.createdAt).localeCompare(String(b.createdAt)); });
+    var ups = U.by("recce_updates", "recce_id", id).filter(function (u) { return u.recce_id === id; }).sort(function (a, b) { return String(a.createdAt).localeCompare(String(b.createdAt)); });
     var h = '<div class="mv-table-wrap"><table class="mv-table"><thead><tr><th>Date</th><th>Completed</th><th>Denied</th><th>Cancel</th><th>Pending</th><th>By</th><th>Remarks</th><th>File</th></tr></thead><tbody>';
     if (!ups.length) h += '<tr><td colspan="8" class="mv-nomatch">No updates yet.</td></tr>';
     ups.forEach(function (u) { h += "<tr><td class='nowrap'>" + U.dmy(u.createdAt.slice(0, 10)) + "</td><td>" + u.completed + "</td><td>" + u.denied + "</td><td>" + u.cancel + "</td><td>" + u.pending_after + "</td><td>" + esc(U.user(u.by)) + "</td><td>" + esc(u.remarks) + "</td><td>" + U.fileLink(u.doc, "Open") + "</td></tr>"; });
@@ -3580,7 +3602,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   });
   U.act("design-history", function (id) {
     var d = U.get("designs", id); if (!d) return;
-    var ups = U.rows("design_updates").filter(function (u) { return u.design_id === id; }).sort(function (a, b) { return String(a.createdAt).localeCompare(String(b.createdAt)); });
+    var ups = U.by("design_updates", "design_id", id).filter(function (u) { return u.design_id === id; }).sort(function (a, b) { return String(a.createdAt).localeCompare(String(b.createdAt)); });
     var h = '<div class="mv-table-wrap"><table class="mv-table"><thead><tr><th>Date</th><th>Type</th><th>Completed</th><th>Cancel</th><th>Approved</th><th>By</th><th>Remarks</th></tr></thead><tbody>';
     if (!ups.length) h += '<tr><td colspan="7" class="mv-nomatch">No updates yet.</td></tr>';
     ups.forEach(function (u) { h += "<tr><td class='nowrap'>" + U.dmy(u.createdAt.slice(0, 10)) + "</td><td>" + (u.kind === "approval" ? "Client approval" : "Work") + "</td><td>" + (u.completed || "") + "</td><td>" + (u.cancel || "") + "</td><td>" + (u.approved || "") + "</td><td>" + esc(U.user(u.by)) + "</td><td>" + esc(u.remarks) + "</td></tr>"; });
@@ -4104,7 +4126,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       } });
   });
   function histHtml(id) {
-    var list = U.rows("quote_followups").filter(function (f) { return f.quotation_id === id; }).sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+    var list = U.by("quote_followups", "quotation_id", id).filter(function (f) { return f.quotation_id === id; }).sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
     if (!list.length) return "";
     return '<div class="fu-hist"><h3>History</h3><ol>' + list.map(function (x) { return "<li><b>" + U.dmy(x.date) + " · " + esc(x.status) + "</b>" + (x.mode ? " by " + esc(x.mode) : "") + (x.next_date ? " · next " + U.dmy(x.next_date) : "") + "<br><span>" + esc(U.user(x.by)) + (x.remarks ? ": " + esc(x.remarks) : "") + "</span></li>"; }).join("") + "</ol></div>";
   }
@@ -4231,11 +4253,11 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function jobDone(j) { return (j.items || []).every(function (it) { return passed(j.id, it.lid) >= n(it.qty) - 1e-6; }); }
   async function syncJob(jid) {
     var j = U.get("jobs", jid); if (!j || j.status === "Canceled") return;
-    var st = jobDone(j) ? "Completed" : (U.rows("job_assign").some(function (a) { return a.job_id === jid; }) || U.rows("qc").some(function (r) { return r.job_id === jid; })) ? "In Progress" : "Pending";
+    var st = jobDone(j) ? "Completed" : (U.by("job_assign", "job_id", jid).some(function (a) { return a.job_id === jid; }) || U.by("qc", "job_id", jid).some(function (r) { return r.job_id === jid; })) ? "In Progress" : "Pending";
     if (st !== j.status) await U.upd("jobs", jid, { status: st });
   }
   function projState(p) {
-    var jobs = U.rows("jobs").filter(function (j) { return j.project_id === p.id && j.status !== "Canceled"; });
+    var jobs = U.by("jobs", "project_id", p.id).filter(function (j) { return j.project_id === p.id && j.status !== "Canceled"; });
     var active = jobs.filter(function (j) { return j.status !== "Completed"; }).length, pend = 0;
     jobs.forEach(function (j) { (j.items || []).forEach(function (it) { pend += Math.max(0, n(it.qty) - dispatched(j.id, it.lid)); }); });
     return { jobs: jobs.length, active: active, pending_delivery: q3(pend) };
@@ -4247,7 +4269,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function sortJobs(a, b) { return (b.j.fy || "").localeCompare(a.j.fy || "") || (b.j.seq || 0) - (a.j.seq || 0) || a.n - b.n; }
 
   /* ================= Projects ================= */
-  function approvedFree() { return U.rows("quotations").filter(function (q) { return q.status === "Approved" && !q.project_id && !U.rows("projects").some(function (p) { return p.quotation_id === q.id; }); }); }
+  function approvedFree() { return U.rows("quotations").filter(function (q) { return q.status === "Approved" && !q.project_id && !U.by("projects", "quotation_id", q.id).some(function (p) { return p.quotation_id === q.id; }); }); }
   var YN = function () { return [{ id: "Yes", name: "Yes" }, { id: "No", name: "No" }]; };
   function pFields(v) {
     var fs = [{ k: "date", label: "Date", type: "date", req: 1 }, { k: "due", label: "Target Date", type: "date", req: 1 },
@@ -4385,7 +4407,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     ctrl: ["Controller", function (p) { return esc(U.user(p.controller)); }],
     jobs: ["Jobs", function (p) { var s = projState(p); return s.jobs ? s.jobs + (s.active ? ' <span class="dim">(' + s.active + " open)</span>" : "") : ""; }],
     deliv: ["To deliver", function (p) { var s = projState(p); return s.jobs ? U.num(s.pending_delivery) : ""; }, "numcell"],
-    rel: ["Recce / Design", function (p) { var r = U.rows("recce").filter(function (x) { return x.project_id === p.id; }).length, d = U.rows("designs").filter(function (x) { return x.project_id === p.id; }).length; return r + " / " + d; }],
+    rel: ["Recce / Design", function (p) { var r = U.by("recce", "project_id", p.id).filter(function (x) { return x.project_id === p.id; }).length, d = U.by("designs", "project_id", p.id).filter(function (x) { return x.project_id === p.id; }).length; return r + " / " + d; }],
     status: ["Status", function (p) { return U.pill(p.status, p.status === "Completed" ? "on" : p.status === "Canceled" ? "off" : "warn"); }],
     reason: ["Reason", function (p) { return esc((p.cancel || {}).reason); }]
   };
@@ -4406,7 +4428,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   }
   U.page("quotations.pending-create", pendingCreate); U.page("projects.pending-create", pendingCreate); U.page("leads.pending-create-project", pendingCreate);
   /* ---------- project list (plugin columns) + details ---------- */
-  function pQuote(p) { return U.get("quotations", p.quotation_id) || U.rows("quotations").find(function (q) { return q.project_id === p.id; }) || null; }
+  function pQuote(p) { return U.get("quotations", p.quotation_id) || U.by("quotations", "project_id", p.id).find(function (q) { return q.project_id === p.id; }) || null; }
   function pQty(p) { var tq = 0, dq = 0; liveJobs().filter(function (j) { return j.project_id === p.id; }).forEach(function (j) { (j.items || []).forEach(function (it) { tq += n(it.qty); dq += dispatched(j.id, it.lid); }); }); return { job: q3(tq), disp: q3(dq), pend: q3(Math.max(0, tq - dq)) }; }
   function pPipe(coll, p, total, doneFn) { var list = U.rows(coll).filter(function (x) { return (x.project_id === p.id || (p.lead_id && x.lead_id === p.lead_id)) && x.status !== "Canceled"; }); if (!list.length) return ""; var t = 0, d = 0; list.forEach(function (x) { t += n(x[total]); d += doneFn(x); }); return d + "/" + t; }
   function pRecce(p) { return pPipe("recce", p, "units", function (x) { var k = x.done || {}; return n(k.completed) + n(k.denied) + n(k.cancel); }); }
@@ -4451,8 +4473,8 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     return U.bar(st, [{ k: "who", label: "Owner or controller", first: "All people", opts: U.mact("users") }], true) +
       U.table(pCols(view), rows, function () { return "click-row p-row"; }, U.rows("projects").length ? "No projects match." : "No projects yet.").replace(/<tr class="click-row p-row">/g, function () { return '<tr class="click-row p-row">'; }) + U.count(rows.length, "project");
   }
-  U.page("projects.in-progress", function () { return plist2(function (p) { return p.status === "In Progress" && U.rows("jobs").some(function (j) { return j.project_id === p.id; }); }, "ip"); });
-  U.page("projects.pending-jobs", function () { return plist2(function (p) { return p.status === "In Progress" && !U.rows("jobs").some(function (j) { return j.project_id === p.id; }); }, "ip"); });
+  U.page("projects.in-progress", function () { return plist2(function (p) { return p.status === "In Progress" && U.by("jobs", "project_id", p.id).some(function (j) { return j.project_id === p.id; }); }, "ip"); });
+  U.page("projects.pending-jobs", function () { return plist2(function (p) { return p.status === "In Progress" && !U.by("jobs", "project_id", p.id).some(function (j) { return j.project_id === p.id; }); }, "ip"); });
   U.page("projects.master", function () { return plist2(function () { return true; }, "master"); });
   U.page("projects.canceled", function () { return plist2(function (p) { return p.status === "Canceled"; }, "canceled"); });
   U.act("p-recce", function (id) { var p = proj(id); P.forms["recce.add"] = { v: { date: U.today(), src: "P:" + id }, err: "", saving: false }; P.keepForm = true; location.hash = "recce.add"; void p; });
@@ -4471,7 +4493,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function jiQc(j, it) { var r = qcRecs(j.id, it.lid); if (passed(j.id, it.lid) >= n(it.qty) - 1e-6) return "OK"; if (r.length && n(r[r.length - 1].hold) > 0) return "Hold"; return qcDue(j, it) > 0 ? "Due" : ""; }
   function relJobItems(p) {
     base([U.m("vendors")]);
-    var rows = []; U.rows("jobs").filter(function (j) { return j.project_id === p.id; }).sort(function (a, b) { return (b.seq || 0) - (a.seq || 0); }).forEach(function (j) { (j.items || []).forEach(function (it) { rows.push({ j: j, it: it }); }); });
+    var rows = []; U.by("jobs", "project_id", p.id).filter(function (j) { return j.project_id === p.id; }).sort(function (a, b) { return (b.seq || 0) - (a.seq || 0); }).forEach(function (j) { (j.items || []).forEach(function (it) { rows.push({ j: j, it: it }); }); });
     if (!rows.length) return "";
     var h = '<section class="ld-card"><div class="ld-card-title"><span>Related Job Items</span><b>' + rows.length + '</b></div><div class="mv-table-wrap"><table class="mv-table rji-table"><thead><tr><th rowspan="2">Job No.</th><th rowspan="2">Job Item</th><th rowspan="2">Description</th><th rowspan="2" class="numcell">Qty</th>';
     STAGES.forEach(function (s, k) { h += '<th colspan="3" class="rji-g rji-c' + k + '">' + esc(s) + "</th>"; });
@@ -4516,7 +4538,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
           var src = q.id + ":" + i, jq = 0; jobsOf.forEach(function (j) { (j.items || []).forEach(function (x) { if (x.src === src) jq += n(x.qty); }); });
           return [esc(U.nm("items", it.item_id)), esc(it.description), esc(it.width), esc(it.height), U.num(it.qty), esc(it.uom), jq ? U.num(jq) : ""]; }));
         h += relJobItems(p);
-        var drows = []; U.rows("dispatches").filter(function (d) { return d.project_id === p.id; }).forEach(function (d) { (d.items || []).forEach(function (x) { var j = U.get("jobs", x.job_id) || {}, it = (j.items || []).find(function (y) { return y.lid === x.lid; }) || { description: x.description || "", uom: x.uom || "" }; drows.push(["<b>" + esc(d.no) + "</b>", U.dmy(d.date), esc(j.no), esc(itemName(it)), U.num(x.qty) + " " + esc(it.uom || ""), esc(U.nm("delivery-modes", d.mode)), esc(U.user(d.delivered_by)), esc(d.remarks)]); }); });
+        var drows = []; U.by("dispatches", "project_id", p.id).filter(function (d) { return d.project_id === p.id; }).forEach(function (d) { (d.items || []).forEach(function (x) { var j = U.get("jobs", x.job_id) || {}, it = (j.items || []).find(function (y) { return y.lid === x.lid; }) || { description: x.description || "", uom: x.uom || "" }; drows.push(["<b>" + esc(d.no) + "</b>", U.dmy(d.date), esc(j.no), esc(itemName(it)), U.num(x.qty) + " " + esc(it.uom || ""), esc(U.nm("delivery-modes", d.mode)), esc(U.user(d.delivered_by)), esc(d.remarks)]); }); });
         h += pTable("Dispatch History", ["Dispatch No.", "Delivery Date", "Job No.", "Item", "Dispatch Qty", "Mode", "Delivered By", "Remarks"], drows);
         return h;
       } });
@@ -4842,7 +4864,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 
   /* ================= Delivery ================= */
   function fabAssignee(jid, lid) { var s = {}; asgOf(jid, lid, "Fabrication").forEach(function (a) { var nm = a.machine_id ? U.nm("machines", a.machine_id) : U.nm("vendors", a.vendor_id); if (nm) s[nm] = 1; }); return Object.keys(s).join(", "); }
-  function dlines(pid) { var out2 = []; liveJobs().filter(function (j) { return j.project_id === pid; }).sort(function (a, b) { return (a.seq || 0) - (b.seq || 0); }).forEach(function (j) { (j.items || []).forEach(function (it) { var d = deliverable(j, it); if (d > 0) out2.push({ job_id: j.id, jno: j.no, lid: it.lid, item: U.nm("items", it.item_id) || "Item", desc: it.description || "", loc: it.location || "", fab: fabAssignee(j.id, it.lid), jq: n(it.qty), already: dispatched(j.id, it.lid), uom: it.uom || "", max: d, qty: "", name: itemName(it) }); }); }); return out2; }
+  function dlines(pid) { var out2 = []; U.by("jobs", "project_id", pid).filter(function (j) { return j.status !== "Canceled" && j.project_id === pid; }).sort(function (a, b) { return (a.seq || 0) - (b.seq || 0); }).forEach(function (j) { (j.items || []).forEach(function (it) { var d = deliverable(j, it); if (d > 0) out2.push({ job_id: j.id, jno: j.no, lid: it.lid, item: U.nm("items", it.item_id) || "Item", desc: it.description || "", loc: it.location || "", fab: fabAssignee(j.id, it.lid), jq: n(it.qty), already: dispatched(j.id, it.lid), uom: it.uom || "", max: d, qty: "", name: itemName(it) }); }); }); return out2; }
   function dHtml(v) {
     var h = '<div class="mv-table-wrap dl-wrap"><table class="mv-table dl-table"><thead><tr><th>Sl.</th><th>Job No.</th><th>Job Item</th><th>Description</th><th>Location</th><th>Fabrication Assignee</th><th class="numcell">Job Qty</th><th class="numcell">Already Dispatched</th><th class="numcell">Pending Dispatch Qty</th><th>UOM</th><th>Dispatch Qty</th></tr></thead><tbody>';
     if (!v.project_id) return h + '<tr><td colspan="11" class="mv-nomatch">Select a Project to load QC-passed Job Items.</td></tr></tbody></table></div>';
@@ -5006,7 +5028,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   var money = function (x) { return U.money(x); };
   function bal(i) { return U.round2(n(i.after) - n(i.paid)); }
   function needsEway(i) { return n(i.after) > EWAY_LIMIT; }
-  function hasFull(pid) { return U.rows("invoices").some(function (i) { return i.project_id === pid && i.bill_type === "Full" && i.status !== "Canceled"; }); }
+  function hasFull(pid) { return U.by("invoices", "project_id", pid).some(function (i) { return i.project_id === pid && i.bill_type === "Full" && i.status !== "Canceled"; }); }
   U.INV = { billable: function () { return billable(); }, bal: function (i) { return bal(i); }, needsEway: function (i) { return needsEway(i); } };
   function billable() { return U.rows("projects").filter(function (p) { if (p.status === "Canceled" || hasFull(p.id)) return false; var s = U.projState(p); return s.jobs > 0 && s.pending_delivery <= 0; }); }
 
@@ -5081,7 +5103,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         { k: "fu_by", label: "Follow Up By", type: "select", req: 1, opts: USERS, first: "Choose a person", show: function (v) { return v.status && v.status !== "Fully Paid" && i.follow_required === "Yes"; } },
         { k: "next", label: "Next Follow Up Date", type: "date", req: 1, show: function (v) { return v.status && v.status !== "Fully Paid" && i.follow_required === "Yes"; } },
         { k: "remarks", label: "Remarks", type: "textarea" }]; },
-      after: function () { var ps = U.rows("payments").filter(function (p) { return p.invoice_id === id; }).sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); }); return ps.length ? '<div class="fu-hist"><h3>History</h3><ol>' + ps.map(function (p) { return "<li><b>" + U.dmy(p.date) + " · " + esc(p.status) + (p.amount ? " · " + money(p.amount) : "") + "</b>" + (p.next ? " · next " + U.dmy(p.next) : "") + "<br><span>" + esc(U.user(p.fu_by)) + (p.remarks ? ": " + esc(p.remarks) : "") + "</span></li>"; }).join("") + "</ol></div>" : ""; },
+      after: function () { var ps = U.by("payments", "invoice_id", id).filter(function (p) { return p.invoice_id === id; }).sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); }); return ps.length ? '<div class="fu-hist"><h3>History</h3><ol>' + ps.map(function (p) { return "<li><b>" + U.dmy(p.date) + " · " + esc(p.status) + (p.amount ? " · " + money(p.amount) : "") + "</b>" + (p.next ? " · next " + U.dmy(p.next) : "") + "<br><span>" + esc(U.user(p.fu_by)) + (p.remarks ? ": " + esc(p.remarks) : "") + "</span></li>"; }).join("") + "</ol></div>" : ""; },
       validate: function (v) { if (v.status === "Partly Paid") { if (!(n(v.amount) > 0)) return "Enter the amount received."; if (n(v.amount) >= b0) return "That clears the balance. Choose Fully Paid instead."; } if (v.next && v.next < U.today()) return "The next follow-up date can’t be in the past."; return null; },
       save: async function (v) {
         var got = v.status === "Fully Paid" ? b0 : v.status === "Partly Paid" ? U.round2(v.amount) : 0, paid = U.round2(n(i.paid) + got);
@@ -5122,7 +5144,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (!U.base(IB)) return U.loading;
     var rows = billable().sort(function (a, b) { return (b.seq || 0) - (a.seq || 0); });
     return U.table([["Project No.", function (p) { return '<b class="nowrap">' + esc(p.no) + "</b>"; }], ["Customer", function (p) { return esc(cust(p)); }, "strong"], ["Quotation", function (p) { var q = U.get("quotations", p.quotation_id); return q ? esc(q.no) + " · " + money(q.total) : ""; }],
-      ["Billing Name", function (p) { return esc(p.billing_name); }], ["Part invoices", function (p) { var l = U.rows("invoices").filter(function (i) { return i.project_id === p.id && i.status !== "Canceled"; }); return l.length ? l.length + " · " + money(l.reduce(function (s, i) { return s + n(i.after); }, 0)) : ""; }],
+      ["Billing Name", function (p) { return esc(p.billing_name); }], ["Part invoices", function (p) { var l = U.by("invoices", "project_id", p.id).filter(function (i) { return i.project_id === p.id && i.status !== "Canceled"; }); return l.length ? l.length + " · " + money(l.reduce(function (s, i) { return s + n(i.after); }, 0)) : ""; }],
       ["Status", function (p) { return esc(p.status); }], ['<span class="sr-only">Actions</span>', function (p) { return U.btn("i-bill", p.id, "Add Invoice", true); }, "act"]], rows, null, "No fully delivered projects waiting for a Full invoice.") + U.count(rows.length, "project");
   });
   U.page("invoices.pending-e-way-bill", function () { return ilist(function (i) { return needsEway(i) && !i.eway_no; }, ["no", "date", "proj", "cust", "amt", "pdf"], function (i) { return U.btn("i-eway", i.id, "Add e-way bill", true); }); });
@@ -5201,7 +5223,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
           cF("Priority", c.priority) + cF("Assigned To", U.user(c.assigned_to)) + cF("Assigned Date", U.dmy(c.assigned_at)) + cF("Target Date", U.dmy(c.target)) +
           cF("Status", c.status === "Assigned" ? "In Progress" : c.status) + cF("Resolution Date", U.dmy(c.resolution_date)) + '</div><div class="ld-grid">' + cF("Complaint Details", c.details) + (c.resolution_remarks ? cF("Resolution Remarks", c.resolution_remarks) : "") + "</div>" +
           (U.fileLinks(c.docs || c.doc) ? '<div class="ld-field"><span>Photos or Documents</span><b class="c-files">' + U.fileLinks(c.docs || c.doc, "Document") + "</b></div>" : "") + "</section>";
-        var ups = U.rows("complaint_updates").filter(function (u) { return u.complaint_id === id; }).sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+        var ups = U.by("complaint_updates", "complaint_id", id).filter(function (u) { return u.complaint_id === id; }).sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
         var rows = [];
         if (c.assigned_to) rows.push({ at: c.assigned_at || "", when: U.dmy(c.assigned_at), status: "Assigned", by: "", rem: "Assigned to " + U.user(c.assigned_to) + (c.target ? ", target " + U.dmy(c.target) : ""), files: "" });
         rows = ups.map(function (u) { var d = new Date(u.createdAt); return { at: u.createdAt, when: U.dmy(u.date) + '<br><span class="dim">' + U.dmy((u.createdAt || "").slice(0, 10)) + " " + d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) + "</span>", status: u.status, by: U.user(u.by), rem: u.remarks, files: U.fileLinks(u.photos, "Document") }; }).concat(rows);
@@ -5592,19 +5614,19 @@ document.addEventListener("keydown", function (e) {
 
 <link rel="stylesheet" href="assets/operations.css?v=20261110wrap">
 <link rel="stylesheet" href="assets/lead-dashboard.css?v=20261113b1">
-<script src="assets/operations.js?v=20261110tabs0"></script>
+<script src="assets/operations.js?v=20261114x1"></script>
 <script src="assets/lead-dashboard.js?v=20261112ld7"></script>
 <script src="assets/dash-kit.js?v=20261112dk3"></script>
-<script src="assets/dashboards.js?v=20261112dk3"></script>
-<script src="assets/dashboards2.js?v=20261112dk3"></script>
+<script src="assets/dashboards.js?v=20261114x1"></script>
+<script src="assets/dashboards2.js?v=20261114x1"></script>
 <script src="assets/messaging.js?v=20261113b2"></script>
 <script src="assets/migration.js?v=20261113m4"></script>
-<script src="assets/pager.js?v=20261113p1"></script>
+<script src="assets/pager.js?v=20261114p3"></script>
 
 <link rel="stylesheet" href="assets/mobile.css?v=20261111rem">
 
 <link rel="stylesheet" href="assets/work-orders.css?v=20261111unit">
-<script src="assets/work-orders.js?v=20261112dk3"></script>
+<script src="assets/work-orders.js?v=20261114x1"></script>
 <script src="assets/requisition.js?v=20261111imsname"></script>
 
 <link rel="stylesheet" href="assets/master-controls.css?v=20261028">

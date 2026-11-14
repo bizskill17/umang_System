@@ -28,6 +28,7 @@
      the tab is visible, never while it is hidden, and straight away after a save, on focus or a screen change.
      Shared hosting caps MySQL connections per hour, so this keeps usage low. */
   var POLL_MS = 60000, pollTimer = null, polling = false, pollAgain = false;
+  var cache = {};  // path -> { v: change counter, rows } kept for the session
   function schedule(ms) {
     clearTimeout(pollTimer); pollTimer = null;
     if (!subscriptions.size) return;
@@ -42,8 +43,12 @@
     try {
       await server.ready;
       if (server.user && paths.length) {
-        var result = await request('batch', { paths: paths.join(',') }, true);
-        subs.forEach(function (s) { if (subscriptions.has(s)) s.deliver((result.lists || {})[s.path] || []); });
+        // Send the change counters we already hold; the server returns only the lists that changed.
+        var vers = paths.map(function (p) { return cache[p] ? cache[p].v : ''; });
+        var result = await request('batch', { paths: paths.join(','), vers: vers.join(',') }, true);
+        var lists = result.lists || {}, sv = result.vers || {};
+        paths.forEach(function (p) { if (Object.prototype.hasOwnProperty.call(lists, p)) cache[p] = { v: sv[p] || '', rows: lists[p] || [] }; else if (!cache[p] || !sv[p]) cache[p] = { v: '', rows: (cache[p] || {}).rows || [] }; });
+        subs.forEach(function (s) { if (subscriptions.has(s) && cache[s.path] && (Object.prototype.hasOwnProperty.call(lists, s.path) || !s.got)) { s.got = true; s.deliver(cache[s.path].rows); } });
       }
     } catch (e) { subs.forEach(function (s) { if (subscriptions.has(s)) s.fail(e); }); }
     finally { polling = false; if (pollAgain) { pollAgain = false; schedule(50); } else schedule(POLL_MS); }
@@ -69,7 +74,7 @@
           var previous;
           var sub = { path: path,
             run: function () { schedule(100); },
-            deliver: function (rows) { var encoded = JSON.stringify(rows); if (encoded === previous) return; previous = encoded; var docs = rows.map(snap); next({ docs: docs, size: docs.length, empty: !docs.length, metadata: {}, docChanges: function () { return []; } }); },
+            deliver: function (rows) { if (rows === previous) return; previous = rows; var docs = rows.map(snap); next({ docs: docs, size: docs.length, empty: !docs.length, metadata: {}, docChanges: function () { return []; } }); },
             fail: function (e) { previous = undefined; if (error) error(e); } };
           subscriptions.add(sub); schedule(100);
           return function () { subscriptions.delete(sub); };
