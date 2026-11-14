@@ -145,6 +145,8 @@ function db(): PDO {
         $pdo->exec('CREATE TABLE IF NOT EXISTS umang_documents (collection_path TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(collection_path,id))');
         $pdo->exec('CREATE TABLE IF NOT EXISTS umang_leases (lease_key TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at REAL NOT NULL)');
         $pdo->exec('CREATE TABLE IF NOT EXISTS umang_versions (path TEXT PRIMARY KEY, v INTEGER NOT NULL)');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS umang_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, id TEXT NOT NULL)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS umang_changes_path ON umang_changes(path, seq)');
         $pdo->exec('CREATE TABLE IF NOT EXISTS umang_files (id TEXT PRIMARY KEY, name TEXT NOT NULL, mime TEXT NOT NULL, size INTEGER NOT NULL, owner_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
         migrateFromMysql($pdo);
         return $pdo;
@@ -152,11 +154,12 @@ function db(): PDO {
     $pdo = mysqlPdo(true);
     // A reused connection may carry an unfinished transaction from an aborted request.
     if ($pdo->inTransaction()) $pdo->rollBack();
-    $schemaKey = hash('sha256', $config['host'] . ':' . $config['database'] . ':v2');
+    $schemaKey = hash('sha256', $config['host'] . ':' . $config['database'] . ':v3');
     if (($_SESSION['schema'] ?? '') !== $schemaKey) {
         $pdo->exec('CREATE TABLE IF NOT EXISTS umang_documents (collection_path VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, id VARCHAR(96) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, body LONGTEXT NOT NULL, PRIMARY KEY(collection_path,id)) ENGINE=InnoDB');
         $pdo->exec('CREATE TABLE IF NOT EXISTS umang_leases (lease_key VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY, holder VARCHAR(191) NOT NULL, expires_at DOUBLE NOT NULL) ENGINE=InnoDB');
         $pdo->exec('CREATE TABLE IF NOT EXISTS umang_versions (path VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY, v BIGINT NOT NULL) ENGINE=InnoDB');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS umang_changes (seq BIGINT AUTO_INCREMENT PRIMARY KEY, path VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, id VARCHAR(96) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, KEY umang_changes_path (path, seq)) ENGINE=InnoDB');
         $pdo->exec('CREATE TABLE IF NOT EXISTS umang_files (id CHAR(32) PRIMARY KEY, name VARCHAR(255) NOT NULL, mime VARCHAR(100) NOT NULL, size INT NOT NULL, owner_id VARCHAR(96) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB');
         $_SESSION['schema'] = $schemaKey;
     }
@@ -199,28 +202,33 @@ function query(string $sql, array $args = []): PDOStatement {
     if (lite()) $sql = str_replace([' FOR UPDATE', 'INSERT IGNORE INTO', ' ON DUPLICATE KEY UPDATE body=VALUES(body)'], ['', 'INSERT OR IGNORE INTO', ' ON CONFLICT(collection_path,id) DO UPDATE SET body=excluded.body'], $sql);
     $stmt = db()->prepare($sql); $stmt->execute($args);
     if (stripos($sql, 'umang_documents') !== false && preg_match('/^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i', $sql, $w)) {
-        $verb = strtoupper($w[1]); $path = null;
-        if (($verb === 'INSERT' || $verb === 'REPLACE') && stripos($sql, 'VALUES(?') !== false) $path = $args[0] ?? null;
-        elseif ($verb === 'UPDATE' && preg_match('/SET\s+body=\?\s+WHERE\s+collection_path=\?/i', $sql)) $path = $args[1] ?? null;
-        elseif ($verb === 'DELETE' && preg_match('/WHERE\s+collection_path\s*=\s*\?/i', $sql)) $path = $args[0] ?? null;
-        bumpVersion(is_string($path) ? $path : '*');
+        foreach (changeTargets(strtoupper($w[1]), $sql, $args) as $t) logChange($t[0], $t[1]);
     }
     return $stmt;
 }
-/* Each collection has a change counter, so the app downloads a list again only when something in it changed.
-   '*' is bumped when a write's collection can't be told; it makes every list download again. */
-function bumpVersion(string $path): void {
-    $pdo = db();
-    $pdo->prepare(lite() ? 'INSERT INTO umang_versions(path,v) VALUES(?,1) ON CONFLICT(path) DO UPDATE SET v=v+1' : 'INSERT INTO umang_versions(path,v) VALUES(?,1) ON DUPLICATE KEY UPDATE v=v+1')->execute([$path]);
+/* Every saved record is noted in a change log, so each device downloads only the records that changed
+   since it last looked. '*' as the path or id means "can't tell which": those lists download again in full. */
+function changeTargets(string $verb, string $sql, array $args): array {
+    $lit = preg_match("/collection_path\s*=\s*'([^']+)'/", $sql, $lp) ? $lp[1] : null;
+    if ($verb === 'INSERT' || $verb === 'REPLACE') {
+        if (preg_match('/VALUES\s*\(\s*\?\s*,\s*\?/i', $sql)) return [[(string)($args[0] ?? '*'), (string)($args[1] ?? '*')]];
+        if (preg_match("/VALUES\s*\(\s*'([^']+)'\s*,\s*'([^']+)'/i", $sql, $m)) return [[$m[1], $m[2]]];
+        return [['*', '*']];
+    }
+    if ($verb === 'UPDATE' && preg_match('/SET\s+body\s*=\s*\?\s+WHERE\s+collection_path\s*=\s*\?\s+AND\s+id\s*=\s*\?/i', $sql)) return [[(string)$args[1], (string)$args[2]]];
+    if ($verb === 'DELETE') {
+        if ($lit !== null && preg_match('/AND\s+id\s*=\s*\?/i', $sql)) return [[$lit, (string)($args[0] ?? '*')]];
+        if (preg_match('/WHERE\s+collection_path\s*=\s*\?\s+AND\s+id\s*=\s*\?/i', $sql)) return [[(string)$args[0], (string)$args[1]]];
+        if (preg_match('/WHERE\s+collection_path\s*=\s*\?\s+AND\s+id\s+IN\s*\(/i', $sql)) { $o = []; foreach (array_slice($args, 1) as $i) $o[] = [(string)$args[0], (string)$i]; return $o; }
+        if (preg_match('/WHERE\s+collection_path\s*=\s*\?\s*$/i', trim($sql))) return [[(string)$args[0], '*']];
+    }
+    return [['*', '*']];
 }
-function versionsOf(array $paths): array {
-    $pdo = db();
-    $all = array_merge($paths, ['*']);
-    $st = $pdo->prepare('SELECT path,v FROM umang_versions WHERE path IN (' . implode(',', array_fill(0, count($all), '?')) . ')'); $st->execute($all);
-    $have = []; foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $have[$r['path']] = (int)$r['v'];
-    $out = []; foreach ($paths as $p) $out[$p] = ($have[$p] ?? 0) . '.' . ($have['*'] ?? 0);
-    return $out;
+function logChange(string $path, string $id): void {
+    db()->prepare('INSERT INTO umang_changes(path,id) VALUES(?,?)')->execute([substr($path, 0, 191), substr($id, 0, 96)]);
 }
+/* The token a device keeps for a list: who it was shaped for, and the change-log position it is up to date with. */
+function changeShape(): string { return canManageUsers() ? 'm' : 'v'; }
 function document(string $path, string $id, bool $lock = false): ?array {
     $raw = query('SELECT body FROM umang_documents WHERE collection_path=? AND id=?' . ($lock ? ' FOR UPDATE' : ''), [$path, $id])->fetchColumn();
     return $raw === false ? null : json_decode($raw, true, 64, JSON_THROW_ON_ERROR);
@@ -413,19 +421,47 @@ if ($user) { try { seedLostReasons(); } catch (Throwable $e) { if (function_exis
 if ($user) { try { seedStores(); } catch (Throwable $e) { if (function_exists('txRollback')) { try { txRollback(); } catch (Throwable $e2) {} } } }
 // One request (one connection, one query) returns several collections; keeps hosting connection limits low.
 if ($action === 'batch') {
-    $paths = array_values(array_unique(array_filter(explode(',', (string)($_GET['paths'] ?? '')), 'validPath')));
+    $origPaths = array_values(array_filter(explode(',', (string)($_GET['paths'] ?? '')), 'validPath'));
+    $paths = array_values(array_unique($origPaths));
     if (count($paths) > 80) reject('Too many collections.');
-    // vers: the change counters the app already has, in the same order as paths. Only changed lists are sent.
-    $known = explode(',', (string)($_GET['vers'] ?? '')); $origPaths = array_values(array_filter(explode(',', (string)($_GET['paths'] ?? '')), 'validPath'));
-    $knownBy = []; foreach (array_values(array_unique($origPaths)) as $i => $p) if (isset($known[$i]) && $known[$i] !== '') $knownBy[$p] = $known[$i];
-    $vers = $paths ? versionsOf($paths) : [];
-    $need = array_values(array_filter($paths, fn($p) => ($knownBy[$p] ?? null) !== $vers[$p]));
-    $out = []; foreach ($need as $p) $out[$p] = [];
-    if ($need) {
-        $rows = query('SELECT collection_path,id,body FROM umang_documents WHERE collection_path IN (' . implode(',', array_fill(0, count($need), '?')) . ') ORDER BY collection_path,id', $need)->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($rows as $row) $out[$row['collection_path']][] = ['id' => $row['id'], 'data' => shapeDoc($row['collection_path'], json_decode($row['body'], true, 64, JSON_THROW_ON_ERROR))];
+    // vers: the token the device holds for each list, in the same order as paths ("shape:position").
+    $known = explode(',', (string)($_GET['vers'] ?? '')); $shape = changeShape();
+    $cur = (int)query('SELECT COALESCE(MAX(seq),0) FROM umang_changes')->fetchColumn();
+    $pruned = (int)(query("SELECT v FROM umang_versions WHERE path='#pruned'")->fetchColumn() ?: 0);
+    // MySQL can finish an earlier save after a later one, so look back a little; repeats are harmless.
+    $back = lite() ? 0 : 25;
+    $since = []; foreach ($paths as $i => $p) { $t = $known[array_search($p, $origPaths, true)] ?? ''; if (preg_match('/^([mv]):(\d+)$/', $t, $m) && $m[1] === $shape && (int)$m[2] >= $pruned && (int)$m[2] <= $cur) $since[$p] = max(0, (int)$m[2] - $back); }
+    $full = array_values(array_diff($paths, array_keys($since))); $delta = []; $changed = [];
+    if ($since) {
+        $low = min($since); $dp = array_keys($since);
+        $st = query('SELECT seq,path,id FROM umang_changes WHERE seq>? AND path IN (' . implode(',', array_fill(0, count($dp) + 1, '?')) . ') ORDER BY seq LIMIT 4001', array_merge([$low], $dp, ['*']));
+        $log = $st->fetchAll(PDO::FETCH_ASSOC);
+        if (count($log) > 4000) { $full = $paths; $since = []; }
+        foreach ($log as $r) {
+            if ($r['path'] === '*') { foreach ($since as $p => $t) if ((int)$r['seq'] > $t) $changed[$p]['*'] = true; continue; }
+            if (isset($since[$r['path']]) && (int)$r['seq'] > $since[$r['path']]) $changed[$r['path']][$r['id']] = true;
+        }
+        foreach ($since as $p => $t) {
+            if (!isset($changed[$p])) continue;
+            if (isset($changed[$p]['*']) || count($changed[$p]) > 1500) { $full[] = $p; continue; }
+            $delta[$p] = array_keys($changed[$p]);
+        }
     }
-    reply(['lists' => (object)$out, 'vers' => $vers]);
+    $lists = []; foreach ($full as $p) $lists[$p] = [];
+    if ($full) {
+        $rows = query('SELECT collection_path,id,body FROM umang_documents WHERE collection_path IN (' . implode(',', array_fill(0, count($full), '?')) . ') ORDER BY collection_path,id', $full)->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $row) $lists[$row['collection_path']][] = ['id' => $row['id'], 'data' => shapeDoc($row['collection_path'], json_decode($row['body'], true, 64, JSON_THROW_ON_ERROR))];
+    }
+    $deltas = [];
+    foreach ($delta as $p => $ids) {
+        $got = [];
+        foreach (array_chunk($ids, 400) as $chunk) foreach (query('SELECT id,body FROM umang_documents WHERE collection_path=? AND id IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')', array_merge([$p], $chunk))->fetchAll(PDO::FETCH_ASSOC) as $row) $got[$row['id']] = ['id' => $row['id'], 'data' => shapeDoc($p, json_decode($row['body'], true, 64, JSON_THROW_ON_ERROR))];
+        $deltas[$p] = ['rows' => array_values($got), 'del' => array_values(array_diff($ids, array_keys($got)))];
+    }
+    $vers = []; foreach ($paths as $p) $vers[$p] = $shape . ':' . $cur;
+    // Keep the change log small: old entries are dropped now and then; devices that fell further behind reload in full.
+    if ($cur > 300000 && random_int(1, 200) === 1) { $cut = $cur - 200000; query('DELETE FROM umang_changes WHERE seq<=?', [$cut]); db()->prepare(lite() ? "INSERT INTO umang_versions(path,v) VALUES('#pruned',?) ON CONFLICT(path) DO UPDATE SET v=excluded.v" : "INSERT INTO umang_versions(path,v) VALUES('#pruned',?) ON DUPLICATE KEY UPDATE v=VALUES(v)")->execute([$cut]); }
+    reply(['lists' => (object)$lists, 'delta' => (object)$deltas, 'vers' => $vers]);
 }
 $path = (string)($input['path'] ?? $_GET['path'] ?? '');
 if (!validPath($path)) reject('Unknown collection.');

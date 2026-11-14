@@ -64,14 +64,17 @@ def main():
             nu = c.call('get', {'path': 'masters/users/rows', 'id': 'u8'})['data']; assert nu['name'] == 'New Person' and 'pw_hash' not in nu and not nu.get('has_password'), nu
             assert c.call('get', {'path': 'leads', 'id': 'L3'})['data']['owner_id'] == 'u8' and c.call('get', {'path': 'masters/users/rows', 'id': 'u7b'})['exists'] is False
             c.call('delete', {'path': 'leads', 'id': 'L3'})
-            # Delta sync: lists are sent only when they changed since the version the app already holds.
+            # Changed-rows sync: a device with a token gets only the records saved since; without one, the full list.
             b1 = c.call('batch&paths=leads,quotations'); assert set(b1['lists']) == {'leads', 'quotations'} and len(b1['lists']['leads']) == 1, b1
-            vv = ','.join(b1['vers'][p] for p in ['leads', 'quotations'])
-            b2 = c.call('batch&paths=leads,quotations&vers=' + vv); assert b2['lists'] == {} or not b2['lists'], b2
+            vv = lambda b: ','.join(b['vers'][p] for p in ['leads', 'quotations'])
+            b2 = c.call('batch&paths=leads,quotations&vers=' + vv(b1)); assert not b2['lists'] and not b2['delta'], b2
             c.call('set', {'path': 'leads', 'id': 'L2', 'data': {'lead_no': '25-26/2'}})
-            b3 = c.call('batch&paths=leads,quotations&vers=' + vv); assert list(b3['lists']) == ['leads'] and len(b3['lists']['leads']) == 2, b3
+            b3 = c.call('batch&paths=leads,quotations&vers=' + vv(b2)); assert not b3['lists'] and list(b3['delta']) == ['leads'], b3
+            assert [r['id'] for r in b3['delta']['leads']['rows']] == ['L2'] and b3['delta']['leads']['del'] == [], b3
             c.call('delete', {'path': 'leads', 'id': 'L2'})
-            b4 = c.call('batch&paths=leads,quotations&vers=' + ','.join(b3['vers'][p] for p in ['leads', 'quotations'])); assert list(b4['lists']) == ['leads'] and len(b4['lists']['leads']) == 1, b4
+            b4 = c.call('batch&paths=leads,quotations&vers=' + vv(b3)); assert b4['delta']['leads'] == {'rows': [], 'del': ['L2']}, b4
+            b5 = c.call('batch&paths=leads,quotations&vers=v:0,' + b4['vers']['quotations']); assert list(b5['lists']) == ['leads'], b5  # wrong shape: full list
+            b6 = c.call('batch&paths=leads&vers=m:999999999'); assert list(b6['lists']) == ['leads'], b6  # ahead of the server: full list
             print('Automatic migration checks passed: key kept private, sealed file, backup saved, runs once, changed-only sync.')
         finally: proc.terminate(); proc.wait(5)
 main()

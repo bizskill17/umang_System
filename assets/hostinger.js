@@ -22,13 +22,41 @@
   }
   server.ready = request('session', {}, true).then(function (s) { csrf = s.csrf; server.user = s.user; return s; }).catch(function (e) { server.error = e.msg || 'Database service unavailable.'; return { user: null }; });
   server.login = async function (username, password, remember) { var s = await request('login', { username: username, password: password, remember: remember }); csrf = s.csrf; server.user = s.user; };
-  server.logout = function () { return request('logout', {}); };
+  server.logout = async function () { cache = {}; await store.clear(); return request('logout', {}); };
   function snap(row) { return { id: row.id, exists: row.exists !== false && row.data != null, data: function () { return row.data || {}; }, metadata: {} }; }
   /* All open lists refresh together in ONE request (one MySQL connection), at most once a minute while
      the tab is visible, never while it is hidden, and straight away after a save, on focus or a screen change.
      Shared hosting caps MySQL connections per hour, so this keeps usage low. */
   var POLL_MS = 60000, pollTimer = null, polling = false, pollAgain = false;
-  var cache = {};  // path -> { v: change counter, rows } kept for the session
+  var cache = {};  // path -> { v: token from the server, rows } — also kept on this device (see store)
+  /* Lists are kept in this browser's IndexedDB, per signed-in user, so opening the app shows the last data
+     straight away and only the records that changed since are downloaded. Cleared on sign-out. */
+  var store = (function () {
+    var dbp = null;
+    function open() {
+      if (dbp) return dbp;
+      dbp = new Promise(function (res) {
+        try { var rq = indexedDB.open('umang-cache', 1); rq.onupgradeneeded = function () { rq.result.createObjectStore('lists'); }; rq.onsuccess = function () { res(rq.result); }; rq.onerror = function () { res(null); }; rq.onblocked = function () { res(null); }; }
+        catch (e) { res(null); }
+      });
+      return dbp;
+    }
+    function key(p) { return (server.user && (server.user.id || server.user.username) || '') + '|' + p; }
+    return {
+      get: async function (p) { var d = await open(); if (!d) return null; return new Promise(function (res) { try { var rq = d.transaction('lists').objectStore('lists').get(key(p)); rq.onsuccess = function () { res(rq.result || null); }; rq.onerror = function () { res(null); }; } catch (e) { res(null); } }); },
+      put: async function (p, val) { var d = await open(); if (!d) return; try { d.transaction('lists', 'readwrite').objectStore('lists').put(val, key(p)); } catch (e) {} },
+      clear: async function () { var d = await open(); if (!d) return; await new Promise(function (res) { try { var t = d.transaction('lists', 'readwrite'); t.objectStore('lists').clear(); t.oncomplete = res; t.onerror = res; } catch (e) { res(); } }); }
+    };
+  })();
+  var saveTimers = {};
+  function persist(p) { clearTimeout(saveTimers[p]); saveTimers[p] = setTimeout(function () { var c = cache[p]; if (c) store.put(p, { v: c.v, rows: c.rows }); }, 1500); }
+  function merge(rows, d) {
+    var at = new Map(); rows.forEach(function (r, i) { at.set(r.id, i); });
+    var out = rows.slice(), drop = new Set(d.del || []), same = true;
+    (d.rows || []).forEach(function (r) { var i = at.get(r.id); if (i === undefined) { out.push(r); same = false; } else if (JSON.stringify(out[i].data) !== JSON.stringify(r.data)) { out[i] = r; same = false; } });
+    if (drop.size) { var n = out.length; out = out.filter(function (r) { return !drop.has(r.id); }); if (out.length !== n) same = false; }
+    return same ? null : out;
+  }
   function schedule(ms) {
     clearTimeout(pollTimer); pollTimer = null;
     if (!subscriptions.size) return;
@@ -43,12 +71,25 @@
     try {
       await server.ready;
       if (server.user && paths.length) {
-        // Send the change counters we already hold; the server returns only the lists that changed.
+        // Lists saved on this device are shown at once, then brought up to date below.
+        var fresh = paths.filter(function (p) { return !cache[p]; });
+        if (fresh.length) {
+          var saved = await Promise.all(fresh.map(function (p) { return store.get(p); }));
+          fresh.forEach(function (p, i) { if (saved[i] && Array.isArray(saved[i].rows)) cache[p] = { v: saved[i].v || '', rows: saved[i].rows }; });
+          subs.forEach(function (s) { if (subscriptions.has(s) && !s.got && cache[s.path]) { s.got = true; s.deliver(cache[s.path].rows); } });
+        }
         var vers = paths.map(function (p) { return cache[p] ? cache[p].v : ''; });
         var result = await request('batch', { paths: paths.join(','), vers: vers.join(',') }, true);
-        var lists = result.lists || {}, sv = result.vers || {};
-        paths.forEach(function (p) { if (Object.prototype.hasOwnProperty.call(lists, p)) cache[p] = { v: sv[p] || '', rows: lists[p] || [] }; else if (!cache[p] || !sv[p]) cache[p] = { v: '', rows: (cache[p] || {}).rows || [] }; });
-        subs.forEach(function (s) { if (subscriptions.has(s) && cache[s.path] && (Object.prototype.hasOwnProperty.call(lists, s.path) || !s.got)) { s.got = true; s.deliver(cache[s.path].rows); } });
+        var lists = result.lists || {}, delta = result.delta || {}, sv = result.vers || {}, changed = {};
+        paths.forEach(function (p) {
+          var has = Object.prototype.hasOwnProperty;
+          if (has.call(lists, p)) { cache[p] = { v: sv[p] || '', rows: lists[p] || [] }; changed[p] = true; }
+          else if (has.call(delta, p) && cache[p]) { var m = merge(cache[p].rows, delta[p]); cache[p] = { v: sv[p] || '', rows: m || cache[p].rows }; if (m) changed[p] = true; }
+          else if (cache[p]) cache[p].v = sv[p] || '';
+          else cache[p] = { v: '', rows: [] };
+          if (changed[p]) persist(p);
+        });
+        subs.forEach(function (s) { if (subscriptions.has(s) && cache[s.path] && (changed[s.path] || !s.got)) { s.got = true; s.deliver(cache[s.path].rows); } });
       }
     } catch (e) { subs.forEach(function (s) { if (subscriptions.has(s)) s.fail(e); }); }
     finally { polling = false; if (pollAgain) { pollAgain = false; schedule(50); } else schedule(POLL_MS); }
