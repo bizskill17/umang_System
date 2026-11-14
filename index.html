@@ -2885,7 +2885,14 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   };
   U.rows = function (p) { return U.data[p] || []; };
   U.has = function () { for (var i = 0; i < arguments.length; i++) if (U.data[arguments[i]] === undefined) return false; return true; };
-  U.get = function (p, id) { return id ? U.rows(p).find(function (r) { return r.id === id; }) || null : null; };
+  // Lookups are indexed per loaded copy of a collection (a new array arrives whenever the data changes).
+  var IDX = new WeakMap();
+  U.idx = function (p, name, keyFn) {
+    var a = U.rows(p), all = IDX.get(a); if (!all) { all = {}; IDX.set(a, all); }
+    if (!all[name]) { var m = new Map(); a.forEach(function (r) { var k = keyFn(r); if (k == null) return; var l = m.get(k); if (!l) m.set(k, l = []); l.push(r); }); all[name] = m; }
+    return all[name];
+  };
+  U.get = function (p, id) { if (!id) return null; var l = U.idx(p, "id", function (r) { return r.id; }).get(id); return l ? l[0] : null; };
   U.m = function (c) { return "masters/" + c + "/rows"; };
   U.mrows = function (c) { return U.rows(U.m(c)); };
   U.mact = function (c) { return U.mrows(c).filter(function (r) { return r.status !== "Inactive"; }).sort(byName); };
@@ -4204,18 +4211,20 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 
   /* ================= data helpers ================= */
   function liveJobs() { return U.rows("jobs").filter(function (j) { return j.status !== "Canceled"; }); }
-  function asgOf(jid, lid, stage) { return U.rows("job_assign").filter(function (a) { return a.job_id === jid && a.lid === lid && (!stage || a.stage === stage); }); }
+  function asgOf(jid, lid, stage) { var l = U.idx("job_assign", "jl", function (a) { return a.job_id + "|" + a.lid; }).get(jid + "|" + lid) || []; return stage ? l.filter(function (a) { return a.stage === stage; }) : l.slice(); }
   function out(jid, lid, stage) { return q3(asgOf(jid, lid, stage).reduce(function (s, a) { return s + n(a.completed); }, 0)); }
   function used(jid, lid, stage) { return q3(asgOf(jid, lid, stage).reduce(function (s, a) { return s + (a.closed ? n(a.completed) : n(a.qty)); }, 0)); }
   /* like the plugin: every ticked step can be worked on in parallel; QC opens as all steps finish */
   function stageIn(j, it, stage) { return n(it.qty); }
   function avail(j, it, stage) { return q3(stageIn(j, it, stage) - used(j.id, it.lid, stage)); }
   function finalOut(j, it) { return it.steps && it.steps.length ? Math.min.apply(null, it.steps.map(function (s) { return out(j.id, it.lid, s); })) : n(it.qty); }
-  function qcRecs(jid, lid) { return U.rows("qc").filter(function (r) { return r.job_id === jid && r.lid === lid; }).sort(function (a, b) { return String(a.createdAt).localeCompare(String(b.createdAt)); }); }
+  function qcRecs(jid, lid) { return (U.idx("qc", "jl", function (r) { return r.job_id + "|" + r.lid; }).get(jid + "|" + lid) || []).slice().sort(function (a, b) { return String(a.createdAt).localeCompare(String(b.createdAt)); }); }
   function passed(jid, lid) { return q3(qcRecs(jid, lid).reduce(function (s, r) { return s + n(r.passed); }, 0)); }
   function onHold(jid, lid) { var r = qcRecs(jid, lid); return r.length ? n(r[r.length - 1].hold) : 0; }
   function qcDue(j, it) { return q3(finalOut(j, it) - passed(j.id, it.lid) - onHold(j.id, it.lid)); }
-  function dispatched(jid, lid) { var s = 0; U.rows("dispatches").forEach(function (d) { (d.items || []).forEach(function (x) { if (x.job_id === jid && x.lid === lid) s += n(x.qty); }); }); return q3(s); }
+  function dispIdx() { var a = U.rows("dispatches"), all = DSPI.get(a); if (!all) { all = new Map(); a.forEach(function (d) { (d.items || []).forEach(function (x) { var k = x.job_id + "|" + x.lid; all.set(k, (all.get(k) || 0) + n(x.qty)); }); }); DSPI.set(a, all); } return all; }
+  var DSPI = new WeakMap();
+  function dispatched(jid, lid) { return q3(dispIdx().get(jid + "|" + lid) || 0); }
   function deliverable(j, it) { return q3(passed(j.id, it.lid) - dispatched(j.id, it.lid)); }
   function itemName(it) { return (U.nm("items", it.item_id) || "") + (it.description ? (U.nm("items", it.item_id) ? " · " : "") + it.description : ""); }
   function workDone(jid, lid) { var m = 0; STAGES.forEach(function (s) { m = Math.max(m, used(jid, lid, s)); }); return q3(Math.max(m, passed(jid, lid) + onHold(jid, lid), dispatched(jid, lid))); }

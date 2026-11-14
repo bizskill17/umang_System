@@ -95,15 +95,16 @@ function migData(array $pkg): array {
         foreach (query('SELECT id,body FROM umang_documents WHERE collection_path=?', ['masters/' . $c . '/rows'])->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $b = json_decode($r['body'], true) ?: [];
             foreach ((array)($b['legacy_ids'] ?? []) as $l) { $l = (string)$l; $m['ref'][$l] = $r['id']; if (preg_match('/^(\d+)\.0$/', $l, $x)) $m['ref'][$x[1]] = $r['id']; }
-            $n = strtolower(trim((string)($b['name'] ?? ''))); if ($n !== '' && !isset($m['name'][$n])) $m['name'][$n] = $r['id'];
+            $n = strtolower(preg_replace('/\s+/', ' ', trim((string)($b['name'] ?? '')))); if ($n !== '' && !isset($m['name'][$n])) $m['name'][$n] = $r['id'];
+            $e = strtolower(trim((string)($b['email'] ?? ''))); if ($e !== '' && !isset($m['name'][$e])) $m['name'][$e] = $r['id'];
         }
         return $idx[$c] = $m;
     };
     $resolve = function ($v) use (&$resolve, $index, &$miss) {
         if (is_array($v)) { foreach ($v as $k => $x) $v[$k] = $resolve($x); return $v; }
         if (!is_string($v) || ($v[0] ?? '') !== '@' || !preg_match('/^@(ref|name):([a-z-]+):(.*)$/s', $v, $m)) return $v;
-        $ix = $index($m[2]); $key = $m[1] === 'ref' ? $m[3] : strtolower(trim($m[3]));
-        $hit = $ix[$m[1]][$key] ?? ($m[1] === 'ref' ? ($ix['name'][strtolower(trim($m[3]))] ?? null) : null);
+        $ix = $index($m[2]); $nk = strtolower(preg_replace('/\s+/', ' ', trim($m[3]))); $key = $m[1] === 'ref' ? $m[3] : $nk;
+        $hit = $ix[$m[1]][$key] ?? ($m[1] === 'ref' ? ($ix['name'][$nk] ?? null) : null);
         if ($hit === null) { $k = $m[2] . ':' . $m[3]; $miss[$k] = ($miss[$k] ?? 0) + 1; return ''; }
         return $hit;
     };

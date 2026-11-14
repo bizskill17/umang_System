@@ -44,21 +44,24 @@ if ($done === false && is_file($enc) && $priv) {
     $runs['masters'] = $run;
 }
 // Records, one sealed file per step (data-1-leads.enc, data-2-recce.enc …), each run once in name order.
-$files = glob(__DIR__ . '/migration/data-*.enc') ?: []; sort($files);
+@ini_set('memory_limit', '768M'); @set_time_limit(600);
+$files = glob(__DIR__ . '/migration/data-*.enc') ?: []; sort($files); $ranOne = false;
 foreach ($files as $f) {
     if (!$priv) break;
-    $pkg = migOpen($f, $priv);
-    $phase = preg_replace('/[^a-z0-9-]/', '', (string)($pkg['phase'] ?? ''));
-    if ($phase === '') reject('The migration file has no step name.', 500);
+    $phase = preg_replace('/[^a-z0-9-]/', '', substr(basename($f, '.enc'), 5));
+    if ($phase === '') continue;
     $fl = 'data-' . $phase;
     $prev = query("SELECT body FROM umang_documents WHERE collection_path='_migrations' AND id=?", [$fl])->fetchColumn();
     if ($prev !== false) { $runs[$phase] = ['already' => true] + (json_decode($prev, true) ?: []); continue; }
+    if ($ranOne) { $runs[$phase] = ['waiting' => 'Runs on the next call, one step per call.']; continue; }
+    $pkg = migOpen($f, $priv);
+    if (($pkg['phase'] ?? '') !== $phase) reject('The migration file ' . basename($f) . ' does not match its step.', 500);
     $backup = $cfgDir . '/umang-data-backup-' . $phase . '-' . gmdate('Ymd-His') . '.json';
     try { migDataBackup($pkg, $backup); $result = migData($pkg); }
     catch (Throwable $e) { reject('Step ' . $phase . ' failed and nothing in it was changed: ' . $e->getMessage(), 500); }
     $run = ['at' => gmdate('c'), 'backup' => basename($backup), 'result' => $result];
     query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?)', ['_migrations', $fl, json_encode($run)]);
-    $runs[$phase] = $run;
+    $runs[$phase] = $run; $ranOne = true; unset($pkg);
 }
 if (!$runs) {
     $m = query("SELECT body FROM umang_documents WHERE collection_path='_migrations' AND id='masters-auto-v1'")->fetchColumn();
