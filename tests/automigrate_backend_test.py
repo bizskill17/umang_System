@@ -1,5 +1,5 @@
 """One-time automatic master migration: public key, sealed file, backup in the private folder, runs only once."""
-import json, os, shutil, socket, subprocess, tempfile, time, gzip, base64, urllib.request
+import json, os, shutil, socket, subprocess, tempfile, time, gzip, base64, urllib.request, urllib.error
 from pathlib import Path
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -26,7 +26,9 @@ def main():
                 try:
                     with socket.create_connection(('127.0.0.1', port), timeout=.2): break
                 except OSError: time.sleep(.05)
-            get = lambda a: json.loads(urllib.request.urlopen(base + '?action=' + a).read())
+            def get(a):
+                try: return json.loads(urllib.request.urlopen(base + '?action=' + a).read())
+                except urllib.error.HTTPError as e: raise AssertionError((a, e.code, e.read()[:400]))
             c = Client(base); c.login()
             c.call('set', {'path': 'masters/vendors/rows', 'id': 'v-old', 'data': {'name': 'Old Vendor'}})
             assert get('automigrate')['done'] is False
