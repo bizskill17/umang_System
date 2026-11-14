@@ -8,6 +8,7 @@ header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
 function reply(array $value, int $status = 200): void {
     http_response_code($status);
+    if (!headers_sent()) header('X-Umang-Ms: ' . (int)round((microtime(true) - ($_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true))) * 1000));
     echo json_encode($value, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     exit;
 }

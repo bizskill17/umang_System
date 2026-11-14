@@ -11,15 +11,20 @@
     if (read) Object.keys(payload || {}).forEach(function (k) { url.searchParams.set(k, payload[k]); });
     else { opts.method = 'POST'; opts.headers['X-CSRF-Token'] = csrf; if (payload instanceof FormData) opts.body = payload; else { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(payload || {}); } }
     var response, data;
-    try { response = await fetch(url, opts); data = await response.json(); }
+    var t0 = performance.now(), text = '';
+    try { response = await fetch(url, opts); text = await response.text(); data = JSON.parse(text); }
     catch (e) { throw { code: 'unavailable', msg: 'Cannot reach the database service. Check your connection and PHP hosting setup.' }; }
     if (!response.ok || data.error) {
       var error = data.error || { code: 'unavailable', msg: 'Database request failed.' };
       if (response.status === 401 && server.user) { server.user = null; location.reload(); }
       throw error;
     }
+    if (action === 'batch') speed.last = { ms: Math.round(performance.now() - t0), srv: +(response.headers.get('X-Umang-Ms') || 0), kb: Math.round(text.length / 1024) };
     return data;
   }
+  /* Speed Check page: what each refresh cost on this device (kept in memory only). */
+  var speed = window.UmangSpeed = { sync: [], paint: [], cacheMs: null, cacheRows: 0, last: null,
+    add: function (list, rec) { list.unshift(rec); if (list.length > 40) list.length = 40; } };
   server.ready = request('session', {}, true).then(function (s) { csrf = s.csrf; server.user = s.user; return s; }).catch(function (e) { server.error = e.msg || 'Database service unavailable.'; return { user: null }; });
   server.login = async function (username, password, remember) { var s = await request('login', { username: username, password: password, remember: remember }); csrf = s.csrf; server.user = s.user; };
   server.logout = async function () { cache = {}; await store.clear(); return request('logout', {}); };
@@ -74,7 +79,9 @@
         // Lists saved on this device are shown at once, then brought up to date below.
         var fresh = paths.filter(function (p) { return !cache[p]; });
         if (fresh.length) {
+          var tc = performance.now();
           var saved = await Promise.all(fresh.map(function (p) { return store.get(p); }));
+          saved.forEach(function (x) { if (x && x.rows) speed.cacheRows += x.rows.length; }); speed.cacheMs = (speed.cacheMs || 0) + Math.round(performance.now() - tc);
           fresh.forEach(function (p, i) { if (saved[i] && Array.isArray(saved[i].rows)) cache[p] = { v: saved[i].v || '', rows: saved[i].rows }; });
           subs.forEach(function (s) { if (subscriptions.has(s) && !s.got && cache[s.path]) { s.got = true; s.deliver(cache[s.path].rows); } });
         }
@@ -89,7 +96,12 @@
           else cache[p] = { v: '', rows: [] };
           if (changed[p]) persist(p);
         });
+        var td = performance.now();
         subs.forEach(function (s) { if (subscriptions.has(s) && cache[s.path] && (changed[s.path] || !s.got)) { s.got = true; s.deliver(cache[s.path].rows); } });
+        var L = speed.last || {}, fl = Object.keys(lists), dl = Object.keys(delta);
+        speed.add(speed.sync, { at: new Date(), lists: paths.length, ms: L.ms, srv: L.srv, kb: L.kb, show: Math.round(performance.now() - td),
+          full: fl.map(function (p) { return p.replace('masters/', '').replace('/rows', '') + ' ' + (lists[p] || []).length; }),
+          changed: dl.reduce(function (n, p) { return n + (delta[p].rows || []).length + (delta[p].del || []).length; }, 0) });
       }
     } catch (e) { subs.forEach(function (s) { if (subscriptions.has(s)) s.fail(e); }); }
     finally { polling = false; if (pollAgain) { pollAgain = false; schedule(50); } else schedule(POLL_MS); }

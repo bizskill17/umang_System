@@ -1040,7 +1040,7 @@ body.in-module .side .nav-sec.grp > ul > li > .nav-group { color: var(--sa); fon
   <div class="scrim" id="scrim" hidden></div>
 </main>
 
-<script src="assets/hostinger.js?v=2026-11-14rows1"></script>
+<script src="assets/hostinger.js?v=2026-11-14spd1"></script>
 <script>
 window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangServer.blobURL(id) : "/_blob/" + id; };
 </script>
@@ -1206,7 +1206,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 
   MENUS.masters = { name: "Master Data", start: "m-firm", items: [["label:Leads"]].concat(MENUS.leads.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; }),
     [["label:Projects"]], MENUS.projects.items.filter(function (it) { return it[0].indexOf("m-") === 0; }).map(function (it) { return [it[0], it[1], it[2]]; }),
-    [["label:WhatsApp Messages"], ["message-settings", "Message Settings", "WhatsApp account, department groups, and which messages and daily summaries are sent."], ["message-log", "Message Log", "Every WhatsApp message the system sent or tried to send."], ["label:Data"], ["data-migration", "Data Migration", "Back up the masters and import master data from the old sheets."]]) };
+    [["label:WhatsApp Messages"], ["message-settings", "Message Settings", "WhatsApp account, department groups, and which messages and daily summaries are sent."], ["message-log", "Message Log", "Every WhatsApp message the system sent or tried to send."], ["label:Data"], ["data-migration", "Data Migration", "Back up the masters and import master data from the old sheets."], ["speed-check", "Speed Check", "How long loading and showing screens takes on this device."]]) };
   /* Outsource item: [key, menu title, description, depth, hidden, page title]. Hidden views stay reachable from buttons and links. */
   MENUS.outsource = { name: "Outsource", start: "make-department", items: [
     ["dashboard", "Outsource Dashboard", "Work Orders, vendor balances, overdue work and material issued at a glance.", 0, 0, "Outsource Dashboard"],
@@ -1770,6 +1770,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function rerender() { if (editing && cur && document.getElementById("mv-form")) editing.vals = readForm(MASTERS[cur]); render(); }
   function render() {
     if (!cur) return;
+    var t0 = performance.now();
     var def = MASTERS[cur], coll = def.coll, list = sortedRows(coll);
     var ql = q.trim().toLowerCase();
     var shown = list.filter(function (r) {
@@ -1818,6 +1819,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     box.innerHTML = h;
     pmSync(box);
     if (focusId) { var el = document.getElementById(focusId); if (el) { el.focus(); if (caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret); } }
+    if (window.U && U.speedMark) U.speedMark("masters." + cur, t0);
   }
 
   function mRow(def, r, i, ro) {
@@ -2815,6 +2817,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function rerender() { if (page === "add" && document.getElementById("lead-form")) ui.form = readLeadForm(); render(); if (modal) drawFu(); }
   function render() {
     if (!page) return;
+    var t0 = performance.now();
     ui._tblIdx = 0;
     var h = notes();
     if (dbState === "ready" && !ready()) h += '<p class="mv-note">Loading leads…</p>';
@@ -2830,6 +2833,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var caret = focusId === "lf-q" ? document.activeElement.selectionStart : null;
     box.innerHTML = h;
     if (focusId) { var el = document.getElementById(focusId); if (el) { el.focus(); if (caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret); } }
+    if (window.U && U.speedMark) U.speedMark("leads." + page, t0);
   }
 
   box.addEventListener("click", function (e) {
@@ -3256,6 +3260,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   var P = U.P = { pages: {}, acts: {}, st: {}, forms: {}, cur: null, slug: null, keepForm: false, keepFlash: false };
   var box = document.getElementById("mod-live"), ph = document.getElementById("page-ph");
   U.page = function (key, fn) { P.pages[key] = fn; };
+  U.speedMark = function (key, t0) { var S = window.UmangSpeed; if (!S || key === "masters.speed-check") return; var ms = Math.round(performance.now() - t0); S.add(S.paint, { at: new Date(), page: key, ms: ms, rows: (U.state === "ready") }); };
   U.act = function (name, fn) { P.acts[name] = fn; };
   U.need = function (paths) { paths.forEach(U.watch); return U.has.apply(null, paths); };
   U.go = function (hash, msg) { if (msg) { U.flash(msg); P.keepFlash = true; } if (location.hash === "#" + hash) render(); else location.hash = hash; };
@@ -3304,6 +3309,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   /* ---------- render ---------- */
   function render() {
     if (!P.cur) return;
+    var t0 = performance.now();
     var h = U.notes();
     U._tblDone = false; U._onlyN = null; U._tblIdx = 0;
     if (U.state === "ready") { try { h += P.pages[P.cur](); } catch (e) { console.error(e); h += '<p class="mv-note warn">Something went wrong showing this screen.</p>'; } }
@@ -3311,6 +3317,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var caret = focusId === "uf-q" ? document.activeElement.selectionStart : null;
     box.innerHTML = h;
     if (focusId) { var el = document.getElementById(focusId); if (el) { el.focus(); if (caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret); } }
+    U.speedMark(P.cur, t0);
   }
   U.paint = function () { render(); };
   U.render = function () { if (document.getElementById("u-pform")) readPageForm(); render(); U.redrawModal(); };
@@ -5621,6 +5628,7 @@ document.addEventListener("keydown", function (e) {
 <script src="assets/dashboards2.js?v=20261114x1"></script>
 <script src="assets/messaging.js?v=20261113b2"></script>
 <script src="assets/migration.js?v=20261113m4"></script>
+<script src="assets/speed.js?v=20261114s1"></script>
 <script src="assets/pager.js?v=20261114p3"></script>
 
 <link rel="stylesheet" href="assets/mobile.css?v=20261111rem">
