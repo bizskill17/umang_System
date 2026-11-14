@@ -4516,7 +4516,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
           var src = q.id + ":" + i, jq = 0; jobsOf.forEach(function (j) { (j.items || []).forEach(function (x) { if (x.src === src) jq += n(x.qty); }); });
           return [esc(U.nm("items", it.item_id)), esc(it.description), esc(it.width), esc(it.height), U.num(it.qty), esc(it.uom), jq ? U.num(jq) : ""]; }));
         h += relJobItems(p);
-        var drows = []; U.rows("dispatches").filter(function (d) { return d.project_id === p.id; }).forEach(function (d) { (d.items || []).forEach(function (x) { var j = U.get("jobs", x.job_id) || {}, it = (j.items || []).find(function (y) { return y.lid === x.lid; }) || {}; drows.push(["<b>" + esc(d.no) + "</b>", U.dmy(d.date), esc(j.no), esc(itemName(it)), U.num(x.qty) + " " + esc(it.uom || ""), esc(U.nm("delivery-modes", d.mode)), esc(U.user(d.delivered_by)), esc(d.remarks)]); }); });
+        var drows = []; U.rows("dispatches").filter(function (d) { return d.project_id === p.id; }).forEach(function (d) { (d.items || []).forEach(function (x) { var j = U.get("jobs", x.job_id) || {}, it = (j.items || []).find(function (y) { return y.lid === x.lid; }) || { description: x.description || "", uom: x.uom || "" }; drows.push(["<b>" + esc(d.no) + "</b>", U.dmy(d.date), esc(j.no), esc(itemName(it)), U.num(x.qty) + " " + esc(it.uom || ""), esc(U.nm("delivery-modes", d.mode)), esc(U.user(d.delivered_by)), esc(d.remarks)]); }); });
         h += pTable("Dispatch History", ["Dispatch No.", "Delivery Date", "Job No.", "Item", "Dispatch Qty", "Mode", "Delivered By", "Remarks"], drows);
         return h;
       } });
@@ -4884,7 +4884,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       save: async function (v) { await U.upd("dispatches", id, { install_cert: v.cert, install_date: v.date, install_by: v.by }); return "Installation certificate saved for " + d.no + "."; } });
   });
   function dMode(d) { return d.mode_type ? d.mode_type + (d.party ? " · " + (d.mode_type === "Outsource" ? U.nm("vendors", d.party) : U.user(d.party)) : "") : U.nm("delivery-modes", d.mode); }
-  function dLine(x) { var j = U.get("jobs", x.job_id) || {}, it = (j.items || []).find(function (i) { return i.lid === x.lid; }) || {}, rate = 0; if (it.src) { var sp = it.src.split(":"), q = U.get("quotations", sp[0]); var ql = q && (q.items || [])[+sp[1]]; if (ql) rate = n(ql.rate); } return { j: j, it: it, rate: rate }; }
+  function dLine(x) { var j = U.get("jobs", x.job_id) || {}, it = (j.items || []).find(function (i) { return i.lid === x.lid; }) || { description: x.description || "", uom: x.uom || "", location: x.location || "" }, rate = 0; if (it.src) { var sp = it.src.split(":"), q = U.get("quotations", sp[0]); var ql = q && (q.items || [])[+sp[1]]; if (ql) rate = n(ql.rate); } return { j: j, it: it, rate: rate }; }
   function dAmt(d) { return U.round2((d.items || []).reduce(function (s, x) { return s + n(x.qty) * dLine(x).rate; }, 0)); }
   function dQno(d) { var s = {}; (d.items || []).forEach(function (x) { var l = dLine(x); var no = l.j.quotation_id ? (U.get("quotations", l.j.quotation_id) || {}).no : (l.it.src ? (U.get("quotations", l.it.src.split(":")[0]) || {}).no : ""); if (no) s[no] = 1; }); var p = proj(d.project_id), pq = p.quotation_id && (U.get("quotations", p.quotation_id) || {}).no; if (!Object.keys(s).length && pq) s[pq] = 1; return Object.keys(s).join(", "); }
   async function dPdf(id, btn) {
