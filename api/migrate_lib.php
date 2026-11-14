@@ -124,6 +124,7 @@ function migData(array $pkg): array {
                 query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?) ON DUPLICATE KEY UPDATE body=VALUES(body)', [$p, $id, json_encode($row, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]);
                 $n++;
             }
+            if (preg_match('#^masters/([a-z-]+)/rows$#', (string)$p, $mm)) unset($idx[$mm[1]]);
             $k = preg_match('#^leads/.+/followups$#', $p) ? 'lead followups' : $p;
             $result['added'][$k] = ($result['added'][$k] ?? 0) + $n;
         }
