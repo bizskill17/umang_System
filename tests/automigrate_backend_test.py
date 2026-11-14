@@ -16,6 +16,7 @@ def seal(pem, data):
 def main():
     with tempfile.TemporaryDirectory(prefix='umang-auto-') as tmp:
         root = Path(tmp); web = root/'public_html'; web.mkdir(); (root/'config').mkdir(); shutil.copytree(ROOT/'api', web/'api')
+        for f in (web/'api/migration').glob('*.enc'): f.unlink()  # sealed files for the live server only
         cfg = {'driver': 'sqlite', 'host': 'localhost', 'database': 'umang_test', 'username': 't', 'password': 'REPLACE_UNUSED', 'admin_username': 'admin', 'admin_password': 'Integration-only-password-123!'}
         (root/'config/database.php').write_text('<?php return json_decode(' + repr(json.dumps(cfg)) + ',true);')
         port = free(); base = f'http://127.0.0.1:{port}/api/index.php'
