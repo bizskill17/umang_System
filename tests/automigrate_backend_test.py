@@ -28,14 +28,30 @@ def main():
             get = lambda a: json.loads(urllib.request.urlopen(base + '?action=' + a).read())
             c = Client(base); c.login()
             c.call('set', {'path': 'masters/vendors/rows', 'id': 'v-old', 'data': {'name': 'Old Vendor'}})
-            assert get('automigrate') == {'done': False, 'waiting': 'No migration file on the server.'}
+            assert get('automigrate')['done'] is False
             pem = get('migkey')['public_key']; assert 'BEGIN PUBLIC KEY' in pem and get('migkey')['public_key'] == pem
             assert (root/'config/umang-migrate-key.pem').exists() and oct((root/'config/umang-migrate-key.pem').stat().st_mode)[-3:] == '600'
             pkg = {'kind': 'umang-master-import', 'clear': ['vendors'], 'keep_users': [], 'rows': {'vendors': [{'id': 'vx', 'name': 'Graphic India', 'legacy_ids': ['9b93ec22'], 'status': 'Active'}]}}
             (web/'api/migration').mkdir(exist_ok=True); (web/'api/migration/masters.enc').write_text(json.dumps(seal(pem, pkg)))
-            r = get('automigrate'); assert r['done'] and r['run']['result']['cleared']['vendors'] == 1 and r['run']['result']['added']['vendors'] == 1, r
+            r = get('automigrate'); rr = r['runs']['masters']['result']; assert rr['cleared']['vendors'] == 1 and rr['added']['vendors'] == 1, r
             assert list((root/'config').glob('umang-masters-backup-*.json'))
             assert get('automigrate')['already'] is True     # never runs twice
+            # Records step: test records cleared, master links looked up from old sheet IDs and names, runs once.
+            vendor_pkg = {'kind': 'umang-master-import', 'clear': [], 'keep_users': [], 'rows': {'users': [{'id': 'u9', 'name': 'Ankit Jain', 'email': '', 'legacy_ids': ['125a2868']}]}}
+            c.call('migrate', {'cmd': 'import', 'pkg': vendor_pkg, 'clear': False})
+            c.call('set', {'path': 'leads', 'id': 'test1', 'data': {'lead_no': 'T1'}})
+            data = {'kind': 'umang-data-import', 'phase': '1-leads', 'clear': ['leads', 'leads/%/followups', 'quotations'], 'rows': {
+                'leads': [{'id': 'L1', 'lead_no': '25-26/1', 'owner_id': '@ref:users:Ankit Jain', 'assigned_to': '@ref:users:125a2868', 'vendor': '@ref:vendors:9b93ec22', 'x': '@ref:users:gone'}],
+                'leads/L1/followups': [{'id': 'F1', 'status': 'Pending Follow Up', 'by': '@name:users:ankit jain'}],
+                'quotations': [{'id': 'Q1', 'lead_id': 'L1', 'no': '0127', 'mode': 'upload'}]}}
+            (web/'api/migration/data-1-leads.enc').write_text(json.dumps(seal(pem, data)))
+            r = get('automigrate')['runs']['1-leads']['result']
+            assert r['cleared']['leads'] == 1 and r['added'] == {'leads': 1, 'lead followups': 1, 'quotations': 1} and r['unresolved'] == {'users:gone': 1}, r
+            l = c.call('get', {'path': 'leads', 'id': 'L1'})['data']; assert l['owner_id'] == 'u9' and l['assigned_to'] == 'u9' and l['vendor'] == 'vx' and l['x'] == '', l
+            assert c.call('get', {'path': 'leads/L1/followups', 'id': 'F1'})['data']['by'] == 'u9'
+            assert c.call('get', {'path': 'leads', 'id': 'test1'})['exists'] is False
+            assert list((root/'config').glob('umang-data-backup-1-leads-*.json'))
+            assert get('automigrate')['runs']['1-leads']['already'] is True
             st = c.call('migrate', {'cmd': 'status'}); assert st['masters']['vendors'] == 1 and st['auto']['result']['added']['vendors'] == 1
             print('Automatic migration checks passed: key kept private, sealed file, backup saved, runs once.')
         finally: proc.terminate(); proc.wait(5)

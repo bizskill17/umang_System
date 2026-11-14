@@ -70,3 +70,65 @@ function migImport(array $pkg, bool $doClear, string $me): array {
     } catch (Throwable $e) { txRollback(); error_log('Umang master import: ' . $e->getMessage()); throw $e; }
     return $result;
 }
+
+// Records import (leads, quotations, projects, jobs …). Master links are given as "@ref:<master>:<old sheet id>"
+// or "@name:<master>:<name>" and are looked up here from the legacy_ids / names already in the app.
+const MIG_DATA_PATH = '/^(leads|quotations|quote_followups|projects|recce|recce_updates|designs|design_updates|jobs|job_assign|qc|dispatches|wastage|invoices|payments|complaints|complaint_updates|leads\/[A-Za-z0-9_-]{1,96}\/followups|masters\/customers\/rows)$/';
+const MIG_DATA_CLEAR = ['leads','leads/%/followups','quotations','quote_followups','projects','recce','recce_updates','designs','design_updates','jobs','job_assign','qc','dispatches','wastage','invoices','payments','complaints','complaint_updates'];
+function migDataBackup(array $pkg, string $file): void {
+    $out = [];
+    foreach (array_unique(array_merge((array)($pkg['clear'] ?? []), array_keys((array)$pkg['rows']))) as $p) {
+        $op = strpos($p, '%') !== false ? 'LIKE' : '=';
+        foreach (query("SELECT collection_path,id,body FROM umang_documents WHERE collection_path $op ?", [$p])->fetchAll(PDO::FETCH_ASSOC) as $r) $out[$r['collection_path']][] = ['id' => $r['id'], 'data' => json_decode($r['body'], true)];
+    }
+    if (file_put_contents($file, json_encode(['kind' => 'umang-data-backup', 'phase' => $pkg['phase'] ?? '', 'at' => gmdate('c'), 'records' => $out], JSON_UNESCAPED_UNICODE)) === false) throw new RuntimeException('Could not save the backup, so nothing was changed.');
+    @chmod($file, 0600);
+}
+function migData(array $pkg): array {
+    if (($pkg['kind'] ?? '') !== 'umang-data-import' || !is_array($pkg['rows'] ?? null)) throw new RuntimeException('This is not a records import file.');
+    foreach (array_keys($pkg['rows']) as $p) if (!preg_match(MIG_DATA_PATH, (string)$p)) throw new RuntimeException('Records for "' . $p . '" can’t be imported.');
+    $clear = array_values(array_intersect((array)($pkg['clear'] ?? []), MIG_DATA_CLEAR));
+    $idx = []; $miss = [];
+    $index = function (string $c) use (&$idx) {
+        if (isset($idx[$c])) return $idx[$c];
+        $m = ['ref' => [], 'name' => []];
+        foreach (query('SELECT id,body FROM umang_documents WHERE collection_path=?', ['masters/' . $c . '/rows'])->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $b = json_decode($r['body'], true) ?: [];
+            foreach ((array)($b['legacy_ids'] ?? []) as $l) { $l = (string)$l; $m['ref'][$l] = $r['id']; if (preg_match('/^(\d+)\.0$/', $l, $x)) $m['ref'][$x[1]] = $r['id']; }
+            $n = strtolower(trim((string)($b['name'] ?? ''))); if ($n !== '' && !isset($m['name'][$n])) $m['name'][$n] = $r['id'];
+        }
+        return $idx[$c] = $m;
+    };
+    $resolve = function ($v) use (&$resolve, $index, &$miss) {
+        if (is_array($v)) { foreach ($v as $k => $x) $v[$k] = $resolve($x); return $v; }
+        if (!is_string($v) || ($v[0] ?? '') !== '@' || !preg_match('/^@(ref|name):([a-z-]+):(.*)$/s', $v, $m)) return $v;
+        $ix = $index($m[2]); $key = $m[1] === 'ref' ? $m[3] : strtolower(trim($m[3]));
+        $hit = $ix[$m[1]][$key] ?? ($m[1] === 'ref' ? ($ix['name'][strtolower(trim($m[3]))] ?? null) : null);
+        if ($hit === null) { $k = $m[2] . ':' . $m[3]; $miss[$k] = ($miss[$k] ?? 0) + 1; return ''; }
+        return $hit;
+    };
+    $now = gmdate('Y-m-d\TH:i:s\Z'); $result = ['cleared' => [], 'added' => [], 'unresolved' => []];
+    txBegin();
+    try {
+        foreach ($clear as $p) {
+            $op = strpos($p, '%') !== false ? 'LIKE' : '=';
+            $result['cleared'][$p] = (int)query("SELECT COUNT(*) FROM umang_documents WHERE collection_path $op ?", [$p])->fetchColumn();
+            query("DELETE FROM umang_documents WHERE collection_path $op ?", [$p]);
+        }
+        foreach ($pkg['rows'] as $p => $rows) {
+            $n = 0;
+            foreach ((array)$rows as $row) {
+                if (!is_array($row) || !preg_match('/^[a-zA-Z0-9_-]{1,96}$/', (string)($row['id'] ?? ''))) continue;
+                $id = (string)$row['id']; unset($row['id']);
+                $row = $resolve($row); $row['imported_at'] = $now;
+                query('INSERT INTO umang_documents(collection_path,id,body) VALUES(?,?,?) ON DUPLICATE KEY UPDATE body=VALUES(body)', [$p, $id, json_encode($row, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]);
+                $n++;
+            }
+            $k = preg_match('#^leads/.+/followups$#', $p) ? 'lead followups' : $p;
+            $result['added'][$k] = ($result['added'][$k] ?? 0) + $n;
+        }
+        arsort($miss); $result['unresolved'] = array_slice($miss, 0, 40, true);
+        txCommit();
+    } catch (Throwable $e) { txRollback(); error_log('Umang data import: ' . $e->getMessage()); throw $e; }
+    return $result;
+}

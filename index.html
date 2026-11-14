@@ -2943,7 +2943,11 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     return { id: r.id, name: file.name, type: r.contentType };
   };
   U.fileLinks = function (arr, label) { if (!arr) return ""; if (!Array.isArray(arr)) arr = [arr]; arr = arr.filter(function (x) { return x && x.id; }); var s = arr.map(function (x, i) { return U.fileLink(x, arr.length > 1 ? (label || "File") + " " + (i + 1) : (label || x.name)); }).join(" "); return arr.length > 1 ? '<span class="fgroup">' + s + "</span>" : s; };
-  U.fileLink = function (f, label) { return f && f.id ? '<a class="file-link" href="' + U.esc(window.UmangBlobURL(f.id)) + '" data-blob="' + U.esc(f.id) + '" data-type="' + U.esc(f.type || "") + '" data-name="' + U.esc(f.name || "") + '">' + U.esc(label || f.name || "File") + "</a>" : ""; };
+  U.fileLink = function (f, label) {
+    if (f && !f.id && f.url && /^https:\/\//.test(f.url)) return '<a class="file-link" href="' + U.esc(f.url) + '" target="_blank" rel="noopener">' + U.esc(label || f.name || "File") + "</a>";
+    if (f && !f.id && f.legacy_path) return '<span class="file-link old" title="Old AppSheet file, not linked yet">' + U.esc(label || f.name || "File") + " (old file)</span>";
+    return f && f.id ? '<a class="file-link" href="' + U.esc(window.UmangBlobURL(f.id)) + '" data-blob="' + U.esc(f.id) + '" data-type="' + U.esc(f.type || "") + '" data-name="' + U.esc(f.name || "") + '">' + U.esc(label || f.name || "File") + "</a>" : "";
+  };
   /* open uploaded files inside the app (a new tab can't reach them) */
   var BV = null;
   function closeBV() { if (!BV) return; BV.urls.forEach(function (u) { if (u) URL.revokeObjectURL(u); }); BV.el.remove(); var r = BV.ret; BV = null; if (r && r.focus && document.contains(r)) r.focus(); }
@@ -3878,7 +3882,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var firm = U.mrows("firm").find(function (f) { return f.id === q.firm_id; }) || {};
     var h = '<dl class="q-meta"><div><dt>Firm</dt><dd>' + esc(firm.name) + "</dd></div><div><dt>Customer</dt><dd>" + esc(qCust(q)) + "</dd></div><div><dt>Date</dt><dd>" + U.dmy(q.date) + "</dd></div><div><dt>Expiry</dt><dd>" + U.dmy(q.expiry) + "</dd></div><div><dt>Lead</dt><dd>" + esc(U.leadNo(q.lead_id)) + "</dd></div><div><dt>Sales Person</dt><dd>" + esc(U.user(q.sales_person)) + "</dd></div><div><dt>Made By</dt><dd>" + esc(U.user(q.made_by)) + "</dd></div><div><dt>Status</dt><dd>" + esc(q.status) + "</dd></div></dl>";
     if (q.mode === "upload") {
-      h += '<p class="mv-note">Uploaded quotation: no item lines. ' + (q.file && q.file.id ? "Open the file to see the items. " + U.fileLink(q.file, "Open quotation file") : "No file attached.") + "</p>";
+      h += '<p class="mv-note">Uploaded quotation: no item lines. ' + (q.file && (q.file.id || q.file.url || q.file.legacy_path) ? "Open the file to see the items. " + U.fileLink(q.file, "Open quotation file") : "No file attached.") + "</p>";
       h += '<div class="qi-totals view"><div><span>Before GST</span><b>' + money(q.subtotal) + "</b></div><div><span>GST</span><b>" + money(q.gst) + '</b></div><div class="grand"><span>Total after GST</span><b>' + money(q.total) + "</b></div></div>";
       return h;
     }
@@ -3938,7 +3942,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   };
   async function pdf(id, btn) {
     var q = U.get("quotations", id); if (!q) return;
-    if (q.mode === "upload") { if (!(q.file && q.file.id)) { U.flash("No file is attached to quotation " + (q.no || "") + "."); return; } var tmp = document.createElement("div"); tmp.hidden = true; tmp.innerHTML = U.fileLink(q.file, "Quotation"); document.body.appendChild(tmp); var a = tmp.querySelector("a"); if (a) a.click(); tmp.remove(); return; }
+    if (q.mode === "upload") { if (q.file && !q.file.id && q.file.url) { window.open(q.file.url, "_blank", "noopener"); return; } if (!(q.file && q.file.id)) { U.flash((q.file && q.file.legacy_path ? "The file of quotation " + (q.no || "") + " is still in the old AppSheet folder." : "No file is attached to quotation " + (q.no || "") + ".")); return; } var tmp = document.createElement("div"); tmp.hidden = true; tmp.innerHTML = U.fileLink(q.file, "Quotation"); document.body.appendChild(tmp); var a = tmp.querySelector("a"); if (a) a.click(); tmp.remove(); return; }
     if (btn) { btn.disabled = true; btn.dataset.lbl = btn.textContent; btn.textContent = "Making PDF…"; }
     try {
       var bytes = await quotationPdf(q);
@@ -4498,7 +4502,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         if ((p.sheet_documents || []).length) sheet += '<div class="ld-field"><span>Documents (' + p.sheet_documents.length + ')</span><b>' + U.fileLinks(p.sheet_documents) + '</b></div>';
         if (sheet) h += '<section class="ld-card"><div class="ld-card-title"><span>Project Sheet</span></div><div class="ld-grid">' + sheet + "</div></section>";
         var jobsOf = liveJobs().filter(function (j) { return j.project_id === p.id; });
-        if (q.mode === "upload") h += '<section class="ld-card"><div class="ld-card-title"><span>Quotation Details' + (q.no ? " - " + esc(q.no) : "") + '</span></div><p class="mf-hint">Uploaded quotation · ' + U.money(q.total) + " after GST · " + (q.file && q.file.id ? U.fileLink(q.file, "Open quotation file") : "no file attached") + "</p></section>";
+        if (q.mode === "upload") h += '<section class="ld-card"><div class="ld-card-title"><span>Quotation Details' + (q.no ? " - " + esc(q.no) : "") + '</span></div><p class="mf-hint">Uploaded quotation · ' + U.money(q.total) + " after GST · " + (q.file && (q.file.id || q.file.url || q.file.legacy_path) ? U.fileLink(q.file, "Open quotation file") : "no file attached") + "</p></section>";
         h += pTable("Quotation Details" + (q.no ? " - " + q.no : ""), ["Particulars", "Description", "Width", "Height", "Quantity", "Unit", "Job Qty"], (q.items || []).map(function (it, i) {
           var src = q.id + ":" + i, jq = 0; jobsOf.forEach(function (j) { (j.items || []).forEach(function (x) { if (x.src === src) jq += n(x.qty); }); });
           return [esc(U.nm("items", it.item_id)), esc(it.description), esc(it.width), esc(it.height), U.num(it.qty), esc(it.uom), jq ? U.num(jq) : ""]; }));
