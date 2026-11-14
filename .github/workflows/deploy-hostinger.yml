@@ -13,6 +13,8 @@ on:
       - tests/operations_test.cjs
       - tests/adapter_test.cjs
       - tests/messaging_backend_test.py
+      - tests/*.py
+      - tests/*.cjs
       - .github/workflows/deploy-hostinger.yml
   pull_request:
     branches: [main]
