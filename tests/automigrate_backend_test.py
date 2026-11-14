@@ -58,10 +58,11 @@ def main():
             st = c.call('migrate', {'cmd': 'status'}); assert st['masters']['vendors'] == 1 and st['auto']['result']['added']['vendors'] == 1
             # A records step may add a new person, but never changes someone who is already there.
             c.call('migrate', {'cmd': 'import', 'pkg': {'kind': 'umang-master-import', 'clear': [], 'keep_users': [], 'rows': {'users': [{'id': 'u7', 'name': 'Old Person', 'email': 'old@x.in', 'legacy_ids': ['o7']}]}}, 'clear': False})
-            up = {'kind': 'umang-data-import', 'phase': '2-sync', 'clear': [], 'rows': {'masters/users/rows': [{'id': 'u8', 'name': 'New Person', 'email': 'new@x.in', 'legacy_ids': ['n8'], 'pw_hash': 'x'}, {'id': 'u7b', 'name': 'Someone', 'email': 'old@x.in', 'legacy_ids': ['o7']}], 'leads': [{'id': 'L3', 'lead_no': '25-26/3', 'owner_id': '@ref:users:n8'}]}}
+            up = {'kind': 'umang-data-import', 'phase': '2-sync', 'clear': [], 'rows': {'masters/users/rows': [{'id': 'u8', 'name': 'New Person', 'email': 'new@x.in', 'legacy_ids': ['n8'], 'pw_hash': 'x'}, {'id': 'u7b', 'name': 'Someone', 'email': 'old@x.in', 'legacy_ids': ['o7']}], 'masters/lead-subcategory/rows': [{'id': 'sc1', 'name': 'Glow Sign', 'legacy_ids': ['g1']}], 'leads': [{'id': 'L3', 'lead_no': '25-26/3', 'owner_id': '@ref:users:n8'}]}}
             (web/'api/migration/data-2-sync.enc').write_text(json.dumps(seal(pem, up)))
             r = get('automigrate')['runs']['2-sync']['result']; assert r['skipped'] == {'masters/users/rows': 1} and r['unresolved'] == [], r
             nu = c.call('get', {'path': 'masters/users/rows', 'id': 'u8'})['data']; assert nu['name'] == 'New Person' and 'pw_hash' not in nu and not nu.get('has_password'), nu
+            assert c.call('get', {'path': 'masters/lead-subcategory/rows', 'id': 'sc1'})['data']['name'] == 'Glow Sign'
             assert c.call('get', {'path': 'leads', 'id': 'L3'})['data']['owner_id'] == 'u8' and c.call('get', {'path': 'masters/users/rows', 'id': 'u7b'})['exists'] is False
             c.call('delete', {'path': 'leads', 'id': 'L3'})
             # Changed-rows sync: a device with a token gets only the records saved since; without one, the full list.
