@@ -1,0 +1,13 @@
+# Scripts and stylesheets are linked with a fingerprint of their content (?v=..., stamped at deploy),
+# so browsers can keep them for a year and still get each new version immediately.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType text/javascript "access plus 1 year"
+  ExpiresByType text/css "access plus 1 year"
+</IfModule>

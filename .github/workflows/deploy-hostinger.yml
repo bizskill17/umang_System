@@ -117,6 +117,13 @@ jobs:
           mkdir -p deploy
           cp index.html .user.ini deploy/
           cp -R api assets deploy/
+          # Stamp each script and stylesheet link with a fingerprint of the file, so browsers can keep
+          # them for a long time (assets/.htaccess) and still get every update straight away.
+          for f in assets/*.js assets/*.css; do
+            h=$(sha1sum "$f" | cut -c1-10)
+            sed -i -E "s#(${f//./\\.})\?v=[^\"]*\"#\1?v=$h\"#g" deploy/index.html
+          done
+          grep -c '?v=' deploy/index.html
 
       - name: Upload to Hostinger by FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
