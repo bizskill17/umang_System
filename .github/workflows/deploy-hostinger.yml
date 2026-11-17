@@ -87,6 +87,7 @@ jobs:
           node tests/migration_ui_test.cjs
           node tests/pager_test.cjs
           node tests/datefmt_test.cjs
+          node tests/spinner_test.cjs
       - name: Test database backend with disposable MySQL
         env:
           UMANG_TEST_DB_HOST: 127.0.0.1

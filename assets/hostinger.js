@@ -86,7 +86,11 @@
           subs.forEach(function (s) { if (subscriptions.has(s) && !s.got && cache[s.path]) { s.got = true; s.deliver(cache[s.path].rows); } });
         }
         var vers = paths.map(function (p) { return cache[p] ? cache[p].v : ''; });
-        var result = await request('batch', { paths: paths.join(','), vers: vers.join(',') }, true);
+        // Lists this device has never downloaded: show the "Loading data…" badge if it takes a moment.
+        var firstTime = paths.some(function (p) { return !cache[p]; }), busyT = firstTime ? setTimeout(function () { if (window.UmangBusy) window.UmangBusy(true); }, 400) : null;
+        var result;
+        try { result = await request('batch', { paths: paths.join(','), vers: vers.join(',') }, true); }
+        finally { if (busyT) { clearTimeout(busyT); if (window.UmangBusy) window.UmangBusy(false); } }
         var lists = result.lists || {}, delta = result.delta || {}, sv = result.vers || {}, changed = {};
         paths.forEach(function (p) {
           var has = Object.prototype.hasOwnProperty;

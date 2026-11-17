@@ -1448,10 +1448,11 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (!ok) { (email.getAttribute("aria-invalid") ? email : pw).focus(); return; }
     var fail = function (m) { loginErr.textContent = m; loginErr.hidden = false; };
     if (window.UmangServer) {
-      var sb = form.querySelector(".login-btn"); sb.disabled = true;
-      try { await window.UmangServer.login(ev, pw.value, !!(remember && remember.checked)); pw.value = ""; location.reload(); }
+      var sb = form.querySelector(".login-btn"); sb.disabled = true; sb.textContent = "Signing in\u2026";
+      var ok = false;
+      try { await window.UmangServer.login(ev, pw.value, !!(remember && remember.checked)); pw.value = ""; ok = true; sb.textContent = "Opening\u2026"; location.reload(); }
       catch (err) { fail(err.msg || "Could not sign in. Try again."); }
-      finally { sb.disabled = false; }
+      finally { if (!ok) { sb.disabled = false; sb.textContent = "Sign in"; } }
       return;
     }
     if (!USERS) return fail("Still loading users. Try again in a moment.");
@@ -3329,7 +3330,11 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (a === "u-clear") { P.st[P.cur] = {}; render(); return; }
     if (a === "u-only-clear") { var so = P.st[P.cur] || {}; delete so.only; delete so.onlyLabel; render(); return; }
     if (a === "u-cancel-form") { delete P.forms[P.formKey]; history.length > 1 ? history.back() : (location.hash = P.slug); return; }
-    if (P.acts[a]) { U.clearFlash(); P.acts[a](b.getAttribute("data-id"), b); }
+    if (P.acts[a]) {
+      U.clearFlash(); var r = P.acts[a](b.getAttribute("data-id"), b);
+      // An action that works in the background shows a spinner on its button and can't be pressed twice meanwhile.
+      if (r && typeof r.then === "function" && b.tagName === "BUTTON") { b.disabled = true; b.setAttribute("aria-busy", "true"); var done = function () { if (b.isConnected) { b.disabled = false; b.removeAttribute("aria-busy"); } }; r.then(done, done); }
+    }
   });
   box.addEventListener("submit", function (e) { if (e.target.id === "u-pform") { e.preventDefault(); if (!P.forms[P.formKey].saving && !U.ro()) submitPageForm(!!(e.submitter && e.submitter.value === "draft")); } });
   box.addEventListener("input", function (e) {
@@ -5632,6 +5637,7 @@ document.addEventListener("keydown", function (e) {
 <script src="assets/speed.js?v=20261114s1"></script>
 <script src="assets/pager.js?v=20261114p3"></script>
 <script src="assets/datefmt.js?v=20261117d1"></script>
+<script src="assets/spinner.js?v=20261117s1"></script>
 
 <link rel="stylesheet" href="assets/mobile.css?v=20261111rem">
 
