@@ -27,6 +27,7 @@ Work in a temporary folder `SRC` (for example `/tmp/umang-src`), **not** inside 
    | vendors.xlsx | Vendors | 13ykrHRSWR8T7EdW3Br56XF1ceJIjMtn8PCNvS4Q_C2Y |
    | projects.xlsx | Projects | 1OpM-XEfPjbcofG1HJ7E8kvDNtoBGMFrluOwOYiDua-I |
    | recce.xlsx | Recce | 1S5gSd9z8eO9W14HRz7kihgBI7MZCQKNIXFUAt94rXL0 |
+   | designs.xlsx | Designs | 1glhx-BfmGDW4jducei_kiMe7Qw8pkB_-QJxKXI1jAw4 |
    | dc.xlsx | Delivery Challans | 1vAPbGr5ZNWuAa2wbKxX9S49TXO35ula22OJpWBlWpqU |
    | invoices.xlsx | Invoices | 1NmLhQL6bpRHGbPeNRCkFxp_7UBDUwBF3ipLsc1c5GbM |
    | complaint.xlsx | Complaint | 1BuaaFdx6aqLkz4uM8uXqtPFbHE4T2_hMfxPG6qMyF-Y |

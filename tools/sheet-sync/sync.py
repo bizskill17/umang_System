@@ -14,9 +14,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 STATE = os.path.join(HERE, 'state'); BASE = os.path.join(STATE, 'baseline.json.gz'); PEND = os.path.join(STATE, 'pending.json.gz')
 SITE = 'https://system.umangcommunications.com'
-DATA = ['data-1-leads', 'data-2-recce', 'data-3-projects', 'data-5a-jobs', 'data-5b-assign', 'data-5c-qc', 'data-6-delivery', 'data-7-invoices', 'data-8-complaints']
-NEED = ['customers.xlsx', 'leads.xlsx', 'users.xlsx', 'vendors.xlsx', 'projects.xlsx', 'recce.xlsx', 'dc.xlsx', 'invoices.xlsx', 'complaint.xlsx', 'jobs.csv']
-MAX_CHANGES = 6000  # more than this in one hour means something is wrong with an export: stop and report
+DATA = ['data-1-leads', 'data-2-recce', 'data-2b-designs', 'data-3-projects', 'data-5a-jobs', 'data-5b-assign', 'data-5c-qc', 'data-6-delivery', 'data-7-invoices', 'data-8-complaints']
+NEED = ['customers.xlsx', 'leads.xlsx', 'users.xlsx', 'vendors.xlsx', 'projects.xlsx', 'recce.xlsx', 'designs.xlsx', 'dc.xlsx', 'invoices.xlsx', 'complaint.xlsx', 'jobs.csv']
+MAX_CHANGES = int(os.environ.get('SYNC_MAX', '6000'))  # more than this in one hour means something is wrong with an export: stop and report
 
 
 def fp(doc):
@@ -69,7 +69,7 @@ def build(src):
     nj, ni = collect(src)
     out = tempfile.mkdtemp(prefix='umang-sync-')
     env = dict(os.environ, SRC=src + '/', OUT=out)
-    for s in ['build.py', 'build_leads.py', 'build_rp.py', 'build_ops.py']:
+    for s in ['build.py', 'build_leads.py', 'build_rp.py', 'build_design.py', 'build_ops.py']:
         r = subprocess.run([sys.executable, os.path.join(HERE, s)], env=env, capture_output=True, text=True)
         if r.returncode: sys.exit(s + ' failed:\n' + r.stderr[-3000:])
     now = docs_of(out)
