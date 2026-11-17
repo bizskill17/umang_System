@@ -5279,7 +5279,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function key() { return location.hash || "#"; }
   function activeCount(panel) {
     var n = 0;
-    panel.querySelectorAll("select, input").forEach(function (e) { if (e.type !== "checkbox" && e.type !== "file" && String(e.value || "").trim() !== "") n++; });
+    panel.querySelectorAll("select, input").forEach(function (e) { if (e.type !== "checkbox" && e.type !== "file" && !e.classList.contains("dmy-text") && String(e.value || "").trim() !== "") n++; });
     return n;
   }
   function enhance(bar) {
@@ -5631,6 +5631,7 @@ document.addEventListener("keydown", function (e) {
 <script src="assets/migration.js?v=20261113m4"></script>
 <script src="assets/speed.js?v=20261114s1"></script>
 <script src="assets/pager.js?v=20261114p3"></script>
+<script src="assets/datefmt.js?v=20261117d1"></script>
 
 <link rel="stylesheet" href="assets/mobile.css?v=20261111rem">
 
