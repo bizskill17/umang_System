@@ -71,7 +71,8 @@ for r in tab('leads.xlsx', 'Leads'):
     subleg = SUBS.get(LCAT_ID.get(cat, ''), {}).get(key(first)) or SUB_ANY.get(key(first)) or (norm(r['Lead Sub-Category ID']) if r['Lead Sub-Category ID'] else '')
     if not subleg: rep['lead without sub-category'] += 1
     lead = {'id': L, 'date': d, 'received_time': (r['Lead Timestamp'][11:16] if len(r['Lead Timestamp']) > 15 else ''), 'createdAt': created, 'updatedAt': iso(r['Last Update Timestamp']) or created,
-            'fy': (no.split('/')[0] if '/' in no else f), 'seq': int(re.sub(r'\D', '', no.split('/')[-1]) or 0), 'lead_no': no if '/' in no else f + '/' + no, 'firm_id': '@ref:firm:' + (r['Firm Name'] or 'Umang Communications Pvt Ltd'),
+            'fy': (no.split('/')[0] if '/' in no else f), 'seq': int(re.sub(r'\D', '', no.split('/')[-1]) or 0), 'lead_no': no if '/' in no else (f + '/' + no if no else ''),  # a lead whose number the sheet hasn't filled yet stays blank, never '26-27/'
+            'firm_id': '@ref:firm:' + (r['Firm Name'] or 'Umang Communications Pvt Ltd'),
             'customer_id': customer(r), 'lead_category_id': catref, 'lead_subcategory_id': '@ref:lead-subcategory:' + subleg if subleg else '', 'lead_source_id': '@ref:lead-sources:' + norm(r['Lead Source ID']) if r['Lead Source ID'] else '',
             'owner_id': U(r['Lead Owner ID']), 'assigned_to': U(r['Lead Assigned To ID']), 'assigned_at': created if r['Lead Assigned To ID'] else '', 'priority': r['Lead Priority Name'] if r['Lead Priority Name'] in ('Urgent', 'High', 'Medium', 'Low') else '',
             'estimate': num(r['Estimate Value']), 'remarks': ' | '.join(x for x in [r['Lead Remarks'], r['Overall Lead Remarks']] if x),
