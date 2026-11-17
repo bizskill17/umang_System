@@ -2916,7 +2916,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   U.m = function (c) { return "masters/" + c + "/rows"; };
   U.mrows = function (c) { return U.rows(U.m(c)); };
   U.mact = function (c) { return U.mrows(c).filter(function (r) { return r.status !== "Inactive"; }).sort(byName); };
-  U.nm = function (c, id) { var r = id && U.mrows(c).find(function (x) { return x.id === id; }); return r ? r.name : ""; };
+  U.nm = function (c, id) { var r = id && U.get(U.m(c), id); return r ? r.name : ""; };
   U.user = function (id) { return U.nm("users", id); };
   var COLL_NAME = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
   function byName(a, b) { return COLL_NAME.compare(String(a.name || ""), String(b.name || "")); }
@@ -4427,7 +4427,8 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     return U.bar(st, [{ k: "who", label: "Owner or controller", first: "All people", opts: U.mact("users") }], true) + U.table(c, rows, null, U.rows("projects").length ? "No projects match." : "No projects yet.") + U.count(rows.length, "project");
   }
   function pendingCreate() {
-    if (!base()) return U.loading;
+    // Only needs quotations and projects, so it doesn't wait for the big job and delivery lists.
+    if (!U.base(["quotations", "projects", U.m("customers"), U.m("users")])) return U.loading;
     var rows = approvedFree().sort(function (a, b) { return String(b.approved_at).localeCompare(String(a.approved_at)); });
     return U.table([["Quotation No.", function (q) { return '<b class="nowrap">' + esc(q.no) + "</b>"; }], ["Approved", function (q) { return '<span class="nowrap">' + U.dmy(q.approved_at) + "</span>"; }], ["Lead No.", function (q) { return esc(q.lead_no); }],
       ["Customer", function (q) { return esc(cust(q)); }, "strong"], ["Sales Person", function (q) { return esc(U.user(q.sales_person)); }], ["Total", function (q) { return U.money(q.total); }, "numcell"],
@@ -5622,10 +5623,10 @@ document.addEventListener("keydown", function (e) {
 <link rel="stylesheet" href="assets/operations.css?v=20261110wrap">
 <link rel="stylesheet" href="assets/lead-dashboard.css?v=20261113b1">
 <script src="assets/operations.js?v=20261114x1"></script>
-<script src="assets/lead-dashboard.js?v=20261114ld8"></script>
-<script src="assets/dash-kit.js?v=20261114dk4"></script>
+<script src="assets/lead-dashboard.js?v=20261117ld9"></script>
+<script src="assets/dash-kit.js?v=20261117dk5"></script>
 <script src="assets/dashboards.js?v=20261114x1"></script>
-<script src="assets/dashboards2.js?v=20261114x1"></script>
+<script src="assets/dashboards2.js?v=20261117x2"></script>
 <script src="assets/messaging.js?v=20261113b2"></script>
 <script src="assets/migration.js?v=20261113m4"></script>
 <script src="assets/speed.js?v=20261114s1"></script>

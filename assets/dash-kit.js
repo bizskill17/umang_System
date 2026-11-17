@@ -7,7 +7,9 @@ DK.money=function(v){return(U.inr(Math.round(n(v)))||'₹0').replace(/\.00$/,'')
 DK.short=function(v){v=Math.round(n(v));var neg=v<0;v=Math.abs(v);var s=v>=1e7?'₹'+(v/1e7).toFixed(v>=1e8?0:2).replace(/\.?0+$/,'')+' Cr':v>=1e5?'₹'+(v/1e5).toFixed(v>=1e6?1:2).replace(/\.?0+$/,'')+' L':DK.money(v);return(neg?'−':'')+s;};
 DK.today=function(){return U.today();};
 DK.iso=function(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);};
-DK.day=function(x){if(!x)return'';x=String(x);return /T/.test(x)?DK.iso(new Date(x)):x.slice(0,10);};
+// Timestamp → local date; the same timestamps come up again on every redraw, so results are remembered.
+var DAYC=new Map();
+DK.day=function(x){if(!x)return'';x=String(x);if(x.indexOf('T')<0)return x.slice(0,10);var v=DAYC.get(x);if(v===undefined){v=DK.iso(new Date(x));if(DAYC.size>200000)DAYC.clear();DAYC.set(x,v);}return v;};
 DK.addDays=function(s,k){var d=new Date(s+'T00:00:00');d.setDate(d.getDate()+k);return DK.iso(d);};
 DK.days=function(a,b){if(!a)return 0;var x=Date.parse(DK.day(a)+'T00:00:00Z'),y=Date.parse(DK.day(b||DK.today())+'T00:00:00Z');return isFinite(x)&&isFinite(y)?Math.max(0,Math.round((y-x)/864e5)):0;};
 DK.hrs=function(a,b){var x=Date.parse(a),y=b?Date.parse(b):Date.now();return isFinite(x)&&isFinite(y)?Math.max(0,(y-x)/36e5):null;};
