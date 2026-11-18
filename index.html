@@ -1,6 +1,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Umang System</title>
+<meta name="umang-release" content="development">
+<link rel="preload" as="script" href="assets/hostinger.js?v=2026-11-14spd1">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -1449,10 +1451,9 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var fail = function (m) { loginErr.textContent = m; loginErr.hidden = false; };
     if (window.UmangServer) {
       var sb = form.querySelector(".login-btn"); sb.disabled = true; sb.textContent = "Signing in\u2026";
-      var ok = false;
-      try { await window.UmangServer.login(ev, pw.value, !!(remember && remember.checked)); pw.value = ""; ok = true; sb.textContent = "Opening\u2026"; location.reload(); }
+      try { await window.UmangServer.login(ev, pw.value, !!(remember && remember.checked)); pw.value = ""; AUTH.isOwner = !!window.UmangServer.user.owner; authDone(); goIn(); }
       catch (err) { fail(err.msg || "Could not sign in. Try again."); }
-      finally { if (!ok) { sb.disabled = false; sb.textContent = "Sign in"; } }
+      finally { sb.disabled = false; sb.textContent = "Sign in"; }
       return;
     }
     if (!USERS) return fail("Still loading users. Try again in a moment.");
@@ -5654,11 +5655,20 @@ document.addEventListener("keydown", function (e) {
 <script>
 /* Tells the user when a newer version of the app has been published, so an old cached page is not used. */
 (function () {
-  function sig(html) { return (html.match(/assets\/[a-z-]+\.(?:js|css)\?v=[^"']+/g) || []).sort().join("|"); }
-  var mine = sig(document.documentElement.outerHTML), shown = false;
+  var mine = document.querySelector('meta[name="umang-release"]').content;
+  if (mine === "development") return;
+  var shown = false, checking = false, lastCheck = 0;
   async function check() {
-    if (shown || document.hidden) return;
-    try { var r = await fetch(location.pathname + "?_=" + Date.now(), { cache: "no-store", credentials: "same-origin" }); if (!r.ok) return; var t = await r.text(), s = sig(t); if (!s || s === mine) return; } catch (e) { return; }
+    var now = Date.now();
+    if (shown || checking || document.hidden || now - lastCheck < 20000) return;
+    checking = true; lastCheck = now;
+    try {
+      var r = await fetch("umang-release.txt?_=" + now, { cache: "no-store", credentials: "omit" });
+      if (!r.ok) return;
+      var release = (await r.text()).trim();
+      if (!/^[0-9a-f]{40}$/.test(release) || release === mine) return;
+    } catch (e) { return; }
+    finally { checking = false; }
     shown = true;
     var b = document.createElement("div"); b.className = "upd-bar"; b.setAttribute("role", "status");
     b.innerHTML = '<span>A newer version of the app is available.</span><button type="button" class="mv-btn primary sm">Reload now</button>';
