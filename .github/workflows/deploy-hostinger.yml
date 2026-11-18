@@ -119,6 +119,8 @@ jobs:
           mkdir -p deploy
           cp index.html .user.ini deploy/
           cp -R api assets deploy/
+          printf '%s\n' "$GITHUB_SHA" > deploy/umang-release.txt
+          sed -i 's/name="umang-release" content="development"/name="umang-release" content="'"$GITHUB_SHA"'"/' deploy/index.html
           # Stamp each script and stylesheet link with a fingerprint of the file, so browsers can keep
           # them for a long time (assets/.htaccess) and still get every update straight away.
           for f in assets/*.js assets/*.css; do
