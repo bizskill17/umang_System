@@ -2057,7 +2057,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (!u) return;
     ACC.u = u;
     C.use("db").then(function (d) { if (d) d.collection("access_requests").onSnapshot(function (s) { ACC.waiting = s.docs.map(function (x) { return x.id; }); if (cur === "m-users") rerender(); }, function () {}); });
-    u.can("data.write").then(function (c) { if (c === false) { canWrite = false; editing = null; render(); } }).catch(function () {});
+    if (!window.UmangServer) u.can("data.write").then(function (c) { if (c === false) { canWrite = false; editing = null; render(); } }).catch(function () {});
   });
 })();
 </script>
@@ -2884,7 +2884,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 
   if (!C) { dbState = "none"; return; }
   C.use("db").then(function (d) { db = d; dbState = d ? "ready" : "none"; watchAll(); render(); });
-  C.use("user").then(function (u) { if (u) u.can("data.write").then(function (c) { if (c === false) { canWrite = false; render(); } }).catch(function () {}); });
+  if (!window.UmangServer) C.use("user").then(function (u) { if (u) u.can("data.write").then(function (c) { if (c === false) { canWrite = false; render(); } }).catch(function () {}); });
 })();
 </script>
 <script>
@@ -3249,7 +3249,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     C.use("db").then(function (d) { U.db = d; U.state = d ? "ready" : "none"; (U.boot || []).forEach(function (f) { f(); }); emit(); });
     C.use("assets").then(function (a) { U.assets = a; emit(); });
     C.use("downloads").then(function (d) { U.downloads = d; });
-    C.use("user").then(function (u) { if (u) u.can("data.write").then(function (c) { if (c === false) { U.canWrite = false; emit(); } }).catch(function () {}); });
+    if (!window.UmangServer) C.use("user").then(function (u) { if (u) u.can("data.write").then(function (c) { if (c === false) { U.canWrite = false; emit(); } }).catch(function () {}); });
   }
   U.boot = [];
   U.onBoot = function (f) { if (U.db) f(); else U.boot.push(f); };
