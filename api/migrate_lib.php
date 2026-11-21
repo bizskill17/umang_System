@@ -91,12 +91,13 @@ function migData(array $pkg): array {
     $idx = []; $miss = [];
     $index = function (string $c) use (&$idx) {
         if (isset($idx[$c])) return $idx[$c];
-        $m = ['ref' => [], 'name' => []];
+        $m = ['ref' => [], 'name' => [], 'namecat' => []];
         foreach (query('SELECT id,body FROM umang_documents WHERE collection_path=?', ['masters/' . $c . '/rows'])->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $b = json_decode($r['body'], true) ?: [];
             foreach ((array)($b['legacy_ids'] ?? []) as $l) { $l = (string)$l; $m['ref'][$l] = $r['id']; if (preg_match('/^(\d+)\.0$/', $l, $x)) $m['ref'][$x[1]] = $r['id']; }
             $n = strtolower(preg_replace('/\s+/', ' ', trim((string)($b['name'] ?? '')))); if ($n !== '' && !isset($m['name'][$n])) $m['name'][$n] = $r['id'];
             $e = strtolower(trim((string)($b['email'] ?? ''))); if ($e !== '' && !isset($m['name'][$e])) $m['name'][$e] = $r['id'];
+            if ($c === 'lead-subcategory' && $n !== '') $m['namecat'][$n . '|' . (string)($b['lead_category_id'] ?? '')] = $r['id'];
         }
         return $idx[$c] = $m;
     };
@@ -125,7 +126,9 @@ function migData(array $pkg): array {
                     // New entries only: an existing one (same old ID, name or email) is never changed, so passwords, roles and edits stay as they are.
                     $ux = $index($mc[1]); $seen = $id !== '' && document($p, $id) !== null;
                     foreach ((array)($row['legacy_ids'] ?? []) as $l) if (isset($ux['ref'][(string)$l])) $seen = true;
-                    foreach ([(string)($row['name'] ?? ''), (string)($row['email'] ?? '')] as $nk) { $nk = strtolower(preg_replace('/\s+/', ' ', trim($nk))); if ($nk !== '' && isset($ux['name'][$nk])) $seen = true; }
+                    // A lead sub-category may share its name with one under a different lead category.
+                    if ($mc[1] === 'lead-subcategory') { $nk = strtolower(preg_replace('/\s+/', ' ', trim((string)($row['name'] ?? '')))); if ($nk !== '' && isset($ux['namecat'][$nk . '|' . (string)($row['lead_category_id'] ?? '')])) $seen = true; }
+                    else foreach ([(string)($row['name'] ?? ''), (string)($row['email'] ?? '')] as $nk) { $nk = strtolower(preg_replace('/\s+/', ' ', trim($nk))); if ($nk !== '' && isset($ux['name'][$nk])) $seen = true; }
                     if ($seen) { $result['skipped'][$p] = ($result['skipped'][$p] ?? 0) + 1; continue; }
                     if ($mc[1] === 'users') $row = array_intersect_key($row, array_flip(['name', 'email', 'mobile', 'designation_id', 'legacy_ids', 'status']));
                     else unset($row['pw_hash'], $row['pw_salt']);
