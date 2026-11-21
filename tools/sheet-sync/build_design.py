@@ -26,6 +26,8 @@ for r in master:
     if lid and not lead: rep['designs whose lead is not in the leads sheet'] += 1
     count, comp, can, appr = n(r['Design Assigned']), n(r['Designs Completed']), n(r['Designs Canceled']), n(r['Designs Approved'])
     if comp + can > count: rep['designs with more done than assigned (count raised to match)'] += 1; count = comp + can
+    # Approvals are often recorded only on the Design Worked rows, with the master still at 0: use whichever is higher.
+    appr = max(appr, sum(n(w['Designs Approved']) for w in worked[did]))
     appr = min(appr, comp)
     pending0 = max(0, count - comp - can)
     approval = appr > 0 or pending0 > 0  # open designs wait for client approval; finished old ones without any approval recorded don't

@@ -3509,10 +3509,12 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var k = d.done || {}, num = function (v) { return Number(v) || 0; };
     return d.status !== "Canceled" && num(d.count) > num(k.cancel) + num(k.completed) && !U.parentCanceled(d);
   };
-  // Pending Client Approval, AppSheet rule: AND([Designs Completed] > 0, [Designs Approved] < [Designs Completed]), plus not canceled.
+  // Pending Client Approval, AppSheet rule: AND([Designs Completed] > 0, [Designs Approved] < [Designs Completed]),
+  // with the cancel logic: canceled designs are not waiting for approval, nor is anything on a canceled lead or project.
+  U.designAwaiting = function (d) { var k = d.done || {}, num = function (v) { return Number(v) || 0; }; return Math.max(0, num(k.completed) - num(k.cancel) - num(k.approved)); };
   U.designPendingApproval = function (d) {
-    var k = d.done || {}, num = function (v) { return Number(v) || 0; };
-    return d.status !== "Canceled" && num(k.completed) > 0 && num(k.approved) < num(k.completed) && !U.parentCanceled(d);
+    var k = d.done || {};
+    return d.status !== "Canceled" && (Number(k.completed) || 0) > 0 && U.designAwaiting(d) > 0 && !U.parentCanceled(d);
   };
   U.recceInProgress = function (r) {
     var d = r.done || {}, num = function (v) { return Number(v) || 0; };
@@ -3785,7 +3787,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     can: ["Cancel", function (d) { return dD(d).cancel || 0; }, "numcell"],
     pend: ["Pending", function (d) { return "<b>" + dPending(d) + "</b>"; }, "numcell"],
     appr: ["Approved", function (d) { return d.approval_required ? (dD(d).approved || 0) : '<span class="dim">Not needed</span>'; }, "numcell"],
-    papp: ["Waiting approval", function (d) { return "<b>" + Math.max(0, (+dD(d).completed || 0) - (+dD(d).approved || 0)) + "</b>"; }, "numcell"],
+    papp: ["Waiting approval", function (d) { return "<b>" + U.designAwaiting(d) + "</b>"; }, "numcell"],
     lead: ["Lead No.", function (d) { return esc(U.leadNo(d.lead_id)); }],
     proj: ["Project No.", function (d) { return esc(U.projNo(d.project_id)); }],
     cust: ["Customer", function (d) { return esc(U.nm("customers", d.customer_id)); }, "strong"],
