@@ -4455,6 +4455,17 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function passed(jid, lid) { return q3(qcRecs(jid, lid).reduce(function (s, r) { return s + n(r.passed); }, 0)); }
   function onHold(jid, lid) { var r = qcRecs(jid, lid); return r.length ? n(r[r.length - 1].hold) : 0; }
   function qcDue(j, it) { return q3(finalOut(j, it) - passed(j.id, it.lid) - onHold(j.id, it.lid)); }
+  // Quality Check Due, AppSheet rule per job item: no QC status yet (not OK, not on hold), and every stage the item needs
+  // (Printing, Laser, CNC Cutting, Fabrication) has been assigned and has nothing left. Packing does not count.
+  function qcPendingItem(j, it) {
+    if (!j || !it || j.status === "Canceled" || it.cancel) return false;
+    if (qcRecs(j.id, it.lid).length) return false;
+    return (it.steps || []).every(function (st) {
+      if (["Printing", "Laser", "Cutting", "Fabrication"].indexOf(st) === -1) return true;
+      var xs = asgOf(j.id, it.lid, st).filter(function (a) { return !a.no_assign_date; });
+      return xs.length > 0 && xs.reduce(function (t, a) { return t + (n(a.qty) - n(a.completed)); }, 0) <= 1e-9;
+    });
+  }
   function dispIdx() { var a = U.rows("dispatches"), all = DSPI.get(a); if (!all) { all = new Map(); a.forEach(function (d) { (d.items || []).forEach(function (x) { var k = x.job_id + "|" + x.lid; all.set(k, (all.get(k) || 0) + n(x.qty)); }); }); DSPI.set(a, all); } return all; }
   var DSPI = new WeakMap();
   function dispatched(jid, lid) { return q3(dispIdx().get(jid + "|" + lid) || 0); }
@@ -5083,7 +5094,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   });
   U.page("projects.quality-check-due", function () {
     if (!base()) return U.loading;
-    var st = U.st(), rows = jobItemsFlat(function (r) { return r.j.status !== "Completed" && (qcDue(r.j, r.it) > 0 || onHold(r.j.id, r.it.lid) > 0); }).filter(function (r) { return U.match(st, [r.j.no, r.p.no, cust(r.j), itemName(r.it)].join(" "), r.j.date); }).sort(sortJobs);
+    var st = U.st(), rows = jobItemsFlat(function (r) { return qcPendingItem(r.j, r.it); }).filter(function (r) { return U.match(st, [r.j.no, r.p.no, cust(r.j), itemName(r.it)].join(" "), r.j.date); }).sort(sortJobs);
     return U.bar(st, [], true) + U.table([["Job No.", function (r) { return '<b class="nowrap">' + esc(r.j.no) + "</b>"; }], ["Project", function (r) { return esc(r.p.no); }], ["Customer", function (r) { return esc(cust(r.j)); }], ["Item", function (r) { return esc(itemName(r.it)); }, "strong"],
       ["Stages", function (r) { return r.it.steps.length ? esc(r.it.steps.join(" › ")) : '<span class="dim">None</span>'; }], ["Job Qty", function (r) { return U.num(r.it.qty); }, "numcell"], ["Made", function (r) { return U.num(finalOut(r.j, r.it)); }, "numcell"], ["Passed", function (r) { return U.num(passed(r.j.id, r.it.lid)); }, "numcell"],
       ["QC due", function (r) { return "<b>" + U.num(qcDue(r.j, r.it)) + "</b>"; }, "numcell"], ["On hold", function (r) { var h = onHold(r.j.id, r.it.lid); return h ? '<span class="late">' + U.num(h) + "</span>" : "0"; }, "numcell"],
@@ -5239,7 +5250,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function loadThumbs() { document.querySelectorAll("img[data-thumb]:not([src])").forEach(function (im) { var id = im.getAttribute("data-thumb"); if (THUMBS[id]) { im.src = THUMBS[id]; return; } im.setAttribute("src", "data:image/gif;base64,R0lGODlhAQABAAAAACw="); fetch(window.UmangBlobURL(id)).then(function (r) { if (!r.ok) throw 0; return r.blob(); }).then(function (b) { THUMBS[id] = URL.createObjectURL(b); document.querySelectorAll('img[data-thumb="' + id + '"]').forEach(function (x) { x.src = THUMBS[id]; }); }).catch(function () { im.alt = "Photo"; im.classList.add("w-thumb-x"); }); }); }
   new MutationObserver(loadThumbs).observe(document.body, { childList: true, subtree: true });
   U.dispatched = dispatched; U.liveJobs = liveJobs;
-  U.PJ = { sheetPending: sheetPending, approvedFree: approvedFree, jobItemsFlat: jobItemsFlat, avail: avail, qcDue: qcDue, onHold: onHold, passed: passed, finalOut: finalOut, dispatched: dispatched, deliverable: deliverable, out: out, used: used, STAGES: STAGES, jobDone: jobDone };
+  U.PJ = { qcPendingItem: qcPendingItem, sheetPending: sheetPending, approvedFree: approvedFree, jobItemsFlat: jobItemsFlat, avail: avail, qcDue: qcDue, onHold: onHold, passed: passed, finalOut: finalOut, dispatched: dispatched, deliverable: deliverable, out: out, used: used, STAGES: STAGES, jobDone: jobDone };
 })();
 </script>
 <script>
@@ -5632,7 +5643,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       "pending-sheet": function () { return U.PJ ? cnt("projects", U.PJ.sheetPending) : 0; },
       "pending-create": function () { return U.PJ ? U.PJ.approvedFree().length : 0; }, "pending-jobs": function () { return cnt("projects", function(p) { return p.status === "In Progress" && !U.rows("jobs").some(function(j) { return j.project_id === p.id; }); }); }, "in-progress": function () { return cnt("projects", function (p) { return p.status === "In Progress" && U.rows("jobs").some(function(j) { return j.project_id === p.id; }); }); },
       "jobs-in-progress": function () { return cnt("jobs", function (j) { return j.status === "Pending" || j.status === "In Progress"; }); },
-      "quality-check-due": function () { return U.PJ ? U.PJ.jobItemsFlat(function (r) { return r.j.status !== "Completed" && (U.PJ.qcDue(r.j, r.it) > 0 || U.PJ.onHold(r.j.id, r.it.lid) > 0); }).length : 0; },
+      "quality-check-due": function () { return U.PJ ? U.PJ.jobItemsFlat(function (r) { return U.PJ.qcPendingItem(r.j, r.it); }).length : 0; },
       "jobs-master": function () { return cnt("jobs"); }, "job-items-master": function () { var s = 0; U.rows("jobs").forEach(function (j) { s += (j.items || []).length; }); return s; },
       "completed-jobs": function () { return cnt("jobs", function (j) { return j.status === "Completed"; }); }, "canceled-jobs": function () { return cnt("jobs", function (j) { return j.status === "Canceled"; }); },
       "installation-pending": function () { return cnt("dispatches", function (d) { return d.installation && !d.install_cert; }); }, delivered: function () { return cnt("dispatches"); },
