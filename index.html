@@ -3619,7 +3619,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     lead: ["Lead No.", function (r) { return esc(U.leadNo(r.lead_id)); }],
     proj: ["Project No.", function (r) { return esc(U.projNo(r.project_id)); }],
     cust: ["Customer", function (r) { return esc(U.nm("customers", r.customer_id)); }, "strong"],
-    date: ["Date", function (r) { return '<span class="nowrap">' + U.dmy(r.date) + "</span>"; }],
+    date: ["Assign Date", function (r) { return '<span class="nowrap">' + U.dmy(r.date) + "</span>"; }],
     target: ["Target", function (r) { var late = U.isOpen(r) && r.target < U.today(); return '<span class="nowrap' + (late ? " late" : "") + '">' + U.dmy(r.target) + "</span>"; }],
     doc: ["Doc", function (r) { return U.fileLink(r.doc, "Open"); }],
     ppt: ["PPT", function (r) { return U.fileLink(r.ppt, "PPT"); }],
@@ -3635,8 +3635,8 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       return U.match(st, [r.no, U.nm("customers", r.customer_id), U.leadNo(r.lead_id), U.projNo(r.project_id), r.remarks, r.site_address].join(" "), r.date);
     }).sort(function (a, b) { return (b.fy || "").localeCompare(a.fy || "") || (b.seq || 0) - (a.seq || 0); });
     // Recce No. is not shown in the recce lists.
-    // Lead No. and Project No. come first in every recce list.
-    var lp = ["lead", "proj"].filter(function (k) { return cols.indexOf(k) !== -1; });
+    // Lead No., Project No. and Assign Date come first in every recce list.
+    var lp = ["lead", "proj"].filter(function (k) { return cols.indexOf(k) !== -1; }).concat(["date"]);
     var c = lp.concat(cols.filter(function (k) { return k !== "no" && lp.indexOf(k) === -1; })).map(function (k) { return R_COLS[k]; });
     if (actions && !U.ro()) c.push(['<span class="sr-only">Actions</span>', actions, "act"]);
     return U.bar(st, [{ k: "who", label: "Assignee", first: "All assignees", opts: U.mact("users") }], true) + U.table(c, list, null, U.rows("recce").length ? "No recce matches." : "No recce yet.") + U.count(list.length, "recce", "recce");
