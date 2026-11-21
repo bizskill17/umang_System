@@ -103,6 +103,29 @@ for dc in L.tab('dc.xlsx', 'Delivery Challans'):
         'fy': fyv, 'seq': seqv, 'no': 'DSP - %s - %04d' % (fyv.replace('-', '/'), seqv) if m else 'DC ' + dc['DC Number'], 'items': lines, 'createdAt': d + 'T06:00:00Z', 'legacy': {'id': did, 'no': dc['DC Number']}})
     rep['dispatches'] += 1
     if not lines: rep['dispatches without any line'] += 1
+# Delivery lines whose challan was deleted in AppSheet still count as delivered there: keep them under a placeholder challan.
+heads = {L.norm(dc['Delivery Challan Id']) for dc in L.tab('dc.xlsx', 'Delivery Challans')}
+orph = collections.defaultdict(list)
+for did, xs in dcitems.items():
+    if did in heads: continue
+    for x in xs:
+        ref = JOBREF.get(L.norm(x['Job Item ID']))
+        orph[did or ('no-challan|' + (ref[3] if ref else ''))].append(x)
+for did, xs in orph.items():
+    lines, pid = [], ''
+    for x in xs:
+        ref = JOBREF.get(L.norm(x['Job Item ID']))
+        if not ref: continue
+        q = L.num(x['Qty Delivered']) or L.num(x['Quantity'])
+        lines.append({'job_id': ref[0], 'lid': ref[1], 'qty': q, 'received_by': x['Received By'], 'delivered_by_name': x['Delivered By'], 'install_qty': L.num(x['Qty Installation']),
+                      'install_date': L.day(x['Installation Date']), 'legacy_id': x['Delivery Challan Item Id'], 'note': 'Challan deleted in AppSheet'})
+        extra_passed[ref[1]] += q; pid = pid or ref[3]; rep['DC lines whose challan was deleted (kept)'] += 1
+    if not lines: continue
+    d = min([L.day(x['Date']) for x in xs if L.day(x['Date'])], default='')
+    Dp['dispatches'].append({'id': L.nid('dispatches', did), 'date': d, 'project_id': pid, 'customer_id': '', 'delivered_by': '', 'mode_type': 'In House', 'party_user': '', 'party_vendor': '', 'party': '',
+        'transporter': '', 'vehicle': '', 'vehicle_type': '', 'driver': '', 'installation': False, 'install_by': '', 'install_vendor': '', 'install_date': '', 'remarks': 'Challan deleted in AppSheet; its lines still count as delivered',
+        'pdf': None, 'fy': L.fy(d) if d else '', 'seq': 0, 'no': 'DC (deleted in AppSheet)', 'items': lines, 'createdAt': (d or '2026-01-01') + 'T06:00:00Z', 'legacy': {'id': did, 'no': ''}})
+    rep['placeholder challans for deleted AppSheet challans'] += 1
 # make QC passed cover what was delivered (old data delivered some items without a QC entry)
 qcl = {q['lid']: q for q in J['qc']}
 for lid, q in extra_passed.items():
