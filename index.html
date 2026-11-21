@@ -2213,7 +2213,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     h += sel("lf-firm", "Firm", act("firm"), f["lf-firm"], "All firms");
     h += sel("lf-owner", "Owner", act("users"), f["lf-owner"], "All owners");
     h += sel("lf-assignee", "Assigned to", act("users"), f["lf-assignee"], "All assignees");
-    if (withStatus) h += sel("lf-status", "Status", STATUS_ORDER.map(function (s) { return { id: s, name: s }; }), f["lf-status"], "All status");
+    if (withStatus) h += sel("lf-status", "Status", STATUS_ORDER.filter(function (s) { return !Array.isArray(withStatus) || withStatus.indexOf(s) !== -1 || f["lf-status"] === s; }).map(function (s) { return { id: s, name: s }; }), f["lf-status"], "All status");
     if (extra) h += extra;
     h += '<label class="mv-filter date"><span class="mf-mini">From</span><input type="date" id="lf-from" data-f="lf-from" value="' + esc(f["lf-from"] || "") + '"></label>';
     h += '<label class="mv-filter date"><span class="mf-mini">To</span><input type="date" id="lf-to" data-f="lf-to" value="' + esc(f["lf-to"] || "") + '"></label>';
@@ -2749,9 +2749,12 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (kind === "in-progress") list = list.filter(inProgress);
     if (kind === "completed") list = list.filter(function (l) { return l.status === "Completed"; });
     if (kind === "canceled") list = list.filter(function (l) { return l.status === "Canceled"; });
+    // The Status filter offers only the statuses this list's leads actually have.
+    var have = [];
+    if (kind === "in-progress" || kind === "master") list.forEach(function (l) { statuses(l).forEach(function (x) { if (have.indexOf(x) === -1) have.push(x); }); });
     list = applyFilters(list).sort(byNoDesc);
     var g = grpGet(kind);
-    var h = filterBar(kind === "in-progress" || kind === "master", "", grpBar(kind));
+    var h = filterBar((kind === "in-progress" || kind === "master") && have, "", grpBar(kind));
     if (!(leads || []).length) return h + '<div class="mv-empty"><p><b>No leads yet.</b></p><p>' + (ro() ? "Leads appear here once someone adds them." : 'Start with <a href="#leads.add">Add Lead</a>.') + "</p></div>";
     var cols = [C_NO, C_DATE, C_FIRM, C_CUST, C_CCAT, C_CSUB, C_ADDR, C_CITY, C_STATE, C_CPER, C_CNUM, C_MAIL, C_CAT, C_SUB, C_SRC, C_OWN, C_ASG, C_PRI, C_EST];
     if (kind === "canceled") cols = cols.concat([["Reason", function (l) { return esc(l.cancel_reason); }]]);
