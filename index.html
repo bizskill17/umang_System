@@ -3690,9 +3690,12 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (!U.base(["recce", "recce_updates", "leads", "projects"])) return U.loading;
     var st = U.st();
     var list = U.rows("recce_updates").map(function (u) { return Object.assign({}, u, { r: U.get("recce", u.recce_id) || {} }); })
-      .filter(function (u) { return U.match(st, [u.r.no, U.leadNo(u.r.lead_id), U.projNo(u.r.project_id), U.nm("customers", u.r.customer_id), U.user(u.by), u.remarks].join(" "), (u.createdAt || "").slice(0, 10)); })
+      .filter(function (u) { if (st.uby && u.by !== st.uby) return false; return U.match(st, [u.r.no, U.leadNo(u.r.lead_id), U.projNo(u.r.project_id), U.nm("customers", u.r.customer_id), U.user(u.by), u.remarks].join(" "), (u.createdAt || "").slice(0, 10)); })
       .sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
-    return U.bar(st, [], true) + U.table([
+    // Update By filter: the people who have recorded recce updates.
+    var ubys = {}; U.rows("recce_updates").forEach(function (u) { if (u.by) ubys[u.by] = 1; });
+    var ubOpts = Object.keys(ubys).map(function (id) { return { id: id, name: U.user(id) || "Unknown" }; }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    return U.bar(st, [{ k: "uby", label: "Update By", first: "All people", opts: ubOpts }], true) + U.table([
       ["Lead No.", function (u) { return '<span class="nowrap">' + esc(U.leadNo(u.r.lead_id)) + "</span>"; }],
       ["Project No.", function (u) { return '<span class="nowrap">' + esc(U.projNo(u.r.project_id)) + "</span>"; }],
       ["Date", function (u) { return '<span class="nowrap">' + U.dmy(u.createdAt.slice(0, 10)) + "</span>"; }],
