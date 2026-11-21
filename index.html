@@ -2342,9 +2342,9 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         var d = x.done || {}, p = Math.max(0, num(x.units) - num(d.completed) - num(d.denied) - num(d.cancel));
         return [esc(x.assigned_to ? nm("users", x.assigned_to) : U.nm("vendors", x.vendor_id)), num(x.units), num(d.completed), num(d.denied), num(d.cancel), "<b>" + p + "</b>", dmy(x.date), dmy(x.target), esc(x.remarks), U.fileLink(x.ppt, "PPT")]; }));
       var des = U.by("designs", "lead_id", l.id).filter(function (x) { return x.lead_id === l.id; });
-      h += ldTable("Related Design", ["Design No.", "Assignee", "Assignment Date", "Design Assigned", "Designs Completed", "Designs Canceled", "Designs Approved", "Pending Completion", "Pending Approval", "Remarks"], des.map(function (x) {
+      h += ldTable("Related Design", ["Assignee", "Assignment Date", "Design Assigned", "Designs Completed", "Designs Canceled", "Designs Approved", "Pending Completion", "Pending Approval", "Remarks"], des.map(function (x) {
         var d = x.done || {}, pc = Math.max(0, num(x.count) - num(d.completed) - num(d.cancel)), pa = x.approval_required ? Math.max(0, num(d.completed) - num(d.approved)) : 0;
-        return ["<b>" + esc(x.no) + "</b>", esc(x.designer ? nm("users", x.designer) : U.nm("vendors", x.vendor_id)), dmy(x.date), num(x.count), num(d.completed), num(d.cancel), num(d.approved), "<b>" + pc + "</b>", pa, esc(x.remarks)]; }));
+        return [esc(x.designer ? nm("users", x.designer) : U.nm("vendors", x.vendor_id)), dmy(x.date), num(x.count), num(d.completed), num(d.cancel), num(d.approved), "<b>" + pc + "</b>", pa, esc(x.remarks)]; }));
     }
     var qs = qAll(l).slice();
     h += ldTable("Quotation", ["Quotation No.", "Assignment Date", "Quotation Amount", "Status", "Quotation PDF"], qs.map(function (q) {
@@ -3750,7 +3750,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       },
       save: async function (v) {
         var body = Object.assign(U.pick(v, D_FIELDS()), U.srcFields(v)); delete body.src; if (v.designer) body.vendor_id = ""; body.source_locked = !!v.source_locked; body.count = Number(v.count); body.approval_required = !!v.approval_required;
-        if (v._id) { var d = U.get("designs", v._id); body.status = dStatus(Object.assign({}, d, body)); await U.upd("designs", v._id, body); return { go: "design.in-progress", msg: "Design " + d.no + " saved." }; }
+        if (v._id) { var d = U.get("designs", v._id); body.status = dStatus(Object.assign({}, d, body)); await U.upd("designs", v._id, body); return { go: "design.in-progress", msg: "Design saved." }; }
         var fy = U.fy(v.date), n = await U.seq("design-" + fy, U.maxSeq("designs", "seq", function (r) { return r.fy === fy; }));
         body.fy = fy; body.seq = n; body.no = "DSN-" + fy + "/" + n; body.status = "In Progress"; body.done = { completed: 0, cancel: 0, approved: 0 };
         await U.add("designs", body);
@@ -3762,7 +3762,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   U.act("design-edit", function (id) { var d = U.get("designs", id); if (!d) return; P.forms["design.add"] = { v: Object.assign({}, d, { src: U.srcOf(d), _id: id }), err: "", saving: false }; P.keepForm = true; location.hash = "design.add"; });
   U.act("design-update", function (id) {
     var d = U.get("designs", id); if (!d) return; var pend = dPending(d);
-    U.modal({ mod: "design", title: "Update Design " + d.no, sub: esc(U.nm("customers", d.customer_id)) + " · Pending: <b>" + pend + "</b> of " + d.count,
+    U.modal({ mod: "design", title: "Update Design", sub: esc(U.nm("customers", d.customer_id)) + " · Pending: <b>" + pend + "</b> of " + d.count,
       v: { by: d.designer || "" },
       fields: [{ k: "completed", label: "Completed", type: "number", min: 0, step: 1 }, { k: "cancel", label: "Cancel", type: "number", min: 0, step: 1 },
         { k: "by", label: "Update By", type: "select", req: 1, opts: function () { return U.mact("users"); }, first: "Choose a person" },
@@ -3773,12 +3773,12 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         await U.add("design_updates", { design_id: d.id, kind: "work", completed: c, cancel: x, by: v.by, remarks: v.remarks });
         var status = dStatus(Object.assign({}, d, { done: nd }));
         await U.upd("designs", d.id, { done: nd, status: status });
-        return "Design " + d.no + " updated." + (status === "Pending Approval" ? " It’s now waiting for client approval." : status === "Completed" ? " It’s complete." : "");
+        return "Design updated." + (status === "Pending Approval" ? " It’s now waiting for client approval." : status === "Completed" ? " It’s complete." : "");
       } });
   });
   U.act("design-approve", function (id) {
     var d = U.get("designs", id); if (!d) return; var pa = dAppPending(d);
-    U.modal({ mod: "design", title: "Client approval for " + d.no, sub: esc(U.nm("customers", d.customer_id)) + " · Waiting for approval: <b>" + pa + "</b>",
+    U.modal({ mod: "design", title: "Client approval", sub: esc(U.nm("customers", d.customer_id)) + " · Waiting for approval: <b>" + pa + "</b>",
       fields: [{ k: "qty", label: "Approved now", type: "number", req: 1, min: 1, step: 1 }, { k: "by", label: "Update By", type: "select", req: 1, opts: function () { return U.mact("users"); }, first: "Choose a person" },
         { k: "remarks", label: "Customer Remarks", type: "textarea" }],
       validate: function (v) { if (+v.qty > pa) return "You can approve at most " + pa + "."; return null; },
@@ -3786,7 +3786,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         var q = +v.qty, done = dD(d), nd = { completed: +done.completed || 0, cancel: +done.cancel || 0, approved: (+done.approved || 0) + q };
         await U.add("design_updates", { design_id: d.id, kind: "approval", approved: q, by: v.by, remarks: v.remarks || "" });
         await U.upd("designs", d.id, { done: nd, status: dStatus(Object.assign({}, d, { done: nd })) });
-        return q + " design" + (q === 1 ? "" : "s") + " approved for " + d.no + ".";
+        return q + " design" + (q === 1 ? "" : "s") + " approved.";
       } });
   });
   U.act("design-history", function (id) {
@@ -3795,7 +3795,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var h = '<div class="mv-table-wrap"><table class="mv-table"><thead><tr><th>Date</th><th>Type</th><th>Completed</th><th>Cancel</th><th>Approved</th><th>By</th><th>Remarks</th></tr></thead><tbody>';
     if (!ups.length) h += '<tr><td colspan="7" class="mv-nomatch">No updates yet.</td></tr>';
     ups.forEach(function (u) { h += "<tr><td class='nowrap'>" + U.dmy(u.createdAt.slice(0, 10)) + "</td><td>" + (u.kind === "approval" ? "Client approval" : "Work") + "</td><td>" + (u.completed || "") + "</td><td>" + (u.cancel || "") + "</td><td>" + (u.approved || "") + "</td><td>" + esc(U.user(u.by)) + "</td><td>" + esc(u.remarks) + "</td></tr>"; });
-    U.info("Design " + d.no, esc(U.nm("customers", d.customer_id)) + " · No. of Designs: " + d.count, '<section class="ld-card"><div class="ld-grid">' + [["Status", d.status], ["Due Date", U.dmy(d.due)], ["Designer", U.user(d.designer) || U.nm("vendors",d.vendor_id)], ["Lead", U.leadNo(d.lead_id)], ["Project", U.projNo(d.project_id)], ["Remarks", d.remarks]].map(function(x) { return '<div class="ld-field"><span>' + esc(x[0]) + "</span><b>" + esc(x[1]) + "</b></div>"; }).join("") + "</div>" + U.fileLinks([d.doc].filter(Boolean), "Design Document") + "</section>" + h + "</tbody></table></div>", "design");
+    U.info("Design", esc(U.nm("customers", d.customer_id)) + " · No. of Designs: " + d.count, '<section class="ld-card"><div class="ld-grid">' + [["Status", d.status], ["Due Date", U.dmy(d.due)], ["Designer", U.user(d.designer) || U.nm("vendors",d.vendor_id)], ["Lead", U.leadNo(d.lead_id)], ["Project", U.projNo(d.project_id)], ["Remarks", d.remarks]].map(function(x) { return '<div class="ld-field"><span>' + esc(x[0]) + "</span><b>" + esc(x[1]) + "</b></div>"; }).join("") + "</div>" + U.fileLinks([d.doc].filter(Boolean), "Design Document") + "</section>" + h + "</tbody></table></div>", "design");
   });
   var D_COLS = {
     no: ["Design No.", function (d) { return '<b class="nowrap">' + esc(d.no) + "</b>"; }],
@@ -3822,7 +3822,9 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       if (st.who && d.designer !== st.who) return false;
       return U.match(st, [d.no, U.nm("customers", d.customer_id), U.leadNo(d.lead_id), U.projNo(d.project_id), d.remarks].join(" "), d.date);
     }).sort(function (a, b) { return (b.fy || "").localeCompare(a.fy || "") || (b.seq || 0) - (a.seq || 0); });
-    var c = cols.map(function (k) { return D_COLS[k]; });
+    // Design No. is not shown; Lead No. and Project No. come first.
+    var lp = ["lead", "proj"].filter(function (k) { return cols.indexOf(k) !== -1; });
+    var c = lp.concat(cols.filter(function (k) { return k !== "no" && lp.indexOf(k) === -1; })).map(function (k) { return D_COLS[k]; });
     if (actions && !U.ro()) c.push(['<span class="sr-only">Actions</span>', actions, "act"]);
     return U.bar(st, [{ k: "who", label: "Designer", first: "All designers", opts: U.mact("users") }], true) + U.table(c, list, null, U.rows("designs").length ? "No designs match." : "No designs yet.") + U.count(list.length, "design");
   }
@@ -3856,13 +3858,14 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   U.page("design.completed", function () { return designList(function (d) { return d.status === "Completed"; }, ["no", "date", "who", "count", "comp", "can", "appr", "lead", "proj", "cust"], function (d) { return U.btn("design-history", d.id, "History"); }); });
   U.page("design.master", function () { return designList(function () { return true; }, ["no", "date", "who", "count", "comp", "can", "pend", "appr", "lead", "proj", "cust", "due", "status"], function (d) { return U.btn("design-history", d.id, "History"); }); });
   U.page("design.worked", function () {
-    if (!U.base(["designs", "design_updates"])) return U.loading;
+    if (!U.base(["designs", "design_updates", "leads", "projects"])) return U.loading;
     var st = U.st();
     var list = U.rows("design_updates").map(function (u) { return Object.assign({}, u, { d: U.get("designs", u.design_id) || {} }); })
-      .filter(function (u) { return U.match(st, [u.d.no, U.nm("customers", u.d.customer_id), U.user(u.by), u.remarks].join(" "), (u.createdAt || "").slice(0, 10)); })
+      .filter(function (u) { return U.match(st, [u.d.no, U.leadNo(u.d.lead_id), U.projNo(u.d.project_id), U.nm("customers", u.d.customer_id), U.user(u.by), u.remarks].join(" "), (u.createdAt || "").slice(0, 10)); })
       .sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
     return U.bar(st, [], true) + U.table([
-      ["Date", function (u) { return '<span class="nowrap">' + U.dmy(u.createdAt.slice(0, 10)) + "</span>"; }], ["Design No.", function (u) { return "<b>" + esc(u.d.no) + "</b>"; }],
+      ["Lead No.", function (u) { return '<span class="nowrap">' + esc(U.leadNo(u.d.lead_id)) + "</span>"; }], ["Project No.", function (u) { return '<span class="nowrap">' + esc(U.projNo(u.d.project_id)) + "</span>"; }],
+      ["Date", function (u) { return '<span class="nowrap">' + U.dmy(u.createdAt.slice(0, 10)) + "</span>"; }],
       ["Customer", function (u) { return esc(U.nm("customers", u.d.customer_id)); }, "strong"], ["Designer", function (u) { return esc(U.user(u.d.designer)); }],
       ["Type", function (u) { return u.kind === "approval" ? "Client approval" : "Work"; }], ["Completed", function (u) { return u.completed || ""; }, "numcell"], ["Cancel", function (u) { return u.cancel || ""; }, "numcell"], ["Approved", function (u) { return u.approved || ""; }, "numcell"],
       ["Update By", function (u) { return esc(U.user(u.by)); }], ["Remarks", function (u) { return esc(u.remarks); }]
