@@ -2338,9 +2338,9 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       (l.status === "Canceled" ? ldVal("Cancel Reason", l.cancel_reason) : "") + "</div></section>";
     if (U) {
       var rec = U.by("recce", "lead_id", l.id).filter(function (x) { return x.lead_id === l.id; });
-      h += ldTable("Related Recce", ["Recce No.", "Assignee", "Units Assigned", "Units Completed", "Units Denied", "Cancel", "Pending", "Assignment Date", "Target Date", "Remarks", "PPT"], rec.map(function (x) {
+      h += ldTable("Related Recce", ["Assignee", "Units Assigned", "Units Completed", "Units Denied", "Cancel", "Pending", "Assignment Date", "Target Date", "Remarks", "PPT"], rec.map(function (x) {
         var d = x.done || {}, p = Math.max(0, num(x.units) - num(d.completed) - num(d.denied) - num(d.cancel));
-        return ["<b>" + esc(x.no) + "</b>", esc(x.assigned_to ? nm("users", x.assigned_to) : U.nm("vendors", x.vendor_id)), num(x.units), num(d.completed), num(d.denied), num(d.cancel), "<b>" + p + "</b>", dmy(x.date), dmy(x.target), esc(x.remarks), U.fileLink(x.ppt, "PPT")]; }));
+        return [esc(x.assigned_to ? nm("users", x.assigned_to) : U.nm("vendors", x.vendor_id)), num(x.units), num(d.completed), num(d.denied), num(d.cancel), "<b>" + p + "</b>", dmy(x.date), dmy(x.target), esc(x.remarks), U.fileLink(x.ppt, "PPT")]; }));
       var des = U.by("designs", "lead_id", l.id).filter(function (x) { return x.lead_id === l.id; });
       h += ldTable("Related Design", ["Design No.", "Assignee", "Assignment Date", "Design Assigned", "Designs Completed", "Designs Canceled", "Designs Approved", "Pending Completion", "Pending Approval", "Remarks"], des.map(function (x) {
         var d = x.done || {}, pc = Math.max(0, num(x.count) - num(d.completed) - num(d.cancel)), pa = x.approval_required ? Math.max(0, num(d.completed) - num(d.approved)) : 0;
@@ -3556,7 +3556,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (!U.base(["recce"])) return U.loading;
     return U.formPage("recce.add", {
       init: function () { return { date: U.today() }; },
-      title: function (v) { return v._id ? "Edit Recce " + (U.get("recce", v._id) || {}).no : "Add Recce"; },
+      title: function (v) { return v._id ? "Edit Recce" : "Add Recce"; },
       fields: R_FIELDS,
       validate: function (v) {
         if (!v.assigned_to && !v.vendor_id) return "Choose who does the recce: a person in Assigned To or a vendor in Outsourced To.";
@@ -3570,7 +3570,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         var fy = U.fy(v.date), n = await U.seq("recce-" + fy, U.maxSeq("recce", "seq", function (r) { return r.fy === fy; }));
         body.fy = fy; body.seq = n; body.no = "REC-" + fy + "/" + n; body.status = "In Progress"; body.done = { completed: 0, denied: 0, cancel: 0 };
         await U.add("recce", body);
-        return { go: "recce.in-progress", msg: "Recce " + body.no + " added." };
+        return { go: "recce.in-progress", msg: "Recce added." };
       }
     });
   });
@@ -3578,7 +3578,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   U.act("recce-edit", function (id) { var r = U.get("recce", id); if (!r) return; var v = Object.assign({}, r, { src: U.srcOf(r), _id: id }); P.forms["recce.add"] = { v: v, err: "", saving: false }; P.keepForm = true; location.hash = "recce.add"; });
   U.act("recce-update", function (id) {
     var r = U.get("recce", id); if (!r) return; var pend = rPending(r);
-    U.modal({ mod: "recce", title: "Update Recce " + r.no, sub: esc(U.nm("customers", r.customer_id)) + " · Pending: <b>" + pend + "</b> of " + r.units,
+    U.modal({ mod: "recce", title: "Update Recce", sub: esc(U.nm("customers", r.customer_id)) + " · Pending: <b>" + pend + "</b> of " + r.units,
       v: { by: r.assigned_to || "" },
       fields: [
         { k: "completed", label: "Completed", type: "number", min: 0, step: 1 }, { k: "denied", label: "Denied", type: "number", min: 0, step: 1 }, { k: "cancel", label: "Cancel", type: "number", min: 0, step: 1 },
@@ -3596,7 +3596,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   });
   U.act("recce-ppt", function (id) {
     var r = U.get("recce", id); if (!r) return;
-    U.modal({ mod: "recce", title: "Upload PPT for " + r.no, sub: esc(U.nm("customers", r.customer_id)) + " · PPT by " + esc(U.user(r.ppt_by)),
+    U.modal({ mod: "recce", title: "Upload PPT", sub: esc(U.nm("customers", r.customer_id)) + " · PPT by " + esc(U.user(r.ppt_by)),
       fields: [{ k: "ppt", label: "PPT (as PDF)", type: "file", req: 1, accept: ".pdf" }],
       save: async function (v) { var fresh = U.get("recce", id); if (fresh && fresh.ppt) throw U.fail("A PPT is already uploaded for this recce."); await U.upd("recce", id, { ppt: Object.assign({}, v.ppt, { at: U.now() }) }); return "PPT uploaded for " + r.no + "."; } });
   });
@@ -3634,7 +3634,8 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       if (st.who && r.assigned_to !== st.who) return false;
       return U.match(st, [r.no, U.nm("customers", r.customer_id), U.leadNo(r.lead_id), U.projNo(r.project_id), r.remarks, r.site_address].join(" "), r.date);
     }).sort(function (a, b) { return (b.fy || "").localeCompare(a.fy || "") || (b.seq || 0) - (a.seq || 0); });
-    var c = cols.map(function (k) { return R_COLS[k]; });
+    // Recce No. is not shown in the recce lists.
+    var c = cols.filter(function (k) { return k !== "no"; }).map(function (k) { return R_COLS[k]; });
     if (actions && !U.ro()) c.push(['<span class="sr-only">Actions</span>', actions, "act"]);
     return U.bar(st, [{ k: "who", label: "Assignee", first: "All assignees", opts: U.mact("users") }], true) + U.table(c, list, null, U.rows("recce").length ? "No recce matches." : "No recce yet.") + U.count(list.length, "recce", "recce");
   }
@@ -3656,7 +3657,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       .sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
     return U.bar(st, [], true) + U.table([
       ["Date", function (u) { return '<span class="nowrap">' + U.dmy(u.createdAt.slice(0, 10)) + "</span>"; }],
-      ["Recce No.", function (u) { return "<b>" + esc(u.r.no) + "</b>"; }], ["Customer", function (u) { return esc(U.nm("customers", u.r.customer_id)); }, "strong"],
+      ["Customer", function (u) { return esc(U.nm("customers", u.r.customer_id)); }, "strong"],
       ["Completed", function (u) { return u.completed; }, "numcell"], ["Denied", function (u) { return u.denied; }, "numcell"], ["Cancel", function (u) { return u.cancel; }, "numcell"], ["Pending after", function (u) { return u.pending_after; }, "numcell"],
       ["Update By", function (u) { return esc(U.user(u.by)); }], ["Remarks", function (u) { return esc(u.remarks); }], ["File", function (u) { return U.fileLink(u.doc, "Open"); }]
     ], list, null, "No updates yet.") + U.count(list.length, "update");
