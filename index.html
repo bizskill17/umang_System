@@ -2092,6 +2092,15 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function nm(c, id) { var r = byId(c, id); return r ? r.name : ""; }
   function act(c) { return rowsOf(c).filter(function (r) { return r.status !== "Inactive"; }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name), "en", { sensitivity: "base" }); }); }
   function isActive(l) { return l.status !== "Completed" && l.status !== "Canceled"; }
+  // Leads In Progress, same rule as AppSheet: AND(ISBLANK([Cancel Date]), ISNOTBLANK([Lead Assigned To ID]), NOT(IN([Lead Status], {"Complete", "Fail"}))).
+  // Lead Status is the sheet's value for leads that came from the sheet; for leads made in the app, Completed = Complete and Canceled = Fail.
+  function inProgress(l) {
+    if (l.canceled_at || !l.assigned_to) return false;
+    var lg = l.legacy && typeof l.legacy.lead_status === "string" ? l.legacy.lead_status : null;
+    var ls = lg !== null ? lg : (l.status === "Completed" ? "Complete" : l.status === "Canceled" ? "Fail" : "");
+    return ls !== "Complete" && ls !== "Fail";
+  }
+  window.UmangLeadInProgress = inProgress;
   function qAll(l) { return quotes ? (lix(quotes, "lead_id").get(l.id) || []) : []; }
   function qOf(l) { return qAll(l).filter(function (q) { return q.status !== "Canceled"; }); }
   function statuses(l) {
@@ -2628,7 +2637,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 
   function pList(kind) {
     var list = (leads || []).slice();
-    if (kind === "in-progress") list = list.filter(isActive);
+    if (kind === "in-progress") list = list.filter(inProgress);
     if (kind === "completed") list = list.filter(function (l) { return l.status === "Completed"; });
     if (kind === "canceled") list = list.filter(function (l) { return l.status === "Canceled"; });
     list = applyFilters(list).sort(byNoDesc);
@@ -5351,7 +5360,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function dAppPend(d) { var k = d.done || {}; return d.approval_required ? Math.max(0, n(k.completed) - n(k.approved)) : 0; }
   var C = {
     leads: {
-      "in-progress": function () { return cnt("leads", open); },
+      "in-progress": function () { return cnt("leads", window.UmangLeadInProgress || open); },
       "pending-assignee": function () { return cnt("leads", function (l) { return open(l) && !l.assigned_to; }); },
       "pending-estimate": function () { return cnt("leads", function (l) { return open(l) && !(n(l.estimate) > 0); }); },
       "pending-follow-ups": function () { return cnt("leads", function (l) { var f = l.last_fu; return open(l) && l.assigned_to && f && (f.status === "Pending Follow Up" || f.status === "Follow Up Again"); }); },
