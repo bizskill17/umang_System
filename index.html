@@ -3494,6 +3494,16 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
 
   /* ---------- shared lookups ---------- */
   U.isOpen = function (r) { return r.status !== "Completed" && r.status !== "Canceled"; };
+  // Recce In Progress, same rule as AppSheet: AND([Units Assigned] > [Units Denied] + [Units Completed] + [Cancel], ISBLANK([Cancel Lead])).
+  // "Cancel Lead" is the lead (or project) the recce belongs to being canceled.
+  U.recceInProgress = function (r) {
+    var d = r.done || {}, num = function (v) { return Number(v) || 0; };
+    if (!(num(r.units) > num(d.denied) + num(d.completed) + num(d.cancel))) return false;
+    var l = r.lead_id ? U.get("leads", r.lead_id) : null, p = r.project_id ? U.get("projects", r.project_id) : null;
+    if (l && (l.status === "Canceled" || l.canceled_at)) return false;
+    if (p && p.status === "Canceled") return false;
+    return true;
+  };
   U.leadNo = function (id) { var l = U.get("leads", id); return l ? l.lead_no : ""; };
   U.projNo = function (id) { var p = U.get("projects", id); return p ? p.no : ""; };
   U.srcOpts = function () {
@@ -3615,7 +3625,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     remarks: ["Remarks", function (r) { return esc(r.remarks); }]
   };
   function recceList(filterFn, cols, actions) {
-    if (!U.base(["recce", "recce_updates"])) return U.loading;
+    if (!U.base(["recce", "recce_updates", "leads", "projects"])) return U.loading;
     var st = U.st();
     var list = U.rows("recce").filter(filterFn).filter(function (r) {
       if (st.who && r.assigned_to !== st.who) return false;
@@ -3626,7 +3636,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     return U.bar(st, [{ k: "who", label: "Assignee", first: "All assignees", opts: U.mact("users") }], true) + U.table(c, list, null, U.rows("recce").length ? "No recce matches." : "No recce yet.") + U.count(list.length, "recce", "recce");
   }
   U.page("recce.in-progress", function () {
-    return recceList(U.isOpen, ["no", "who", "units", "comp", "den", "can", "pend", "lead", "proj", "cust", "target", "doc", "ppt"],
+    return recceList(U.recceInProgress, ["no", "who", "units", "comp", "den", "can", "pend", "lead", "proj", "cust", "target", "doc", "ppt"],
       function (r) { return '<span class="row-acts">' + U.btn("recce-update", r.id, "Update", true) + U.btn("recce-edit", r.id, "Edit") + "</span>"; });
   });
   U.page("recce.pending-ppt", function () {
@@ -5523,7 +5533,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       master: function () { return cnt("leads"); }, completed: function () { return cnt("leads", function (l) { return l.status === "Completed"; }); }, canceled: function () { return cnt("leads", function (l) { return l.status === "Canceled"; }); }
     },
     recce: {
-      "in-progress": function () { return cnt("recce", open); }, "pending-ppt": function () { return cnt("recce", function (r) { return r.ppt_by && !r.ppt && r.status !== "Canceled"; }); },
+      "in-progress": function () { return cnt("recce", U.recceInProgress || open); }, "pending-ppt": function () { return cnt("recce", function (r) { return r.ppt_by && !r.ppt && r.status !== "Canceled"; }); },
       worked: function () { return cnt("recce_updates"); }, completed: function () { return cnt("recce", function (r) { return r.status === "Completed"; }); }, master: function () { return cnt("recce"); }
     },
     design: {
