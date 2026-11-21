@@ -53,14 +53,13 @@ function stageOf(l,q){
  return l.assigned_to?{k:'noquote',since:l.date,at:l.assigned_at}:{k:'unassigned',since:l.date,at:receivedAt(l)};}
 function nextDue(l,q){var a=(l.last_fu||{}).next_date||'',b=q&&q.status==='Pending Approval'?q.next_fu||'':'';return[a,b].filter(Boolean).sort()[0]||'';}
 // Reporting period: received date of the lead.
-var PERIODS=[['today','Today'],['7','7 days'],['30','30 days'],['90','90 days'],['mtd','This month'],['fy','This FY'],['365','12 months'],['730','24 months'],['all','All time']];
-function range(k){var t=today();if(k==='all')return null;
- if(k==='fy'){var y=+t.slice(0,4),fs=(+t.slice(5,7)>=4?y:y-1)+'-04-01',pfs=(+fs.slice(0,4)-1)+'-04-01';return{from:fs,to:t,pf:pfs,pt:addDays(pfs,days(fs,t))};}if(k==='today')return{from:t,to:t,pf:addDays(t,-1),pt:addDays(t,-1)};
+var PERIODS=[['today','Today'],['7','7 days'],['30','30 days'],['90','90 days'],['mtd','This month'],['all','All time']];
+function range(k){var t=today();if(k==='all')return null;if(k==='today')return{from:t,to:t,pf:addDays(t,-1),pt:addDays(t,-1)};
  if(k==='mtd'){var f=t.slice(0,8)+'01',d=new Date(f+'T00:00:00');d.setMonth(d.getMonth()-1);var pf=iso(d);return{from:f,to:t,pf:pf,pt:addDays(pf,days(f,t))};}
  var nn=Number(k)||30;return{from:addDays(t,-(nn-1)),to:t,pf:addDays(t,-(2*nn-1)),pt:addDays(t,-nn)};}
 function rowsFor(st){
  var qs=U.rows('quotations'),t=today();
- return U.rows('leads').filter(function(l){return(!st.firm||l.firm_id===st.firm)&&(!st.owner||l.owner_id===st.owner)&&(!st.who||l.assigned_to===st.who)&&(!st.src||l.lead_source_id===st.src)&&(!st.cat||l.lead_category_id===st.cat)&&(!st.cust||l.customer_id===st.cust)&&(!st.ctype||((U.get(U.m('customers'),l.customer_id)||{}).category_id||'')===st.ctype)&&U.match({q:st.q},[l.lead_no,U.nm('customers',l.customer_id),l.remarks].join(' '),l.date);}).map(function(l){
+ return U.rows('leads').filter(function(l){return(!st.firm||l.firm_id===st.firm)&&(!st.owner||l.owner_id===st.owner)&&(!st.who||l.assigned_to===st.who)&&(!st.src||l.lead_source_id===st.src)&&(!st.cat||l.lead_category_id===st.cat)&&(!st.cust||l.customer_id===st.cust)&&U.match({q:st.q},[l.lead_no,U.nm('customers',l.customer_id),l.remarks].join(' '),l.date);}).map(function(l){
   var q=quoteOf(l,qs),sg=stageOf(l,q),hx=sg.at?hoursBetween(sg.at):null,exact=hx!=null,age=exact?hx/24:days(sg.since,t),tg=SBY[sg.k].target,due=nextDue(l,q),late=due&&due<t?days(due,t):0;
   return{l:l,q:q,stage:sg.k,since:sg.since,age:age,exact:exact,target:tg,over:tg>0?Math.max(0,age-tg):0,value:q&&n(q.total)?n(q.total):n(l.estimate),due:due,late:late,
    open:sg.k!=='won'&&sg.k!=='lost',sent:!!(q&&(q.sent||q.status==='Pending Approval'||q.status==='Approved'||q.status==='Rejected')),won:!!(q&&q.status==='Approved'),date:String(l.date||(l.createdAt||'')).slice(0,10)};});}
@@ -108,16 +107,14 @@ function volume(st,R){var mode=st.vol||'day',bs=buckets(mode,R),unit=mode==='day
  return panel('vol','New leads received',meta,body,tools);}
 // ---------- page ----------
 U.page('leads.dashboard',function(){
- if(!U.base(['leads','quotations','projects','app_settings',U.m('lead-sources'),U.m('lead-category'),U.m('lead-subcategory'),U.m('customers'),U.m('customer-category'),U.m('customer-subcategory'),U.m('users'),U.m('firm'),U.m('lost-reasons')]))return U.loading;
+ if(!U.base(['leads','quotations','projects','app_settings',U.m('lead-sources'),U.m('lead-category'),U.m('firm'),U.m('lost-reasons')]))return U.loading;
  applyTargets();
  var st=U.st();if(!st.period)st.period='30';if(!st.view)st.view='overdue';
  var ALL=rowsFor(st),R=range(st.period),inP=function(r){return!R||(r.date>=R.from&&r.date<=R.to);},C=ALL.filter(inP),PREV=R?ALL.filter(function(r){return r.date>=R.pf&&r.date<=R.pt;}):[];
  var open=ALL.filter(function(r){return r.open;}),late=open.filter(isLate),t=today(),html='';
  var pname=(PERIODS.find(function(p){return p[0]===st.period;})||PERIODS[2])[1].toLowerCase();
  html+='<div class="ldx"><header class="ldx-top"><div><div class="ldx-eyebrow">Sales desk · Lead → Quotation</div><h1>Leads Dashboard</h1><div class="ldx-sub">'+E(new Date().toLocaleString('en-IN',{weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit'}))+' · each stage has a target in days, from the Lead SOP</div></div>'+seg('ldx-period',st.period,PERIODS,'Reporting period')+'</header>';
- html+='<div class="ldx-filters">'+U.bar(st,[{k:'firm',label:'Firm',first:'All firms',opts:U.mact('firm')},{k:'owner',label:'Lead Owner',first:'All owners',opts:U.mact('users')},{k:'who',label:'Assignee',first:'All assignees',opts:U.mact('users')},{k:'src',label:'Source',first:'All sources',opts:U.mact('lead-sources')},{k:'cat',label:'Category',first:'All categories',opts:U.mact('lead-category')},{k:'cust',label:'Customer',first:'All customers',opts:U.mact('customers')},{k:'ctype',label:'Client type',first:'All client types',opts:U.mact('customer-category')}],false)+'</div>';
- var TABS=window.UmangLeadTabs;
- if(TABS){html+=TABS.strip(st.tab||'overview');if(st.tab&&st.tab!=='overview'&&TABS[st.tab]){var ctx={st:st,ALL:ALL,C:C,PREV:PREV,R:R,open:open,late:late,pname:pname};return html+TABS[st.tab](ctx)+'</div>';}}
+ html+='<div class="ldx-filters">'+U.bar(st,[{k:'firm',label:'Firm',first:'All firms',opts:U.mact('firm')},{k:'owner',label:'Lead Owner',first:'All owners',opts:U.mact('users')},{k:'who',label:'Assignee',first:'All assignees',opts:U.mact('users')},{k:'src',label:'Source',first:'All sources',opts:U.mact('lead-sources')},{k:'cat',label:'Category',first:'All categories',opts:U.mact('lead-category')},{k:'cust',label:'Customer',first:'All customers',opts:U.mact('customers')}],false)+'</div>';
  // tiles
  if(on('kpis')){var noq=C.filter(function(r){return r.stage==='unassigned'||r.stage==='noquote';}),inprog=C.filter(function(r){return r.stage==='prepare'||r.stage==='check'||r.stage==='send';}),client=C.filter(function(r){return r.stage==='client';}),won=C.filter(function(r){return r.won;}),lost=C.filter(function(r){return r.stage==='lost'||r.stage==='rejected';});
   var d=PREV.length?Math.round((C.length-PREV.length)/PREV.length*100):null,delta=!R?'<span>'+short(sum(C))+' estimated</span>':d===null?'<span>'+short(sum(C))+' · no earlier data</span>':(d>=0?'<span class="up">'+ICON.up+Math.abs(d)+'%</span>':'<span class="down">'+ICON.down+Math.abs(d)+'%</span>')+'<span>vs previous · '+short(sum(C))+'</span>';
@@ -174,7 +171,6 @@ U.page('leads.dashboard',function(){
   html+=panel('lost','Lost analysis',plural(L.length,'lead')+' lost in the period · '+short(sum(L))+'. Rejected quotations can still be revised and sent again.','<div class="ldx-lost">'+(L.length?'<div><h3 class="ldx-h3">Reasons</h3>'+bars(RA.map(function(x){return{k:x.k,n:x.n,late:true,tip:plural(x.n,'lead')+' · '+money(x.v),x:short(x.v)};}),RA[0].n)+'</div>':'')+'<div class="ldx-tw"><h3 class="ldx-h3">Latest lost leads</h3><table class="ldx-t"><thead><tr><th>Lead</th><th>Outcome</th><th class="num">Value</th><th>Reason</th><th>Date</th></tr></thead><tbody>'+(L.length?'':'<tr><td colspan="5"><div class="ldx-empty"><span class="ldx-pill ok">'+ICON.check+'None</span><span>No lost leads for these filters.</span></div></td></tr>')+L.slice(0,12).map(function(r){return'<tr><td><div class="cname">'+E(U.nm('customers',r.l.customer_id)||'—')+'</div><div class="lead-id">'+E(r.l.lead_no||'')+' · '+E(U.user(r.l.assigned_to)||'Unassigned')+'</div></td><td><span class="ldx-pill '+(r.stage==='lost'?'neutral':'warn')+'">'+(r.stage==='lost'?'Lead canceled':'Quotation rejected')+'</span></td><td class="num">'+money(r.value)+'</td><td><b>'+E(lostReason(r))+'</b>'+(lostNote(r)&&lostNote(r)!==lostReason(r)?'<div class="muted sm">'+E(lostNote(r))+'</div>':'')+'</td><td>'+U.dmy(String(r.since||'').slice(0,10))+'</td></tr>';}).join('')+'</tbody></table>'+(L.length>12?'<p class="muted sm">Latest 12 of '+L.length+'. See all in <a href="#leads.canceled">Canceled Leads</a>.</p>':'')+'</div></div>');}
  
  return html+'</div>';});
-window.UmangLDX={E:E,n:n,money:money,short:short,pct:pct,plural:plural,panel:panel,bars:bars,seg:seg,tile:tile,SBY:SBY,STAGES:STAGES,OPEN_STAGES:OPEN_STAGES,stageEvents:stageEvents,isLate:isLate,lateBy:lateBy,sum:sum,days:days,today:today,addDays:addDays,iso:iso,fmtH:fmtH,fmtD:fmtD,tgt:tgt,hoursBetween:hoursBetween,receivedAt:receivedAt,ICON:ICON,applyTargets:applyTargets};
 U.act('ldx-period',function(v){U.st().period=v;U.paint();});
 U.act('ldx-view',function(v){var s=U.st();s.view=v;s.showAll=false;U.paint();});
 U.act('ldx-vol',function(v){U.st().vol=v;U.paint();});
