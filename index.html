@@ -5027,6 +5027,22 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         return a.stage + " updated for job " + j.no + ".";
       } });
   });
+  // Pending Printing / Laser / Fabrication / Cutting, AppSheet rule per job item:
+  // AND(ISNOTBLANK([<Stage> Assign Date]), [<Stage> Quantity] < [Quantity], ISBLANK([Cancel (Yes)])).
+  U.jobStagePending = function (a) {
+    if (!a || a.no_assign_date) return false;
+    var j = U.get("jobs", a.job_id); if (!j || j.status === "Canceled") return false;
+    var it = (j.items || []).find(function (x) { return x.lid === a.lid; }); if (!it || it.cancel) return false;
+    var done = stageDone()[a.job_id + "|" + a.lid + "|" + a.stage] || 0;
+    return done < (Number(it.qty) || 0) - 1e-9 && !a.closed;
+  };
+  // Completed quantity per job item and stage, worked out once per change of the assignments.
+  var SD = { rows: null, map: null };
+  function stageDone() {
+    var rows = U.rows("job_assign"); if (SD.rows === rows && SD.map) return SD.map;
+    var m = {}; rows.forEach(function (b) { var k = b.job_id + "|" + b.lid + "|" + b.stage; m[k] = (m[k] || 0) + (Number(b.completed) || 0); });
+    SD.rows = rows; SD.map = m; return m;
+  }
   function stagePages(stage) {
     var s = stage.toLowerCase();
     U.page("projects.assign-" + s, function () {
@@ -5050,7 +5066,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       if (actions) c.push(['<span class="sr-only">Actions</span>', actions, "act"]);
       return U.bar(st, [], true) + U.table(c, rows, null, "Nothing here yet.") + U.count(rows.length, "assignment");
     }
-    U.page("projects.pending-" + s, function () { return alist(function (a) { return !a.closed; }, function (r) { return '<span class="row-acts st-acts">' + U.btn("st-update", r.a.id, "Update", true) + '<button type="button" class="mv-btn ghost sm st-chg" data-a="st-change" data-id="' + esc(r.a.id) + '" title="Change Assignee" aria-label="Change assignee"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 7-7h2a7 7 0 0 1 7 7v1"/></svg></button></span>'; }); });
+    U.page("projects.pending-" + s, function () { return alist(U.jobStagePending, function (r) { return '<span class="row-acts st-acts">' + U.btn("st-update", r.a.id, "Update", true) + '<button type="button" class="mv-btn ghost sm st-chg" data-a="st-change" data-id="' + esc(r.a.id) + '" title="Change Assignee" aria-label="Change assignee"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 7-7h2a7 7 0 0 1 7 7v1"/></svg></button></span>'; }); });
     U.page("projects." + s + "-master", function () { return alist(function () { return true; }); });
   }
   STAGES.forEach(stagePages);
@@ -5645,7 +5661,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   ["Printing", "Laser", "Fabrication", "Cutting"].forEach(function (s) {
     var k = s.toLowerCase();
     C.projects["assign-" + k] = function () { return U.PJ ? U.PJ.jobItemsFlat(function (r) { return r.j.status !== "Completed" && r.it.steps.indexOf(s) !== -1 && U.PJ.avail(r.j, r.it, s) > 0; }).length : 0; };
-    C.projects["pending-" + k] = function () { return cnt("job_assign", function (a) { return a.stage === s && !a.closed; }); };
+    C.projects["pending-" + k] = function () { return cnt("job_assign", function (a) { return a.stage === s && (U.jobStagePending ? U.jobStagePending(a) : !a.closed); }); };
     C.projects[k + "-master"] = function () { return cnt("job_assign", function (a) { return a.stage === s; }); };
   });
   var timer = null;

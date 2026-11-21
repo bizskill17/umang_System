@@ -61,6 +61,7 @@ for j in sheet('jobs.json'):
                 'vendor_id': ('@ref:vendors:' + vend) if vend and not mach else '', 'assignee': '', 'target': '', 'remarks': it.get(wk, '') and ('Wastage: ' + it[wk]) or '', 'completed': done, 'closed': left <= 0 and done > 0,
                 'log': [{'date': us_day(it[uk]) or adate or d, 'at': us_iso(it[pre + ' Assign Timestamp']) if (pre + ' Assign Timestamp') in it else '', 'qty': done, 'by': UN(it[bk]), 'remarks': 'From AppSheet'}] if done else [],
                 'createdAt': us_iso(it.get(pre + ' Assign Timestamp', '')) or (d + 'T05:00:00Z')}); rep['job assignments'] += 1
+            if not adate: J['job_assign'][-1]['no_assign_date'] = True  # AppSheet's pending lists need an assign date
         if it['Quality Check Status (Ok/Hold)'] in ('OK', 'Hold'):
             ok = it['Quality Check Status (Ok/Hold)'] == 'OK'
             J['qc'].append({'id': L.nid('qc', lid), 'job_id': JI, 'lid': lid, 'date': us_day(it['Quality Check Date']) or d, 'by': '', 'passed': qty if ok else 0, 'hold': 0 if ok else qty, 'checked': qty, 'result': 'OK' if ok else 'Hold', 'remarks': it['Quality Check Remarks'], 'createdAt': us_iso(it['Quality Check Timestamp']) or (d + 'T06:00:00Z')}); rep['QC records'] += 1
