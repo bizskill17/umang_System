@@ -49,6 +49,7 @@ for r in master:
         u = {'id': L.nid('design_updates', w['Id']), 'design_id': D, 'kind': 'work', 'completed': c, 'cancel': x,
              'by': L.U(w['Assigned To ID']), 'remarks': ' | '.join(v for v in [w['Design Remarks'], ('Client feedback: ' + w['Client Feedback']) if w['Client Feedback'] else ''] if v),
              'createdAt': (L.day(w['Update Date']) or d) + 'T06:30:00Z'}
+        if a: u['row_approved'] = a  # approvals entered on this same Design Worked row (Pending Client Approval works per row, as in AppSheet)
         if c or x or not a: rows['design_updates'].append(u); rep['design updates (work)'] += 1
         if a:
             rows['design_updates'].append({'id': L.nid('design_updates', w['Id'] + '|approval'), 'design_id': D, 'kind': 'approval', 'approved': a,
