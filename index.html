@@ -1217,7 +1217,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["dashboard", "Invoice Dashboard", "Billing, receivables, ageing and collections at a glance."],
       ["label:Invoice"],
       ["pending-billing", "Pending Billing", "Projects fully delivered that don't have a Full invoice yet."],
-      ["pending-e-way-bill", "Pending E-Way Bill", "Invoices above \u20b950,000 waiting for the e-way bill number and date."],
+      ["pending-e-way-bill", "Pending E-Way Bill", "Invoices above \u20b950,000 before GST waiting for the e-way bill number and date."],
       ["not-sent", "Invoice Made But Not Sent", "Invoices made but not yet sent, with no sent date or proof photo."],
       ["invoice-master", "Invoice Master", "Every invoice with its amount, e-way bill and payment status."],
       ["label:Payment"],
@@ -5266,7 +5266,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   var BY = { k: "by", label: "Update By", type: "select", req: 1, opts: USERS, first: "Choose a person" };
   var money = function (x) { return U.money(x); };
   function bal(i) { return U.round2(n(i.after) - n(i.paid)); }
-  function needsEway(i) { return n(i.after) > EWAY_LIMIT; }
+  function needsEway(i) { return n(i.before) > EWAY_LIMIT; }  // as AppSheet: amount before GST above ₹50,000
   function hasFull(pid) { return U.by("invoices", "project_id", pid).some(function (i) { return i.project_id === pid && i.bill_type === "Full" && i.status !== "Canceled"; }); }
   U.INV = { billable: function () { return billable(); }, bal: function (i) { return bal(i); }, needsEway: function (i) { return needsEway(i); } };
   function billable() { return U.rows("projects").filter(function (p) { if (p.status === "Canceled" || hasFull(p.id)) return false; var s = U.projState(p); return s.jobs > 0 && s.pending_delivery <= 0; }); }
@@ -5307,11 +5307,11 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       },
       save: async function (v) {
         var b = U.pick(v, iFields(v)); delete b.cust; delete b.after;
-        b.before = U.round2(v.before); b.gst = U.round2(v.gst); b.after = U.round2(b.before + b.gst); b.customer_id = proj(v.project_id).customer_id; b.eway_applicable = b.after > EWAY_LIMIT;
+        b.before = U.round2(v.before); b.gst = U.round2(v.gst); b.after = U.round2(b.before + b.gst); b.customer_id = proj(v.project_id).customer_id; b.eway_applicable = b.before > EWAY_LIMIT;
         if (v._id) { await U.upd("invoices", v._id, b); return { go: "invoices.invoice-master", msg: "Invoice " + b.no + " saved." }; }
         Object.assign(b, { paid: 0, payment: "Not Yet Paid", status: "Active" });
         await U.add("invoices", b);
-        return { go: b.eway_applicable ? "invoices.pending-e-way-bill" : "invoices.not-sent", msg: "Invoice " + b.no + " added." + (b.eway_applicable ? " It’s above ₹50,000, so add the e-way bill next." : " Mark it as sent once it goes to the customer.") };
+        return { go: b.eway_applicable ? "invoices.pending-e-way-bill" : "invoices.not-sent", msg: "Invoice " + b.no + " added." + (b.eway_applicable ? " It’s above ₹50,000 before GST, so add the e-way bill next." : " Mark it as sent once it goes to the customer.") };
       }
     });
   });
@@ -5386,7 +5386,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       ["Billing Name", function (p) { return esc(p.billing_name); }], ["Part invoices", function (p) { var l = U.by("invoices", "project_id", p.id).filter(function (i) { return i.project_id === p.id && i.status !== "Canceled"; }); return l.length ? l.length + " · " + money(l.reduce(function (s, i) { return s + n(i.after); }, 0)) : ""; }],
       ["Status", function (p) { return esc(p.status); }], ['<span class="sr-only">Actions</span>', function (p) { return U.btn("i-bill", p.id, "Add Invoice", true); }, "act"]], rows, null, "No fully delivered projects waiting for a Full invoice.") + U.count(rows.length, "project");
   });
-  U.page("invoices.pending-e-way-bill", function () { return ilist(function (i) { return needsEway(i) && !i.eway_no; }, ["no", "date", "proj", "cust", "amt", "pdf"], function (i) { return U.btn("i-eway", i.id, "Add e-way bill", true); }); });
+  U.page("invoices.pending-e-way-bill", function () { return ilist(function (i) { return i.status !== "Canceled" && needsEway(i) && !i.eway_no; }, ["no", "date", "proj", "cust", "amt", "pdf"], function (i) { return U.btn("i-eway", i.id, "Add e-way bill", true); }); });
   U.page("invoices.not-sent", function () { return ilist(function (i) { return !i.sent; }, ["no", "date", "proj", "cust", "type", "amt", "eway", "pdf"], function (i) { return '<span class="row-acts">' + U.btn("i-sent", i.id, "Mark sent", true) + (i.payment_updated ? "" : U.btn("i-edit", i.id, "Edit")) + "</span>"; }); });
   U.page("invoices.invoice-master", function () { return ilist(function () { return true; }, ["no", "date", "proj", "cust", "type", "amt", "paid", "bal", "eway", "sent", "pay", "pdf"], function (i) { return '<span class="row-acts">' + (i.payment !== "Fully Paid" ? U.btn("i-pay", i.id, "Payment", true) : "") + (i.payment_updated ? "" : U.btn("i-edit", i.id, "Edit")) + "</span>"; }); });
   U.page("invoices.not-yet-paid", function () { return ilist(function (i) { return i.payment === "Not Yet Paid"; }, ["no", "date", "proj", "cust", "amt", "sent", "next", "pdf"], function (i) { return U.btn("i-pay", i.id, "Update payment", true); }); });
