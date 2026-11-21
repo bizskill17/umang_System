@@ -273,3 +273,4 @@
 @media(max-width:1100px){.ldx-g2.ldm-wide1{grid-template-columns:minmax(0,1fr)}}
 .ldm-search{border:1px solid var(--line,#d9d6cc);border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;background:var(--card,#fff);color:var(--ink)}
 .ldx-t.wrap td:nth-child(4){white-space:nowrap}
+.ldx-tiles2{margin-top:10px}
