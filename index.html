@@ -3652,12 +3652,14 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   U.page("recce.completed", function () { return recceList(function (r) { return r.status === "Completed"; }, ["no", "date", "who", "units", "comp", "den", "can", "lead", "proj", "cust", "ppt"], function (r) { return U.btn("recce-history", r.id, "History"); }); });
   U.page("recce.master", function () { return recceList(function () { return true; }, ["no", "date", "who", "units", "comp", "den", "can", "pend", "lead", "proj", "cust", "target", "status", "ppt"], function (r) { return U.btn("recce-history", r.id, "History"); }); });
   U.page("recce.worked", function () {
-    if (!U.base(["recce", "recce_updates"])) return U.loading;
+    if (!U.base(["recce", "recce_updates", "leads", "projects"])) return U.loading;
     var st = U.st();
     var list = U.rows("recce_updates").map(function (u) { return Object.assign({}, u, { r: U.get("recce", u.recce_id) || {} }); })
-      .filter(function (u) { return U.match(st, [u.r.no, U.nm("customers", u.r.customer_id), U.user(u.by), u.remarks].join(" "), (u.createdAt || "").slice(0, 10)); })
+      .filter(function (u) { return U.match(st, [u.r.no, U.leadNo(u.r.lead_id), U.projNo(u.r.project_id), U.nm("customers", u.r.customer_id), U.user(u.by), u.remarks].join(" "), (u.createdAt || "").slice(0, 10)); })
       .sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
     return U.bar(st, [], true) + U.table([
+      ["Lead No.", function (u) { return '<span class="nowrap">' + esc(U.leadNo(u.r.lead_id)) + "</span>"; }],
+      ["Project No.", function (u) { return '<span class="nowrap">' + esc(U.projNo(u.r.project_id)) + "</span>"; }],
       ["Date", function (u) { return '<span class="nowrap">' + U.dmy(u.createdAt.slice(0, 10)) + "</span>"; }],
       ["Customer", function (u) { return esc(U.nm("customers", u.r.customer_id)); }, "strong"],
       ["Completed", function (u) { return u.completed; }, "numcell"], ["Denied", function (u) { return u.denied; }, "numcell"], ["Cancel", function (u) { return u.cancel; }, "numcell"], ["Pending after", function (u) { return u.pending_after; }, "numcell"],
