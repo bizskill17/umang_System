@@ -77,7 +77,9 @@ const MIG_DATA_PATH = '/^(leads|quotations|quote_followups|projects|recce|recce_
 const MIG_DATA_CLEAR = ['leads','leads/%/followups','quotations','quote_followups','projects','recce','recce_updates','designs','design_updates','jobs','job_assign','qc','dispatches','wastage','invoices','payments','complaints','complaint_updates'];
 function migDataBackup(array $pkg, string $file): void {
     $out = [];
-    foreach (array_unique(array_merge((array)($pkg['clear'] ?? []), array_keys((array)$pkg['rows']))) as $p) {
+    $pr = [];
+    foreach ((array)($pkg['prune'] ?? []) as $pp => $cfg) { $pr[] = (string)$pp; foreach (array_keys((array)($cfg['children'] ?? [])) as $cp) $pr[] = (string)$cp; }
+    foreach (array_unique(array_merge((array)($pkg['clear'] ?? []), array_keys((array)$pkg['rows']), $pr)) as $p) {
         $op = strpos($p, '%') !== false ? 'LIKE' : '=';
         foreach (query("SELECT collection_path,id,body FROM umang_documents WHERE collection_path $op ?", [$p])->fetchAll(PDO::FETCH_ASSOC) as $r) $out[$r['collection_path']][] = ['id' => $r['id'], 'data' => json_decode($r['body'], true)];
     }
@@ -140,6 +142,30 @@ function migData(array $pkg): array {
             if (preg_match('#^masters/([a-z-]+)/rows$#', (string)$p, $mm)) unset($idx[$mm[1]]);
             $k = preg_match('#^leads/.+/followups$#', $p) ? 'lead followups' : $p;
             $result['added'][$k] = ($result['added'][$k] ?? 0) + $n;
+        }
+        // Prune: remove records of a collection that are not in the sheets (records added directly in the app),
+        // with their child records. Stops, changing nothing, if more than "max" would go.
+        foreach ((array)($pkg['prune'] ?? []) as $pp => $cfg) {
+            $pp = (string)$pp; if (!in_array($pp, MIG_DATA_CLEAR, true) || strpos($pp, '%') !== false) throw new RuntimeException('Records for "' . $pp . '" can’t be pruned.');
+            $keep = array_flip(array_map('strval', (array)($cfg['keep'] ?? []))); $max = (int)($cfg['max'] ?? 0);
+            if (count($keep) < 1) throw new RuntimeException('Nothing to keep was given, so nothing was removed.');
+            $gone = [];
+            foreach (query('SELECT id FROM umang_documents WHERE collection_path=?', [$pp])->fetchAll(PDO::FETCH_COLUMN) as $id) if (!isset($keep[(string)$id])) $gone[] = (string)$id;
+            if (count($gone) > $max) throw new RuntimeException(count($gone) . ' ' . $pp . ' records are not in the sheets, more than the ' . $max . ' allowed, so nothing was removed.');
+            $info = [];
+            foreach ($gone as $id) {
+                $doc = document($pp, $id) ?: [];
+                $info[] = ['id' => $id, 'no' => (string)($doc['no'] ?? ''), 'date' => (string)($doc['date'] ?? ''), 'units' => $doc['units'] ?? null];
+                query('DELETE FROM umang_documents WHERE collection_path=? AND id=?', [$pp, $id]);
+                foreach ((array)($cfg['children'] ?? []) as $cp => $field) {
+                    if (!in_array((string)$cp, MIG_DATA_CLEAR, true)) continue;
+                    foreach (query('SELECT id,body FROM umang_documents WHERE collection_path=?', [(string)$cp])->fetchAll(PDO::FETCH_ASSOC) as $c) {
+                        $cb = json_decode($c['body'], true) ?: [];
+                        if ((string)($cb[(string)$field] ?? '') === $id) { query('DELETE FROM umang_documents WHERE collection_path=? AND id=?', [(string)$cp, $c['id']]); $result['removed'][(string)$cp] = ($result['removed'][(string)$cp] ?? 0) + 1; }
+                    }
+                }
+            }
+            $result['removed'][$pp] = ($result['removed'][$pp] ?? 0) + count($gone); $result['removed_list'][$pp] = $info;
         }
         arsort($miss); $result['unresolved'] = array_slice($miss, 0, 40, true);
         txCommit();
