@@ -5418,20 +5418,20 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         var ym = v.date.slice(2, 4) + v.date.slice(5, 7), s = await U.seq("cmp-" + ym, U.maxSeq("complaints", "seq", function (r) { return r.ym === ym; }));
         Object.assign(b, { ym: ym, seq: s, no: "CMP-" + ym + "-" + String(s).padStart(5, "0"), status: "New" });
         await U.add("complaints", b);
-        return { go: "complaints.assign", msg: "Complaint " + b.no + " logged. Assign it to someone next." };
+        return { go: "complaints.assign", msg: "Complaint logged. Assign it to someone next." };
       } });
   });
   U.act("c-assign", function (id) {
     var c = U.get("complaints", id); if (!c) return;
-    U.modal({ mod: "complaints", title: (c.assigned_to ? "Reassign " : "Assign ") + c.no, sub: esc(cust(c)) + " · " + esc(c.priority) + " priority", v: { assigned_to: c.assigned_to || "", target: c.target || "" },
+    U.modal({ mod: "complaints", title: c.assigned_to ? "Reassign Complaint" : "Assign Complaint", sub: esc(cust(c)) + " · " + esc(c.priority) + " priority", v: { assigned_to: c.assigned_to || "", target: c.target || "" },
       intro: function () { return '<p class="mf-hint">' + esc(c.details) + "</p>"; },
       fields: [{ k: "assigned_to", label: "Assign To", type: "select", req: 1, opts: USERS, first: "Choose a person" }, { k: "target", label: "Target Date", type: "date", req: 1 }],
       validate: function (v) { return v.target < c.date ? "The target date can’t be before the complaint date." : null; },
-      save: async function (v) { await U.upd("complaints", id, { assigned_to: v.assigned_to, target: v.target, status: "Assigned", assigned_at: U.today() }); return "Complaint " + c.no + " assigned to " + U.user(v.assigned_to) + "."; } });
+      save: async function (v) { await U.upd("complaints", id, { assigned_to: v.assigned_to, target: v.target, status: "Assigned", assigned_at: U.today() }); return "Complaint assigned to " + U.user(v.assigned_to) + "."; } });
   });
   U.act("c-resolve", function (id) {
     var c = U.get("complaints", id); if (!c) return;
-    U.modal({ mod: "complaints", title: "Update " + c.no, sub: esc(cust(c)) + " \u00b7 Assigned to " + esc(U.user(c.assigned_to)), v: { date: U.today(), status: "In Progress", by: c.assigned_to || "" },
+    U.modal({ mod: "complaints", title: "Update Complaint", sub: esc(cust(c)) + " \u00b7 Assigned to " + esc(U.user(c.assigned_to)), v: { date: U.today(), status: "In Progress", by: c.assigned_to || "" },
       intro: function () { return '<p class="mf-hint">' + esc(c.details) + "</p>"; },
       fields: function (v) { return [
         { k: "status", label: "Status", type: "select", req: 1, live: 1, opts: function () { return [{ id: "In Progress", name: "In Progress" }, { id: "Resolved", name: "Resolved" }]; }, first: "Choose a status" },
@@ -5446,19 +5446,19 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
         var up = { last_update: { at: now, by: v.by, remarks: v.remarks, status: v.status }, update_count: (c.update_count || 0) + 1 };
         if (v.status === "Resolved") Object.assign(up, { status: "Resolved", resolution_date: v.date, resolution_remarks: v.remarks, resolution_docs: photos });
         await U.upd("complaints", id, up);
-        return v.status === "Resolved" ? "Complaint " + c.no + " resolved." : "Update saved for " + c.no + ".";
+        return v.status === "Resolved" ? "Complaint resolved." : "Update saved.";
       } });
   });
   function cF(l, v) { v = v == null ? "" : String(v).trim(); return v ? '<div class="ld-field"><span>' + esc(l) + "</span><b>" + esc(v).replace(/\n/g, "<br>") + "</b></div>" : ""; }
   U.act("c-view", function (id) {
     var c = U.get("complaints", id); if (!c) return;
-    U.modal({ mod: "complaints", wide: 1, title: "Complaint Details", sub: esc(c.no) + " \u00b7 " + esc(cust(c)), fields: [], submit: "Close", save: function () { return Promise.resolve(""); },
+    U.modal({ mod: "complaints", wide: 1, title: "Complaint Details", sub: esc(cust(c)), fields: [], submit: "Close", save: function () { return Promise.resolve(""); },
       intro: function () {
         c = U.get("complaints", id) || c; var p = proj(c.project_id);
         var acts = U.ro() ? "" : c.status === "New" ? U.btn("c-assign", c.id, "Assign", true) : c.status === "Assigned" ? U.btn("c-resolve", c.id, "Update", true) + U.btn("c-assign", c.id, "Reassign") : "";
         var modalEl = document.getElementById("u-modal"); if (modalEl) modalEl.dataset.projectId = id;
         var h = '<div class="pd-acts">' + U.pill(c.status === "Assigned" ? "In Progress" : c.status, c.status === "Resolved" ? "on" : "warn") + U.pill(c.priority + " priority", c.priority === "High" ? "warn hi" : c.priority === "Low" ? "off" : "warn") + acts + "</div>";
-        h += '<section class="ld-card"><div class="ld-card-title"><span>Complaint</span></div><div class="ld-grid">' + cF("Complaint No.", c.no) + cF("Complaint Date", U.dmy(c.date)) + cF("Project No.", p.no) + cF("Customer", cust(c)) +
+        h += '<section class="ld-card"><div class="ld-card-title"><span>Complaint</span></div><div class="ld-grid">' + cF("Complaint Date", U.dmy(c.date)) + cF("Project No.", p.no) + cF("Customer", cust(c)) +
           cF("Priority", c.priority) + cF("Assigned To", U.user(c.assigned_to)) + cF("Assigned Date", U.dmy(c.assigned_at)) + cF("Target Date", U.dmy(c.target)) +
           cF("Status", c.status === "Assigned" ? "In Progress" : c.status) + cF("Resolution Date", U.dmy(c.resolution_date)) + '</div><div class="ld-grid">' + cF("Complaint Details", c.details) + (c.resolution_remarks ? cF("Resolution Remarks", c.resolution_remarks) : "") + "</div>" +
           (U.fileLinks(c.docs || c.doc) ? '<div class="ld-field"><span>Photos or Documents</span><b class="c-files">' + U.fileLinks(c.docs || c.doc, "Document") + "</b></div>" : "") + "</section>";
@@ -5477,7 +5477,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     var m = document.getElementById("u-modal"); if (!m || !m.contains(e.target)) return; var x = e.target.closest('[data-a="c-assign"], [data-a="c-resolve"]'); if (x) { U.closeModal(); P.acts[x.getAttribute("data-a")](x.getAttribute("data-id"), x); }
   });
   var CC = {
-    no: ["Complaint No.", function (c) { return '<button type="button" class="link-no" data-a="c-view" data-id="' + esc(c.id) + '">' + esc(c.no) + "</button>"; }], date: ["Date", function (c) { return '<span class="nowrap">' + U.dmy(c.date) + "</span>"; }],
+    no: ["Complaint No.", function (c) { return '<button type="button" class="link-no" data-a="c-view" data-id="' + esc(c.id) + '">' + esc(c.no) + "</button>"; }], date: ["Date", function (c) { return '<button type="button" class="link-no nowrap" data-a="c-view" data-id="' + esc(c.id) + '" title="Open complaint details">' + U.dmy(c.date) + "</button>"; }],
     proj: ["Project", function (c) { return esc(proj(c.project_id).no); }], cust: ["Customer", function (c) { return esc(cust(c)); }, "strong"],
     pri: ["Priority", function (c) { return U.pill(c.priority, c.priority === "High" ? "warn hi" : c.priority === "Low" ? "off" : "warn"); }], det: ["Details", function (c) { return esc(c.details); }],
     doc: ["File", function (c) { return U.fileLinks(c.docs || c.doc, "Document"); }],
@@ -5492,7 +5492,8 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     if (!U.base(["complaints", "complaint_updates"])) return U.loading;
     var st = U.st(), rows = U.rows("complaints").filter(filter).filter(function (c) { if (st.pri && c.priority !== st.pri) return false; if (st.who && c.assigned_to !== st.who) return false; if (st.cproj && c.project_id !== st.cproj) return false; if (st.ccust && c.customer_id !== st.ccust) return false; return U.match(st, [c.no, proj(c.project_id).no, cust(c), c.details].join(" "), c.date); })
       .sort(function (a, b) { var r = { High: 0, Medium: 1, Low: 2 }; return String(b.date).localeCompare(String(a.date)) || (r[a.priority] - r[b.priority]); });
-    var c = cols.map(function (k) { return CC[k]; }); if (actions) c.push(['<span class="sr-only">Actions</span>', actions, "act"]);
+    // Complaint No. is not shown; the date opens the complaint's details.
+    var c = cols.filter(function (k) { return k !== "no"; }).map(function (k) { return CC[k]; }); if (actions) c.push(['<span class="sr-only">Actions</span>', actions, "act"]);
     return U.bar(st, [{ k: "pri", label: "Priority", first: "All priorities", opts: PRI() }, { k: "who", label: "Assigned to", first: "All people", opts: U.mact("users") }, { k: "cproj", label: "Project", first: "All projects", opts: cOpts("project_id", function (id) { return proj(id).no; }) }, { k: "ccust", label: "Customer", first: "All customers", opts: cOpts("customer_id", function (id) { return U.nm("customers", id); }) }], true) + U.table(c, rows, function () { return "click-row c-row"; }, U.rows("complaints").length ? "No complaints match." : "No complaints yet.") + U.count(rows.length, "complaint");
   }
   U.page("complaints.assign", function () { return clist(function (c) { return c.status === "New"; }, ["no", "date", "proj", "cust", "pri", "det", "doc"], function (c) { return U.btn("c-assign", c.id, "Assign", true); }); });
