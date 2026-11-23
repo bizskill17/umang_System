@@ -3500,6 +3500,13 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   // Recce In Progress, same rule as AppSheet: AND([Units Assigned] > [Units Denied] + [Units Completed] + [Cancel], ISBLANK([Cancel Lead])).
   // "Cancel Lead" is the lead (or project) the recce belongs to being canceled.
   // A recce or design whose lead or project is canceled is not open work.
+  // Quotations › Pending Client Approval, AppSheet rule:
+  // AND(ISNOTBLANK([Quotation Sent On]), ISBLANK([Client Approval Date]), ISBLANK([Cancel Date])).
+  U.quotePendingApproval = function (q) {
+    if (!q || !q.sent || q.approved_at || q.rejected_at || q.status === "Canceled" || q.status === "Approved" || q.status === "Rejected") return false;
+    var l = q.lead_id ? U.get("leads", q.lead_id) : null;
+    return !(l && (l.canceled_at || l.status === "Canceled"));
+  };
   U.parentCanceled = function (r) {
     var l = r.lead_id ? U.get("leads", r.lead_id) : null, p = r.project_id ? U.get("projects", r.project_id) : null;
     return !!((l && (l.status === "Canceled" || l.canceled_at)) || (p && p.status === "Canceled"));
@@ -4388,7 +4395,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     checking: function () { return list(function (q) { return q.status === "Pending Checking"; }, ["no", "date", "lead", "proj", "cust", "firm", "made", "total"], acts(["view", ["q-check", "Checked", 1], ["q-edit", "Edit"], ["q-cancel", "Cancel"]])); },
     sending: function () { return list(function (q) { return q.status === "Pending Sending"; }, ["no", "date", "lead", "proj", "cust", "sales", "total"], acts(["view", ["q-send", "Mark Sent", 1], ["q-edit", "Edit"], ["q-cancel", "Cancel"]])); },
     "client-approval": function () {
-      return list(function (q) { return q.status === "Pending Approval" || q.status === "Rejected"; }, ["no", "date", "lead", "proj", "cust", "sales", "total", "sent", "status"], function (q) {
+      return list(U.quotePendingApproval, ["no", "date", "lead", "proj", "cust", "sales", "total", "sent", "status"], function (q) {
         return '<span class="row-acts"><button type="button" class="mv-btn ghost sm" data-a="q-view" data-id="' + esc(q.id) + '">View</button>' + (q.status === "Rejected" ? U.btn("q-edit", q.id, "Revise", true) + U.btn("q-cancel", q.id, "Cancel") : U.btn("q-outcome", q.id, "Follow Up", true)) + "</span>";
       });
     },
@@ -5620,7 +5627,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   function open(r) { return r.status !== "Completed" && r.status !== "Canceled"; }
   var WATCH = {
     leads: ["leads", "quotations", "projects"], recce: ["recce", "recce_updates", "leads", "projects"], design: ["designs", "design_updates", "leads", "projects"],
-    quotations: ["quotations", "quote_followups", "projects"], projects: ["projects", "quotations", "jobs", "job_assign", "qc", "dispatches", "wastage"],
+    quotations: ["quotations", "quote_followups", "projects", "leads"], projects: ["projects", "quotations", "jobs", "job_assign", "qc", "dispatches", "wastage"],
     invoices: ["invoices", "projects", "jobs", "dispatches", "qc", "job_assign"], complaints: ["complaints"], requisition: ["material_requisitions"], masters: []
   };
   function qn(st) { return cnt("quotations", function (q) { return q.status === st; }); }
@@ -5633,7 +5640,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
       "pending-estimate": function () { return cnt("leads", function (l) { return open(l) && !(n(l.estimate) > 0); }); },
       "pending-follow-ups": function () { return cnt("leads", function (l) { var f = l.last_fu; return open(l) && l.assigned_to && f && (f.status === "Pending Follow Up" || f.status === "Follow Up Again"); }); },
       "prepare-quotation": function () { return qn("Pending Prepare Quotation"); }, checking: function () { return qn("Pending Checking"); }, sending: function () { return qn("Pending Sending"); },
-      "client-approval": function () { return qn("Pending Approval") + qn("Rejected"); }, "quotation-follow-ups": function () { return qn("Pending Approval"); },
+      "client-approval": function () { return cnt("quotations", U.quotePendingApproval); }, "quotation-follow-ups": function () { return qn("Pending Approval"); },
       "pending-create-project": function () { return U.PJ ? U.PJ.approvedFree().length : 0; },
       master: function () { return cnt("leads"); }, completed: function () { return cnt("leads", function (l) { return l.status === "Completed"; }); }, canceled: function () { return cnt("leads", function (l) { return l.status === "Canceled"; }); }
     },
@@ -5648,7 +5655,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     quotations: {
       "pending-create": function () { return U.PJ ? U.PJ.approvedFree().length : 0; },
       prepare: function () { return qn("Pending Prepare Quotation"); }, checking: function () { return qn("Pending Checking"); }, sending: function () { return qn("Pending Sending"); },
-      "client-approval": function () { return qn("Pending Approval") + qn("Rejected"); }, "follow-ups": function () { return qn("Pending Approval"); },
+      "client-approval": function () { return cnt("quotations", U.quotePendingApproval); }, "follow-ups": function () { return qn("Pending Approval"); },
       "follow-up-master": function () { return cnt("quote_followups"); }, master: function () { return cnt("quotations", function (q) { return !!q.no; }); },
       "items-master": function () { var s = 0; U.rows("quotations").forEach(function (q) { if (q.no) s += (q.items || []).length; }); return s; }
     },
