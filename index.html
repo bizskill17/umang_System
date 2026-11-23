@@ -4743,7 +4743,7 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
     h += "</tr></thead><tbody>";
     rows.forEach(function (r) {
       var j = r.j, it = r.it, st = jiStatus(j, it);
-      h += "<tr><td><b class=\"nowrap\">" + esc(j.no) + "</b></td><td><b>" + esc(U.nm("items", it.item_id) || "Item") + "</b>" + (it.width ? '<br><span class="dim">' + esc(it.width + " \u00d7 " + it.height + " " + (it.uom || "")) + "</span>" : "") + "</td><td>" + (esc(it.description) || '<span class="dim">\u2014</span>') + '</td><td class="numcell">' + U.num(it.qty) + "</td>";
+      h += "<tr><td><b class=\"nowrap\">" + esc(j.no) + "</b></td><td><b>" + esc(itemName(it)) + "</b></td><td>" + (esc(it.description) || '<span class="dim">\u2014</span>') + '</td><td class="numcell">' + U.num(it.qty) + "</td>";
       STAGES.forEach(function (s, k) {
         if ((it.steps || []).indexOf(s) === -1) { h += '<td class="rji-c' + k + ' rji-na">\u2014</td><td class="rji-c' + k + ' rji-na">\u2014</td><td class="rji-c' + k + ' rji-na">\u2014</td>'; return; }
         var done = out(j.id, it.lid, s), req = n(it.qty), cls = done >= req - 1e-6 ? "on" : done > 0 ? "warn" : "off";
