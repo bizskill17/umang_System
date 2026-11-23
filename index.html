@@ -4480,7 +4480,15 @@ window.UmangBlobURL = function (id) { return window.UmangServer ? window.UmangSe
   var DSPI = new WeakMap();
   function dispatched(jid, lid) { return q3(dispIdx().get(jid + "|" + lid) || 0); }
   function deliverable(j, it) { return q3(passed(j.id, it.lid) - dispatched(j.id, it.lid)); }
-  function itemName(it) { return (U.nm("items", it.item_id) || "") + (it.description ? (U.nm("items", it.item_id) ? " · " : "") + it.description : ""); }
+  function jobType(it) { return (U.nm("items", it.item_id) || "") + (it.description ? (U.nm("items", it.item_id) ? " · " : "") + it.description : ""); }
+  // Job item name, AppSheet formula: Foot → 8'x4 - TYPE · Inch → 60"x30 - TYPE · cm → 10cmx20cm - TYPE · otherwise TYPE TYPE.
+  function itemName(it) {
+    var t = jobType(it), u = String(it.uom || "").trim(), f = function (v) { var x = String(v == null ? "" : v).trim().replace(/,/g, ""); return /^-?\d+(\.\d+)?$/.test(x) ? String(Number(x)) : String(v == null ? "" : v).trim(); };
+    if (u === "Foot") return f(it.width) + "'x" + f(it.height) + " - " + t;
+    if (u === "Inch") return f(it.width) + '"x' + f(it.height) + " - " + t;
+    if (u === "cm") return f(it.width) + "cmx" + f(it.height) + "cm - " + t;
+    return t + " " + t;
+  }
   function workDone(jid, lid) { var m = 0; STAGES.forEach(function (s) { m = Math.max(m, used(jid, lid, s)); }); return q3(Math.max(m, passed(jid, lid) + onHold(jid, lid), dispatched(jid, lid))); }
   function jobDone(j) { return (j.items || []).every(function (it) { return passed(j.id, it.lid) >= n(it.qty) - 1e-6; }); }
   async function syncJob(jid) {
