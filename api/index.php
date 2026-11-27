@@ -2,12 +2,14 @@
 /** Umang Hostinger API. Configuration and uploaded files live outside public_html. */
 declare(strict_types=1);
 // Maintenance switch: the deploy writes api/maintenance.txt ("on" while the repository has a MAINTENANCE file).
-if (is_file(__DIR__ . '/maintenance.txt') && trim((string)@file_get_contents(__DIR__ . '/maintenance.txt')) === 'on') {
+// The background sheet sync (migkey, automigrate) keeps working while the switch is on.
+if (is_file(__DIR__ . '/maintenance.txt') && trim((string)@file_get_contents(__DIR__ . '/maintenance.txt')) === 'on'
+    && !in_array((string)($_GET['action'] ?? ''), ['migkey', 'automigrate'], true)) {
     http_response_code(503);
     header('Retry-After: 86400');
     header('Cache-Control: no-store');
     header('Content-Type: application/json; charset=utf-8');
-    echo '{"error":"This Site is under Maintenance. Connector Plug In Subscription has expired.","code":"maintenance"}';
+    echo '{"error":{"code":"maintenance","msg":"This Site is under Maintenance. Connector Plug In Subscription has expired."}}';
     exit;
 }
 ini_set('display_errors', '0');

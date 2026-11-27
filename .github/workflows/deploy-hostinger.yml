@@ -165,6 +165,8 @@ jobs:
           result = json.loads(response.read())
           if response.status == 200:
               print('Private configuration is present and the database is reachable.')
+          elif response.status == 503 and result.get('error', {}).get('code') == 'maintenance':
+              print('Maintenance switch is on: the app shows the maintenance page.')
           elif response.status == 503 and result.get('error', {}).get('code') == 'not_configured':
               message = result['error'].get('msg', '')
               if 'permissions prevent creating' in message or 'Could not create' in message:
