@@ -128,6 +128,14 @@ jobs:
             sed -i -E "s#(${f//./\\.})\?v=[^\"]*\"#\1?v=$h\"#g" deploy/index.html
           done
           grep -c '?v=' deploy/index.html
+          # Maintenance switch: while the repository has a MAINTENANCE file, every visit shows maintenance.html
+          # and the API refuses every request. Delete MAINTENANCE and push to bring the app back.
+          if [ -f MAINTENANCE ]; then
+            cp maintenance.html deploy/index.html
+            echo on > deploy/api/maintenance.txt
+          else
+            echo off > deploy/api/maintenance.txt
+          fi
 
       - name: Upload to Hostinger by FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
